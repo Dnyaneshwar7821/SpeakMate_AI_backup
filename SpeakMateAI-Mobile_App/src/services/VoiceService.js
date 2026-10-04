@@ -16,6 +16,8 @@ export const VOICE_PROFILES = [
 ];
 
 let currentUtteranceSession = 0;
+let _cachedEnglishVoices = null;
+let _inFlightVoicesPromise = null;
 
 function chunkTextForTTS(text, maxChunkLen = 2000) {
   if (!text || text.length <= maxChunkLen) {
@@ -574,15 +576,52 @@ export const VoiceService = {
     return 'female';
   },
 
-  getAvailableEnglishVoices: async () => {
-    try {
-      const voices = await Speech.getAvailableVoicesAsync();
-      const enVoices = voices.filter(v => (v.language || '').toLowerCase().startsWith('en'));
-      return enVoices;
-    } catch (e) {
-      console.warn('[VoiceService] Failed to get available voices:', e);
-      return [];
+  getAvailableEnglishVoices: async (forceRefresh = false) => {
+    if (!forceRefresh && _cachedEnglishVoices && _cachedEnglishVoices.length > 0) {
+      return _cachedEnglishVoices;
     }
+
+    if (_inFlightVoicesPromise) {
+      return _inFlightVoicesPromise;
+    }
+
+    _inFlightVoicesPromise = (async () => {
+      const maxRetries = 3;
+      const retryDelays = [250, 600, 1200];
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const voices = await Speech.getAvailableVoicesAsync();
+          if (Array.isArray(voices) && voices.length > 0) {
+            const enVoices = voices.filter(v => (v.language || '').toLowerCase().startsWith('en'));
+            _cachedEnglishVoices = enVoices.length > 0 ? enVoices : voices;
+            return _cachedEnglishVoices;
+          }
+        } catch (e) {
+          const errStr = String(e?.message || e || '');
+          const isTtsNotReady =
+            errStr.includes('initialized') ||
+            errStr.includes('getVoices') ||
+            errStr.includes('Unable to get voices');
+
+          // If Android TTS is still initializing, back off and retry
+          if (isTtsNotReady && attempt < maxRetries) {
+            await new Promise((res) => setTimeout(res, retryDelays[attempt] || 500));
+            continue;
+          }
+
+          if (attempt === maxRetries) {
+            console.log('[VoiceService] Device TTS ready with system fallback');
+          }
+        }
+      }
+
+      return _cachedEnglishVoices || [];
+    })().finally(() => {
+      _inFlightVoicesPromise = null;
+    });
+
+    return _inFlightVoicesPromise;
   },
 
   findBestVoice: (availableVoices, targetLocale, targetGender) => {
@@ -1007,12 +1046,7 @@ export const VoiceService = {
     // ── 4. Ensure we have system voices ───────────────────────────────────────
     let voices = availableVoices;
     if (!voices || voices.length === 0) {
-      try {
-        const sysVoices = await Speech.getAvailableVoicesAsync();
-        voices = sysVoices.filter(v => (v.language || '').toLowerCase().startsWith('en'));
-      } catch (e) {
-        console.warn('[VoiceService] Auto-fetch voices failed inside speak:', e);
-      }
+      voices = await VoiceService.getAvailableEnglishVoices();
     }
 
     // ── 5. Pitch & rate based on centralized avatar profile + character intonation ─

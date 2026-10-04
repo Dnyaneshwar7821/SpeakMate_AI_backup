@@ -25,6 +25,7 @@ import {
   profileService,
 } from '../../services/appServices';
 import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
+import { VoiceService } from '../../services/VoiceService';
 import { PrimaryButton, ErrorMessage } from '../../components/auth';
 import { prepareAvatarAsync, AVATAR_CATEGORIES } from '../../utils/imageUtils';
 import { DashboardCache, CurriculumCache } from '../../utils/dashboardCache';
@@ -170,11 +171,10 @@ export default function OnboardingScreen({ navigation }) {
       try {
         const storedAccountType = await AsyncStorage.getItem('speakmate_account_type');
         if (storedAccountType) setAccountType(storedAccountType);
-        const voices = await Speech.getAvailableVoicesAsync();
-        const enVoices = voices.filter(v => v.language.startsWith('en'));
+        const enVoices = await VoiceService.getAvailableEnglishVoices();
         setAvailableVoices(enVoices);
       } catch (e) {
-        console.warn("Failed to get available voices in onboarding:", e);
+        // Fallback
       }
     }
     initOnboardingSpeech();
