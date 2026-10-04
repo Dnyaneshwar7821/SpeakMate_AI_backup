@@ -296,5 +296,4 @@ export const CurriculumCache = {
   },
 };
 
-export { DashboardCache, CurriculumCache, RhythmCache };
 export default DashboardCache;
