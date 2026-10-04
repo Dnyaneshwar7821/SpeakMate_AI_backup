@@ -288,30 +288,123 @@ export function Vocabulary() {
 
   const currentCard = filteredItems[cardIndex] || filteredItems[0];
 
+  const getPracticeCardFontSize = (word = "") => {
+    const len = String(word || "").trim().length;
+    if (len <= 8) return "text-3xl sm:text-4xl";
+    if (len <= 13) return "text-2xl sm:text-3xl";
+    if (len <= 18) return "text-xl sm:text-2xl";
+    return "text-lg sm:text-xl";
+  };
+
   const handleAddWord = async () => {
     const rawWord = wordInput.trim();
     if (!rawWord) return;
+
+    // 1. Strict Duplicate Check: Never award XP for already added words
+    const isDuplicate = items.some(
+      (w) => (w.word || "").toLowerCase().trim() === rawWord.toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.warning(`"${rawWord}" is already in your vocabulary list!`);
+      return;
+    }
+
+    // 2. Strict English Word Format & Lexical Validation
+    const englishWordPattern = /^[A-Za-z]+([ -][A-Za-z]+)*$/;
+    if (!englishWordPattern.test(rawWord) || rawWord.length < 2 || rawWord.length > 45) {
+      toast.error(`"${rawWord}" is not a valid English word. SpeakMate AI accepts valid English words only (letters only, no numbers or special symbols).`);
+      return;
+    }
+
+    // 3. Reject non-English words and greetings
+    const nonEnglishWords = new Set([
+      "bonjour", "hola", "gracias", "merci", "namaste", "ciao", "danke",
+      "amigo", "arigato", "adios", "sayonara", "hallo", "shalom", "salam",
+      "konnichiwa", "aloha", "chao", "oui", "si", "por favor", "s'il vous plait"
+    ]);
+    if (nonEnglishWords.has(rawWord.toLowerCase())) {
+      toast.error(`🌍 "${rawWord}" is a non-English word. SpeakMate AI is dedicated to English language fluency. Please enter a valid English vocabulary word.`);
+      return;
+    }
+
+    // 4. Prevent repeated character mashing (e.g. "aaaaaa", "zzzzzz")
+    if (/([a-zA-Z])\1{3,}/.test(rawWord)) {
+      toast.error(`"${rawWord}" appears to be random keyboard mashing. Please enter a meaningful English vocabulary word.`);
+      return;
+    }
+
+    // 5. Catch consonant-only meaningless strings (words of 3+ letters without any vowels)
+    if (rawWord.length >= 3 && !/[aeiouy]/i.test(rawWord)) {
+      toast.error(`"${rawWord}" does not appear to be a recognized English word. Please enter a meaningful English vocabulary word.`);
+      return;
+    }
+
     setAdding(true);
-    unmarkVocabWordDeleted(rawWord);
     try {
+      // 6. Call backend vocabulary service (validates via AI & DB)
       const res = await vocabularyService.add(rawWord);
+      if (!res || !res.word) {
+        throw new Error("Unable to verify word definition.");
+      }
+
+      unmarkVocabWordDeleted(rawWord);
       setWordInput("");
       setItems((prev) => [res, ...prev.filter((w) => (w.word || "").toLowerCase().trim() !== rawWord.toLowerCase())]);
+
+      // Award XP ONLY upon successful, confirmed valid English addition
       recordWordAdded(1, user);
       toast.success(`"${res.word}" added with AI definition! (+5 XP ✨)`);
     } catch (e) {
-      const fallback = {
-        id: "loc_" + Date.now(),
-        word: rawWord,
-        partOfSpeech: "word",
-        meaning: `Definition and conversational usage for ${rawWord}`,
-        exampleSentence: `Practice using "${rawWord}" in daily English.`,
-        favorite: false,
-      };
-      setItems((prev) => [fallback, ...prev.filter((w) => (w.word || "").toLowerCase().trim() !== rawWord.toLowerCase())]);
-      setWordInput("");
-      recordWordAdded(1, user);
-      toast.success(`"${fallback.word}" added! (+5 XP ✨)`);
+      const serverMsg = e.response?.data?.message || e.message || "";
+      const status = e.response?.status;
+
+      // If backend explicitly rejected with validation or tutor explanation:
+      if (status === 400 || (serverMsg && (
+        serverMsg.toLowerCase().includes("not a valid") ||
+        serverMsg.toLowerCase().includes("already in your") ||
+        serverMsg.toLowerCase().includes("keyboard mashing") ||
+        serverMsg.toLowerCase().includes("cannot be added") ||
+        serverMsg.toLowerCase().includes("not recognized") ||
+        serverMsg.toLowerCase().includes("foreign") ||
+        serverMsg.toLowerCase().includes("different language")
+      ))) {
+        toast.error(`🔍 ${serverMsg || `"${rawWord}" is not accepted as a valid English word.`}`);
+        return;
+      }
+
+      // If backend was unreachable or had server error, fallback to verifying with public English Dictionary API:
+      try {
+        const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(rawWord)}`);
+        if (dictRes.ok) {
+          const dictData = await dictRes.json();
+          if (Array.isArray(dictData) && dictData.length > 0) {
+            const entry = dictData[0];
+            const meaningObj = entry.meanings?.[0];
+            const defObj = meaningObj?.definitions?.[0];
+            const verifiedItem = {
+              id: "loc_" + Date.now(),
+              word: entry.word || rawWord,
+              partOfSpeech: meaningObj?.partOfSpeech || "word",
+              phonetic: entry.phonetic || entry.phonetics?.[0]?.text || "",
+              meaning: defObj?.definition || `Definition for ${rawWord}`,
+              exampleSentence: defObj?.example || `Practice using "${rawWord}" in daily English.`,
+              synonym: defObj?.synonyms?.[0] || meaningObj?.synonyms?.[0] || "None",
+              favorite: false,
+              mastered: false,
+            };
+            unmarkVocabWordDeleted(rawWord);
+            setWordInput("");
+            setItems((prev) => [verifiedItem, ...prev.filter((w) => (w.word || "").toLowerCase().trim() !== rawWord.toLowerCase())]);
+            recordWordAdded(1, user);
+            toast.success(`"${verifiedItem.word}" verified and added to your vocabulary! (+5 XP ✨)`);
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // If neither the backend nor the dictionary API recognized it as valid English:
+      // REJECT and award strictly 0 XP!
+      toast.error(`"${rawWord}" is not recognized in English dictionaries. SpeakMate AI is dedicated to English language fluency. Please enter a valid English vocabulary word.`);
     } finally {
       setAdding(false);
     }
@@ -382,13 +475,17 @@ export function Vocabulary() {
     }
   };
 
-  // 3D Flashcard Flip & Audio Trigger
+  // 3D Flashcard Flip & Automatic Audio + Mastering
   const handleCardClick = () => {
     const nextFlipped = !isFlipped;
     setIsFlipped(nextFlipped);
     if (nextFlipped && currentCard) {
       // Tapping front card -> flips to back and AI speaks the meaning!
       handleSpeak(currentCard.meaning ? `${currentCard.word}. ${currentCard.meaning}` : currentCard.word);
+      // Automatically master the word when user flips to see and listen to the meaning!
+      if (!currentCard.mastered) {
+        handleMasterWord(currentCard);
+      }
     } else if (!nextFlipped && currentCard) {
       // Tapping back card -> speaks the word again as it turns back to front
       handleSpeak(currentCard.word);
@@ -400,6 +497,9 @@ export function Vocabulary() {
     if (currentCard) {
       if (isBackSide) {
         handleSpeak(currentCard.meaning ? `${currentCard.word}. ${currentCard.meaning}` : currentCard.word);
+        if (!currentCard.mastered) {
+          handleMasterWord(currentCard);
+        }
       } else {
         handleSpeak(currentCard.word);
       }
@@ -723,39 +823,46 @@ export function Vocabulary() {
               {filteredItems.map((item, idx) => (
                 <div
                   key={item.id || idx}
-                  className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                  className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-w-0 overflow-hidden"
                 >
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-xl font-black text-[var(--text-primary)]">{item.word}</h3>
+                  <div className="min-w-0">
+                    <div className="flex justify-between items-start mb-3 gap-2">
+                      <div className="min-w-0 flex-1 pr-1">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <h3 className="text-xl font-black text-[var(--text-primary)] break-words [overflow-wrap:anywhere] min-w-0 leading-tight">
+                            {item.word}
+                          </h3>
                           {item.partOfSpeech && (
-                            <span className="bg-indigo-500/15 text-[#6C63FF] text-[10px] uppercase font-black px-2 py-0.5 rounded-md border border-indigo-500/20">
+                            <span className="bg-indigo-500/15 text-[#6C63FF] text-[10px] uppercase font-black px-2 py-0.5 rounded-md border border-indigo-500/20 flex-shrink-0">
                               {item.partOfSpeech}
+                            </span>
+                          )}
+                          {item.mastered && (
+                            <span className="bg-emerald-500/15 text-emerald-500 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-emerald-500/20 flex-shrink-0">
+                              ✓
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                           onClick={() => handleSpeak(item.word)}
-                          className="w-8 h-8 rounded-xl bg-[var(--bg-elevated)] text-[#6C63FF] flex items-center justify-center hover:scale-105 transition-all text-sm shadow-sm border border-[var(--border-default)]"
+                          className="w-8 h-8 rounded-xl bg-[var(--bg-elevated)] text-[#6C63FF] flex items-center justify-center hover:scale-105 transition-all text-sm shadow-sm border border-[var(--border-default)] flex-shrink-0"
                           title="Listen Pronunciation"
                         >
                           🔊
                         </button>
                         <button
                           onClick={() => toggleFavorite(item)}
-                          className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center hover:scale-105 transition-all text-base shadow-sm border border-amber-500/20"
+                          className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center hover:scale-105 transition-all text-base shadow-sm border border-amber-500/20 flex-shrink-0"
                           title="Toggle Favorite"
                         >
                           {item.favorite ? "⭐" : "☆"}
                         </button>
                         <button
                           onClick={(e) => handleDeleteWord(item, e)}
-                          className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 hover:text-rose-600 flex items-center justify-center hover:scale-105 transition-all text-xs shadow-sm border border-rose-500/20"
+                          className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 hover:text-rose-600 flex items-center justify-center hover:scale-105 transition-all text-xs shadow-sm border border-rose-500/20 flex-shrink-0"
                           title="Delete Word"
                           aria-label={`Delete ${item.word}`}
                         >
@@ -776,12 +883,12 @@ export function Vocabulary() {
                       </div>
                     </div>
 
-                    <p className="text-sm text-[var(--text-primary)] font-semibold mb-3 leading-relaxed">
+                    <p className="text-sm text-[var(--text-primary)] font-semibold mb-3 leading-relaxed break-words [overflow-wrap:anywhere]">
                       {item.meaning}
                     </p>
 
                     {item.exampleSentence && (
-                      <div className="bg-[var(--bg-elevated)] p-3 rounded-2xl border border-[var(--border-default)] mb-3 text-xs text-[var(--text-secondary)] italic font-medium">
+                      <div className="bg-[var(--bg-elevated)] p-3 rounded-2xl border border-[var(--border-default)] mb-3 text-xs text-[var(--text-secondary)] italic font-medium break-words [overflow-wrap:anywhere]">
                         "{item.exampleSentence}"
                       </div>
                     )}
@@ -864,57 +971,69 @@ export function Vocabulary() {
               }}
               className="w-full h-full relative"
             >
-              {/* FRONT OF CARD (WORD ONLY - NO PHONETIC) */}
+              {/* FRONT OF CARD (WORD ONLY - RESPONSIVE CONTAINMENT) */}
               <div
                 style={{ backfaceVisibility: "hidden" }}
-                className="absolute inset-0 w-full h-full bg-[var(--bg-surface)] border-2 border-indigo-500/30 rounded-3xl p-8 shadow-xl flex flex-col justify-between"
+                className="absolute inset-0 w-full h-full bg-[var(--bg-surface)] border-2 border-indigo-500/30 rounded-3xl p-5 sm:p-8 shadow-xl flex flex-col justify-between overflow-hidden"
               >
-                <div className="flex justify-between items-center">
-                  <span className="bg-indigo-500/15 text-[#6C63FF] text-xs uppercase font-black px-3 py-1 rounded-lg border border-indigo-500/20">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="bg-indigo-500/15 text-[#6C63FF] text-xs uppercase font-black px-3 py-1 rounded-lg border border-indigo-500/20 flex-shrink-0">
                     {currentCard.partOfSpeech || "Vocabulary Word"}
                   </span>
-                  <button
-                    onClick={(e) => handleSpeakerClick(e, false)}
-                    className="w-10 h-10 rounded-full bg-[#6C63FF] text-white flex items-center justify-center shadow-md shadow-indigo-600/30 hover:scale-105 transition-all text-sm"
-                    title="Play Pronunciation"
-                  >
-                    🔊
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {currentCard.mastered && (
+                      <span className="bg-emerald-500/15 text-emerald-500 text-[10px] uppercase font-black px-2.5 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1 shadow-sm flex-shrink-0">
+                        <span>✓</span> Mastered
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => handleSpeakerClick(e, false)}
+                      className="w-10 h-10 rounded-full bg-[#6C63FF] text-white flex items-center justify-center shadow-md shadow-indigo-600/30 hover:scale-105 transition-all text-sm flex-shrink-0"
+                      title="Play Pronunciation"
+                    >
+                      🔊
+                    </button>
+                  </div>
                 </div>
 
-                <div className="text-center my-auto space-y-2">
-                  <h2 className="text-4xl font-black text-[var(--text-primary)] tracking-tight">
+                <div className="text-center my-auto space-y-2 w-full px-2 min-w-0 max-w-full">
+                  <h2 className={`font-black text-[var(--text-primary)] tracking-tight break-words [overflow-wrap:anywhere] max-w-full leading-tight ${getPracticeCardFontSize(currentCard.word)}`}>
                     {currentCard.word}
                   </h2>
                 </div>
 
                 <div className="text-center text-xs font-bold text-[var(--text-secondary)] bg-[var(--bg-elevated)] py-2 rounded-xl border border-[var(--border-default)] flex items-center justify-center gap-2">
-                  <span className="text-[#6C63FF]">🔄</span> Tap card to reveal meaning
+                  <span className="text-[#6C63FF]">🔄</span> Tap card to reveal meaning & master
                 </div>
               </div>
 
-              {/* BACK OF CARD (MEANING + EXAMPLES) */}
+              {/* BACK OF CARD (MEANING + EXAMPLES - RESPONSIVE CONTAINMENT) */}
               <div
                 style={{
                   backfaceVisibility: "hidden",
                   transform: "rotateY(180deg)",
                 }}
-                className="absolute inset-0 w-full h-full bg-[var(--bg-surface)] border-2 border-indigo-500/30 rounded-3xl p-8 shadow-xl flex flex-col justify-between overflow-hidden"
+                className="absolute inset-0 w-full h-full bg-[var(--bg-surface)] border-2 border-indigo-500/30 rounded-3xl p-5 sm:p-8 shadow-xl flex flex-col justify-between overflow-hidden"
               >
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-black text-[#6C63FF]">
+                <div className="flex justify-between items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
+                    <span className="text-base sm:text-lg font-black text-[#6C63FF] break-words [overflow-wrap:anywhere] min-w-0">
                       {currentCard.word}
                     </span>
                     {currentCard.partOfSpeech && (
-                      <span className="bg-indigo-500/15 text-[#6C63FF] text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border border-indigo-500/20">
+                      <span className="bg-indigo-500/15 text-[#6C63FF] text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border border-indigo-500/20 flex-shrink-0">
                         {currentCard.partOfSpeech}
+                      </span>
+                    )}
+                    {currentCard.mastered && (
+                      <span className="bg-emerald-500/15 text-emerald-500 text-[10px] uppercase font-black px-2 py-0.5 rounded-md border border-emerald-500/20 flex-shrink-0">
+                        ✓ Mastered
                       </span>
                     )}
                   </div>
                   <button
                     onClick={(e) => handleSpeakerClick(e, true)}
-                    className="w-10 h-10 rounded-full bg-[#6C63FF] text-white flex items-center justify-center shadow-md shadow-indigo-600/30 hover:scale-105 transition-all text-sm"
+                    className="w-10 h-10 rounded-full bg-[#6C63FF] text-white flex items-center justify-center shadow-md shadow-indigo-600/30 hover:scale-105 transition-all text-sm flex-shrink-0"
                     title="Play Meaning Audio"
                   >
                     🔊

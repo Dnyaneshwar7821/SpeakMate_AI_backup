@@ -17,6 +17,7 @@ public interface VocabularyRepository extends JpaRepository<Vocabulary, Long> {
 	List<Vocabulary> findByUserOrderByCreatedAtDesc(User user);
 
 	List<Vocabulary> findByUserAndFavoriteTrue(User user);
+	boolean existsByUserAndWordIgnoreCase(User user, String word);
 
 	@org.springframework.data.jpa.repository.Query("SELECT v FROM Vocabulary v WHERE v.user.id = :userId ORDER BY v.createdAt DESC")
 	List<Vocabulary> findByUserIdOrderByCreatedAtDesc(@org.springframework.data.repository.query.Param("userId") Long userId);

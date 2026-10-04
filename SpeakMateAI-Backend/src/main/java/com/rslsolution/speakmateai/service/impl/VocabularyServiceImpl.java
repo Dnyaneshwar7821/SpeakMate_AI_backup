@@ -55,9 +55,29 @@ public class VocabularyServiceImpl implements VocabularyService {
 		User user = userRepository.findByEmail(authentication.getName())
 				.orElseThrow(() -> new UserNotFoundException("User not found"));
 
-		String word = request.getWord();
-		String meaning = "Meaning of " + word + ".";
-		String exampleSentence = "This is an example sentence using " + word + ".";
+		String rawWord = request.getWord();
+		if (rawWord == null || rawWord.trim().isEmpty()) {
+			throw new IllegalArgumentException("Vocabulary word cannot be empty.");
+		}
+		String word = rawWord.trim();
+
+		// 1. Strict Duplicate Check: Never save duplicates or award XP
+		if (vocabularyRepository.existsByUserAndWordIgnoreCase(user, word)) {
+			throw new IllegalArgumentException("\"" + word + "\" is already in your vocabulary list.");
+		}
+
+		// 2. Strict English Word Format & Lexical Validation
+		if (!word.matches("^[A-Za-z]+([ -][A-Za-z]+)*$") || word.length() < 2 || word.length() > 45) {
+			throw new IllegalArgumentException("\"" + word + "\" is not a valid English word. SpeakMate AI accepts valid English words only (letters only, no numbers or special symbols).");
+		}
+
+		// Reject repeated character mashing (e.g. "aaaa", "zzzz")
+		if (word.matches(".*([A-Za-z])\\1{3,}.*")) {
+			throw new IllegalArgumentException("\"" + word + "\" appears to be random keyboard mashing. Please enter a valid English vocabulary word.");
+		}
+
+		String meaning = null;
+		String exampleSentence = null;
 		String synonym = "";
 		String antonym = "";
 		String phonetic = "";
@@ -66,19 +86,24 @@ public class VocabularyServiceImpl implements VocabularyService {
 		String level = "Intermediate";
 
 		try {
-			String prompt = "Provide the detailed linguistic breakdown for the English word: \"" + word 
-					+ "\" in the following JSON format:\n"
+			String prompt = "You are a strict English lexicographer and language tutor for SpeakMate AI.\n"
+					+ "Evaluate the word or phrase: \"" + word + "\".\n"
+					+ "Rule 1: If \"" + word + "\" is NOT a valid, recognized English dictionary word or idiomatic English term (e.g. if it belongs to another language like French, Spanish, Hindi, German, etc., or if it is meaningless gibberish/slang), respond ONLY with this JSON:\n"
 					+ "{\n"
-					+ "  \"meaning\": \"Clear and concise definition\",\n"
+					+ "  \"error\": \"The word '" + word + "' is not recognized as a valid English vocabulary word. SpeakMate AI is dedicated to English language fluency. Please enter a valid English word.\"\n"
+					+ "}\n\n"
+					+ "Rule 2: If \"" + word + "\" IS a recognized English word, respond ONLY with this JSON:\n"
+					+ "{\n"
+					+ "  \"meaning\": \"Clear, accurate definition in English\",\n"
 					+ "  \"phonetic\": \"IPA phonetic notation e.g. /ˈel.ə.kwənt/\",\n"
 					+ "  \"partOfSpeech\": \"noun / verb / adjective / adverb / idiom\",\n"
-					+ "  \"synonyms\": \"Comma-separated synonyms\",\n"
-					+ "  \"antonyms\": \"Comma-separated antonyms\",\n"
+					+ "  \"synonyms\": \"Comma-separated English synonyms\",\n"
+					+ "  \"antonyms\": \"Comma-separated English antonyms\",\n"
 					+ "  \"collocations\": \"Common natural word pairings e.g. eloquent speaker, articulate defense\",\n"
 					+ "  \"level\": \"Beginner / Intermediate / Advanced\",\n"
-					+ "  \"exampleSentence\": \"A natural conversational example sentence demonstrating the word.\"\n"
+					+ "  \"exampleSentence\": \"A natural conversational example sentence demonstrating the word in English.\"\n"
 					+ "}\n"
-					+ "Respond ONLY with this JSON block, no conversational prefix or suffix.";
+					+ "Respond ONLY with the JSON block. Do not include markdown codeblocks or conversational prefix/suffix.";
 
 			com.rslsolution.speakmateai.dto.request.AiRequest aiRequest = com.rslsolution.speakmateai.dto.request.AiRequest.builder().prompt(prompt).build();
 			com.rslsolution.speakmateai.dto.response.AiResponse aiResponse = aiService.vocabularyAssistant(aiRequest);
@@ -87,17 +112,25 @@ public class VocabularyServiceImpl implements VocabularyService {
 			String jsonStr = extractJson(rawResponse);
 			
 			java.util.Map<String, String> data = objectMapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, String>>() {});
-			if (data.containsKey("meaning")) meaning = data.get("meaning");
-			if (data.containsKey("exampleSentence")) exampleSentence = data.get("exampleSentence");
+			if (data.containsKey("error") && data.get("error") != null && !data.get("error").isBlank()) {
+				throw new IllegalArgumentException(data.get("error"));
+			}
+			if (data.containsKey("meaning") && !data.get("meaning").isBlank()) meaning = data.get("meaning");
+			if (data.containsKey("exampleSentence") && !data.get("exampleSentence").isBlank()) exampleSentence = data.get("exampleSentence");
 			if (data.containsKey("synonyms")) synonym = data.get("synonyms");
 			if (data.containsKey("antonyms")) antonym = data.get("antonyms");
 			if (data.containsKey("phonetic")) phonetic = data.get("phonetic");
 			if (data.containsKey("partOfSpeech")) partOfSpeech = data.get("partOfSpeech");
 			if (data.containsKey("collocations")) collocations = data.get("collocations");
 			if (data.containsKey("level")) level = data.get("level");
+		} catch (IllegalArgumentException iae) {
+			throw iae;
 		} catch (Exception e) {
-			meaning = "Meaning of " + word + ".";
-			exampleSentence = "This is a sentence using " + word + ".";
+			throw new IllegalArgumentException("\"" + word + "\" is not recognized as a valid English vocabulary word. SpeakMate AI accepts valid English words only.");
+		}
+
+		if (meaning == null || meaning.isBlank()) {
+			throw new IllegalArgumentException("Could not verify \"" + word + "\" as a valid English vocabulary word.");
 		}
 
 		Vocabulary vocabulary = Vocabulary.builder()
