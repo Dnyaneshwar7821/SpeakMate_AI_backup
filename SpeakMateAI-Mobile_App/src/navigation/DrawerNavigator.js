@@ -23,7 +23,6 @@ import NotificationsScreen from '../screens/main/NotificationsScreen';
 import SettingsScreen      from '../screens/main/SettingsScreen';
 import HelpScreen          from '../screens/main/HelpScreen';
 import AboutScreen         from '../screens/main/AboutScreen';
-import AssignmentsScreen   from '../screens/main/AssignmentsScreen';
 import SubscriptionScreen  from '../screens/main/SubscriptionScreen';
 
 import { useTheme } from '../context/ThemeContext';
@@ -60,7 +59,6 @@ export default function DrawerNavigator() {
       <Drawer.Screen name="Lessons" component={LessonsStackNavigator} />
 
       {/* Other drawer pages */}
-      <Drawer.Screen name="Assignments"   component={AssignmentsScreen}   />
       <Drawer.Screen name="Vocabulary"     component={VocabularyScreen}    />
       <Drawer.Screen name="Grammar"        component={GrammarScreen}       />
       <Drawer.Screen name="Progress"       component={ProgressScreen}      />

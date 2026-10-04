@@ -42,7 +42,6 @@ const NAV_SECTIONS = [
     title: 'Learn',
     items: [
       { key: 'Lessons',     label: 'Lessons',            icon: 'library',            tab: 'Lessons' },
-      { key: 'Assignments', label: 'My Homework 📝',    icon: 'document-text',      tab: 'Assignments' },
       { key: 'Vocabulary',  label: 'Vocabulary',         icon: 'book',               tab: 'Vocabulary' },
       { key: 'Grammar',     label: 'Grammar',            icon: 'create',             tab: 'Grammar' },
     ],
@@ -77,7 +76,6 @@ const ITEM_ACCENT = {
   Speaking:     '#7C3AED',
   AIChat:       '#6366F1',
   Lessons:      '#0284C7',
-  Assignments:  '#EF4444',
   Vocabulary:   '#059669',
   Grammar:      '#D97706',
   Progress:     '#E11D48',
@@ -366,9 +364,6 @@ export default function DrawerSidebar({ navigation, activeScreen }) {
   const navSections = useMemo(() => {
     return NAV_SECTIONS.map((sec) => {
       let items = [...sec.items];
-      if (sec.title === 'Learn' && !isStudentUser) {
-        items = items.filter((item) => item.key !== 'Assignments');
-      }
       if (sec.title === 'Account') {
         if (!isStudentUser) {
           items.push({

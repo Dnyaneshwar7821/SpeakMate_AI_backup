@@ -42,7 +42,6 @@ import {
   DailyMotivationCard,
   UpcomingRecommendations,
   AchievementsCard,
-  AssignmentsCard,
   SchoolAnnouncementsCard,
   LeaderboardSheet,
 } from '../../components/dashboard';
@@ -425,30 +424,9 @@ export default function DashboardScreen({ navigation }) {
         {/* SECTION 2: TODAY'S GOAL */}
         <DailyGoalCard goal={viewModel.dailyGoal} onContinue={() => handleContinueLearningPress(viewModel.continueLearning)} isDark={isDark} />
 
-        {/* SECTION 2.5: SCHOOL ANNOUNCEMENTS & ASSIGNMENTS (STUDENTS ONLY) */}
+        {/* SECTION 2.5: SCHOOL ANNOUNCEMENTS (STUDENTS ONLY) */}
         {isStudentUser && (
-          <>
-            <SchoolAnnouncementsCard announcements={announcements} />
-            <AssignmentsCard
-              assignments={assignments}
-              onStartAssignment={(item) => {
-                if (item.type === 'Speaking Session') {
-                  navigation.navigate('BottomTabs', {
-                    screen: 'Speaking',
-                    params: {
-                      screen: 'Conversation',
-                      params: { scenarioId: item.targetId, assignmentId: item.id, avatarModel: getCachedAvatarModel() },
-                    },
-                  });
-                } else if (item.type === 'Lesson') {
-                  navigation.navigate('Lessons', { screen: 'LessonDetail', params: { lessonId: item.targetId } });
-                } else {
-                  navigation.navigate('Assignments');
-                }
-              }}
-              onViewAll={() => navigation.navigate('Assignments')}
-            />
-          </>
+          <SchoolAnnouncementsCard announcements={announcements} />
         )}
 
         {/* SECTION 3: CONTINUE LEARNING */}

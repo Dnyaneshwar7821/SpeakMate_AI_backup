@@ -343,26 +343,19 @@ const normalizeGradeKey = (grade) => {
 
 // Helper to get curriculum tailored to student grade or general age group
 const getProfileCurriculum = (user, savedGrade, savedAccType, savedAgeGroup) => {
-  const cachedGrade = CurriculumCache.getGrade();
-  const cachedAccType = CurriculumCache.getAccountType();
-  const cachedAgeGroup = CurriculumCache.getAgeGroup();
-
+  // 1. Strictly determine if the user is a student:
   const isStudent = Boolean(
-    savedAccType === 'STUDENT' ||
-    cachedAccType === 'STUDENT' ||
-    user?.accountType === 'STUDENT' ||
-    user?.role === 'STUDENT' ||
-    user?.isSchoolStudent ||
-    user?.schoolId ||
-    user?.schoolCode ||
-    user?.schoolGrade ||
-    user?.standard ||
-    savedGrade ||
-    cachedGrade
+    (user?.accountType === 'STUDENT' ||
+      user?.role === 'STUDENT' ||
+      user?.isSchoolStudent ||
+      user?.schoolId ||
+      user?.schoolCode ||
+      savedAccType === 'STUDENT') &&
+    user?.accountType !== 'INDIVIDUAL_USER'
   );
 
   if (isStudent) {
-    const rawGrd = savedGrade || cachedGrade || user?.schoolGrade || user?.standard || user?.grade;
+    const rawGrd = user?.schoolGrade || user?.standard || user?.grade || savedGrade;
     const grade = normalizeGradeKey(rawGrd);
     return {
       curriculum: STANDARD_LESSONS[grade] || STANDARD_LESSONS['1st Std'],
@@ -372,7 +365,10 @@ const getProfileCurriculum = (user, savedGrade, savedAccType, savedAgeGroup) => 
     };
   }
 
-  const rawAge = String(savedAgeGroup || cachedAgeGroup || user?.ageGroup || 'Professional').toLowerCase();
+  // Clear any school grade from cache for individual/general users so it never leaks
+  CurriculumCache.setGrade(null);
+
+  const rawAge = String(user?.ageGroup || savedAgeGroup || 'Professional').toLowerCase();
   let targetGroup = 'Professionals & Seniors (Age 25+)';
   if (rawAge.includes('kid') || rawAge.includes('6-12')) {
     targetGroup = 'Kids (Age 6–12)';
@@ -455,7 +451,7 @@ export default function LessonsScreen({ navigation }) {
   const headerOpacity = useRef(new Animated.Value(1)).current;
   const headerTranslate = useRef(new Animated.Value(0)).current;
 
-  const [userGrade, setUserGrade] = useState(() => initialProfile.grade || '1st Std');
+  const [userGrade, setUserGrade] = useState(() => initialProfile.grade || null);
   const [accountType, setAccountType] = useState(() => initialProfile.isStudent ? 'STUDENT' : 'INDIVIDUAL_USER');
   const [userAgeGroup, setUserAgeGroup] = useState(() => initialProfile.ageGroup || user?.ageGroup || 'Professional');
 
@@ -463,7 +459,7 @@ export default function LessonsScreen({ navigation }) {
   useEffect(() => {
     const fresh = getProfileCurriculum(user);
     setAccountType(fresh.isStudent ? 'STUDENT' : 'INDIVIDUAL_USER');
-    if (fresh.grade) setUserGrade(fresh.grade);
+    setUserGrade(fresh.grade || null);
     if (fresh.ageGroup) setUserAgeGroup(fresh.ageGroup);
 
     const freshKey = fresh.grade || fresh.ageGroup;
@@ -509,10 +505,10 @@ export default function LessonsScreen({ navigation }) {
       const profileInfo = getProfileCurriculum(user, savedGrade, savedAccType, savedAgeGroup);
       const effAccType = profileInfo.isStudent ? 'STUDENT' : 'INDIVIDUAL_USER';
       setAccountType(effAccType);
-      if (profileInfo.grade) setUserGrade(profileInfo.grade);
+      setUserGrade(profileInfo.grade || null);
       if (profileInfo.ageGroup) setUserAgeGroup(profileInfo.ageGroup);
 
-      CurriculumCache.setGrade(profileInfo.grade);
+      CurriculumCache.setGrade(profileInfo.grade || null);
       CurriculumCache.setAccountType(effAccType);
       CurriculumCache.setAgeGroup(profileInfo.ageGroup);
 
