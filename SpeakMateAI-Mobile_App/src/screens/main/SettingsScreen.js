@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -104,6 +104,13 @@ export default function SettingsScreen({ navigation }) {
     ageGroup: defaults.ageGroup,
   });
 
+  const savedBaselineRef = useRef({
+    language: defaults.language,
+    aiVoice: defaults.aiVoice,
+    ageGroup: defaults.ageGroup,
+  });
+  const savedAvatarRef = useRef(getCachedAvatarModel() || 'haru');
+
   const load = async () => {
     try {
       setJustSaved(false);
@@ -136,6 +143,7 @@ export default function SettingsScreen({ navigation }) {
       if (savedAvatarModel) {
         setCurrentAvatarModel(savedAvatarModel);
         setCachedAvatarModel(savedAvatarModel);
+        savedAvatarRef.current = savedAvatarModel;
       }
       const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
       const initialAgeGroup = onboardingData?.ageGroup || user?.ageGroup || 'Professional';
@@ -144,6 +152,12 @@ export default function SettingsScreen({ navigation }) {
       const effSound = savedSound !== null ? savedSound === 'true' : (settings?.soundEffects ?? true);
       const effNotif = savedNotif !== null ? savedNotif === 'true' : (settings?.notificationsEnabled ?? true);
       const effReminder = savedReminder !== null ? savedReminder === 'true' : (settings?.dailyReminder ?? true);
+
+      const baseline = {
+        language: initialLanguage,
+        aiVoice: effectiveVoice,
+        ageGroup: initialAgeGroup,
+      };
 
       setForm({
         ...defaults,
@@ -158,11 +172,8 @@ export default function SettingsScreen({ navigation }) {
         dailyReminder: effReminder,
       });
 
-      setSavedBaseline({
-        language: initialLanguage,
-        aiVoice: effectiveVoice,
-        ageGroup: initialAgeGroup,
-      });
+      setSavedBaseline(baseline);
+      savedBaselineRef.current = baseline;
 
       setAvailableVoices(voices);
       if (onboardingVoice) {
@@ -176,7 +187,37 @@ export default function SettingsScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
+      // 1. Immediately reset any unsaved in-memory draft on focus
+      if (savedBaselineRef.current) {
+        setForm((current) => ({
+          ...current,
+          language: savedBaselineRef.current.language,
+          aiVoice: savedBaselineRef.current.aiVoice,
+          ageGroup: savedBaselineRef.current.ageGroup,
+        }));
+      }
+      if (savedAvatarRef.current) {
+        setCurrentAvatarModel(savedAvatarRef.current);
+        setCachedAvatarModel(savedAvatarRef.current);
+      }
+
       load();
+
+      // 2. Discard uncommitted changes immediately when leaving/escaping screen
+      return () => {
+        if (savedBaselineRef.current) {
+          setForm((current) => ({
+            ...current,
+            language: savedBaselineRef.current.language,
+            aiVoice: savedBaselineRef.current.aiVoice,
+            ageGroup: savedBaselineRef.current.ageGroup,
+          }));
+        }
+        if (savedAvatarRef.current) {
+          setCurrentAvatarModel(savedAvatarRef.current);
+          setCachedAvatarModel(savedAvatarRef.current);
+        }
+      };
     }, [])
   );
 
@@ -226,11 +267,18 @@ export default function SettingsScreen({ navigation }) {
       }
 
       // 4. Update saved baseline to reflect committed values
-      setSavedBaseline({
+      const committedBaseline = {
         language: form.language,
         aiVoice: form.aiVoice,
         ageGroup: form.ageGroup,
-      });
+      };
+      setSavedBaseline(committedBaseline);
+      savedBaselineRef.current = committedBaseline;
+      if (form.aiVoice) {
+        const profile = VOICE_PROFILES.find((p) => p.code === form.aiVoice);
+        const coachModel = (profile?.gender || 'female') === 'male' ? 'chitose' : 'haru';
+        savedAvatarRef.current = coachModel;
+      }
 
       // 5. Sync behavioral toggles to local storage and schedule device notifications
       await Promise.all([
