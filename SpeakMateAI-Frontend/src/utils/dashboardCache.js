@@ -14,7 +14,16 @@ let inMemoryDashboardCache = null;
  * showing stale or previous user session state.
  */
 export function getCachedDashboardData(currentUserEmail) {
-  const normEmail = currentUserEmail ? String(currentUserEmail).toLowerCase().trim() : null;
+  let normEmail = currentUserEmail ? String(currentUserEmail).toLowerCase().trim() : null;
+  if (!normEmail) {
+    try {
+      const rawUser = localStorage.getItem("speakmate_user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (u?.email) normEmail = String(u.email).toLowerCase().trim();
+      }
+    } catch (_) {}
+  }
 
   if (inMemoryDashboardCache) {
     if (normEmail) {

@@ -16,6 +16,7 @@ import {
   repairBrokenStreak,
   syncBackendProgress,
   claimDailyQuoteXP,
+  isDailyQuoteClaimedToday,
   getLocalDateStr,
 } from "../utils/progressTracker";
 import {
@@ -212,10 +213,15 @@ export function Dashboard() {
   const [leaderboardModalOpen, setLeaderboardModalOpen] = useState(false);
 
   const [dailyQuote, setDailyQuote] = useState(() => fetchOrGetDailyQuote(null));
-  const [challengeClaimed, setChallengeClaimed] = useState(() => {
-    const st = getLiveProgressStats(user);
-    return st.lastQuoteClaimDate === getLocalDateStr();
-  });
+  const [challengeClaimed, setChallengeClaimed] = useState(() => isDailyQuoteClaimedToday(user));
+
+  // Snappy fallback safety timer: ensure loader never lingers more than 1.2s
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 1200);
+    return () => clearTimeout(safetyTimer);
+  }, []);
 
   const calculatedRank = getRankTier(stats.xp || user?.xp || 0);
   const currentRankName = stats.rank || user?.rank || calculatedRank.name;
@@ -296,6 +302,7 @@ export function Dashboard() {
             completedMins: synced.todayMins ?? prev.todayMins ?? 0,
             dailyGoalMins: targetFromBackend || userGoal,
           }));
+          setChallengeClaimed(isDailyQuoteClaimedToday(user));
         }
       })
       .catch(() => {})
@@ -364,10 +371,17 @@ export function Dashboard() {
         todayMins: updated.todayMins ?? prev.todayMins ?? 0,
         completedMins: updated.todayMins ?? prev.todayMins ?? 0,
       }));
+      setChallengeClaimed(isDailyQuoteClaimedToday(user));
     };
 
     const handleCurriculumEvent = () => {
       refreshStats();
+    };
+
+    const handleStorageEvent = (e) => {
+      if (e.key && e.key.includes("speakmate")) {
+        setChallengeClaimed(isDailyQuoteClaimedToday(user));
+      }
     };
 
     window.addEventListener("focus", refreshStats);
@@ -376,6 +390,7 @@ export function Dashboard() {
     window.addEventListener("speakmate_settings_updated", handleSettingsEvent);
     window.addEventListener("speakmate_age_group_changed", handleAgeEvent);
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("storage", handleStorageEvent);
 
     return () => {
       window.removeEventListener("focus", refreshStats);
@@ -384,6 +399,7 @@ export function Dashboard() {
       window.removeEventListener("speakmate_settings_updated", handleSettingsEvent);
       window.removeEventListener("speakmate_age_group_changed", handleAgeEvent);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("storage", handleStorageEvent);
     };
   }, [refreshStats, user]);
 
@@ -392,6 +408,11 @@ export function Dashboard() {
   };
 
   const handleAcceptChallenge = () => {
+    if (isDailyQuoteClaimedToday(user)) {
+      setChallengeClaimed(true);
+      toast.info("You have already accepted today's quote goal!");
+      return;
+    }
     const res = claimDailyQuoteXP(20, user);
     if (res.success) {
       setChallengeClaimed(true);
@@ -648,7 +669,7 @@ export function Dashboard() {
 
   if (isInitialLoading && !dashboardData) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-base)]/85 backdrop-blur-md transition-all duration-300">
+      <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[var(--bg-base)] transition-all duration-300">
         <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
           {/* Animated Dual-Ring Emblem Matching Admin Reference */}
           <div className="relative flex h-24 w-24 items-center justify-center">
@@ -846,16 +867,22 @@ export function Dashboard() {
           <p className="text-2xl sm:text-3xl font-black text-amber-500">{stats.wordsLearned || 0}</p>
         </div>
 
-        <div className="glass-card glass-card-hover p-6 rounded-3xl space-y-2 border border-[var(--border-default)] shadow-lg">
+        <Link
+          to={ROUTES.ACHIEVEMENTS}
+          className="glass-card glass-card-hover p-6 rounded-3xl space-y-2 border border-[var(--border-default)] shadow-lg block group transition-all"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-2xl sm:text-3xl p-2.5 rounded-2xl bg-rose-500/15">🏆</span>
+            <span className="text-2xl sm:text-3xl p-2.5 rounded-2xl bg-rose-500/15 group-hover:scale-110 transition-transform">🏆</span>
             <span className="text-[10px] font-black uppercase text-rose-500 tracking-wider px-2.5 py-1 rounded-full bg-rose-500/10">
               Milestones
             </span>
           </div>
           <p className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-wider pt-1">Badges Unlocked</p>
-          <p className="text-2xl sm:text-3xl font-black text-rose-500">{stats.badgesUnlocked || 0} / 6</p>
-        </div>
+          <div className="flex items-baseline justify-between">
+            <p className="text-2xl sm:text-3xl font-black text-rose-500">{stats.badgesUnlocked || 0} / 18</p>
+            <span className="text-[11px] font-bold text-[#6C63FF] opacity-0 group-hover:opacity-100 transition-opacity">View all →</span>
+          </div>
+        </Link>
       </motion.div>
 
       {/* ── SECTION 3: TODAY'S PRACTICE GOAL CARD (Connected directly with Onboarding Time Selection, No 15-min hardcode, No timer) ── */}

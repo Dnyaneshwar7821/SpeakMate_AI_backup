@@ -81,6 +81,7 @@ export const getLiveProgressStats = (userContext = null) => {
       streakFreezes: 1, // New users start with 1 Free Freeze ❄️
       lastActiveDate: today,
       lastGoalMetDate: null,
+      lastQuoteClaimDate: null,
       badgesUnlocked: 0,
       todayMins: 0,
       claimedMilestones: [],
@@ -156,14 +157,32 @@ export const getLiveProgressStats = (userContext = null) => {
 
   const totalHours = (stored.speakingMins / 60).toFixed(1);
 
-  // Calculate badges unlocked dynamically based on usage
+  // Calculate badges unlocked dynamically matching all 18 Master Achievements
   let badges = 0;
-  if (stored.speakingSessions > 0) badges += 1;
-  if (stored.wordsLearned >= 5) badges += 1;
-  if (stored.grammarChecks >= 3) badges += 1;
-  if (stored.lessonsCompleted >= 1) badges += 1;
-  if (stored.streak >= 3) badges += 1;
-  if (stored.speakingMins >= 30) badges += 1;
+  // 1. Speaking & Fluency (4 badges)
+  if ((stored.speakingSessions || 0) >= 1) badges += 1;
+  if ((stored.distinctScenarios || 0) >= 5 || (stored.speakingSessions || 0) >= 5) badges += 1;
+  if ((stored.speakingSessions || 0) >= 15) badges += 1;
+  if ((stored.speakingSessions || 0) >= 30) badges += 1;
+  // 2. Grammar & Accuracy (4 badges)
+  if ((stored.grammarChecks || 0) >= 1) badges += 1;
+  if ((stored.grammarChecks || 0) >= 10) badges += 1;
+  if ((stored.grammarChecks || 0) >= 25) badges += 1;
+  if ((stored.grammarChecks || 0) >= 50) badges += 1;
+  // 3. Vocabulary & Word Bank (3 badges)
+  if ((stored.wordsLearned || 0) >= 5) badges += 1;
+  if ((stored.wordsLearned || 0) >= 20) badges += 1;
+  if ((stored.wordsLearned || 0) >= 50) badges += 1;
+  // 4. Streaks & Consistency (4 badges)
+  if ((stored.streak || 0) >= 3 || (stored.longestStreak || 0) >= 3) badges += 1;
+  if ((stored.streak || 0) >= 7 || (stored.longestStreak || 0) >= 7) badges += 1;
+  if ((stored.streak || 0) >= 14 || (stored.longestStreak || 0) >= 14) badges += 1;
+  if ((stored.streak || 0) >= 30 || (stored.longestStreak || 0) >= 30) badges += 1;
+  // 5. Mastery & Experience (3 badges)
+  if ((stored.xp || 0) >= 250) badges += 1;
+  if ((stored.xp || 0) >= 1000 || (stored.level || 1) >= 3) badges += 1;
+  if ((stored.xp || 0) >= 2000 || (stored.level || 1) >= 5) badges += 1;
+
   stored.badgesUnlocked = badges;
 
   // Generate 7-day visual calendar data aligned Monday to Sunday for the current week
@@ -521,18 +540,48 @@ export const claimStreakMilestoneReward = (days = 3, userContext = null) => {
   return { success: true, stats, message: `🎉 Claimed +${milestone.xp} Bonus XP for ${milestone.title}!` };
 };
 
-// 11. Claim Daily Inspiration Quote XP (+20 XP)
+// 11. Claim Daily Inspiration Quote XP (+20 XP, Strictly 1 time per day)
+export const getDailyQuoteClaimKey = (userContext = null, dateStr = getLocalDateStr()) => {
+  let user = userContext;
+  if (!user) {
+    try {
+      const raw = localStorage.getItem("speakmate_user");
+      if (raw) user = JSON.parse(raw);
+    } catch (_) {}
+  }
+  const identifier = (user?.email || user?.id || user?.username || "guest").toString().toLowerCase().trim();
+  return `speakmate_daily_quote_claimed_${identifier}_${dateStr}`;
+};
+
+export const isDailyQuoteClaimedToday = (userContext = null) => {
+  const today = getLocalDateStr();
+  const dedicatedKey = getDailyQuoteClaimKey(userContext, today);
+  try {
+    if (localStorage.getItem(dedicatedKey) === "true") {
+      return true;
+    }
+  } catch (_) {}
+
+  const stats = getLiveProgressStats(userContext);
+  return stats?.lastQuoteClaimDate === today;
+};
+
 export const claimDailyQuoteXP = (amount = 20, userContext = null) => {
   const today = getLocalDateStr();
+  const dedicatedKey = getDailyQuoteClaimKey(userContext, today);
   const stats = getLiveProgressStats(userContext);
 
-  if (stats.lastQuoteClaimDate === today) {
+  if (isDailyQuoteClaimedToday(userContext)) {
     return { success: false, stats, message: "You have already accepted today's quote goal!" };
   }
 
   stats.xp = (stats.xp || 0) + amount;
   stats.lastQuoteClaimDate = today;
   stats.lastUpdatedTime = Date.now();
+
+  try {
+    localStorage.setItem(dedicatedKey, "true");
+  } catch (_) {}
 
   checkAndUpdateDailyGoal(stats, userContext);
   saveProgressStats(stats, userContext);

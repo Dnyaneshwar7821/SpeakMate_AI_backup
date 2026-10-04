@@ -148,12 +148,12 @@ export function Login() {
           email: userEmail,
         });
 
-        // 2. Fetch fresh dashboard summary & progress while the loader is displayed
+        // 2. Fetch fresh dashboard summary & progress while the loader is displayed (snappy 800-1200ms window)
         try {
-          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 1300));
+          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 800));
           const summaryPromise = dashboardService.summary().catch(() => null);
           const progressPromise = progressService.get().catch(() => null);
-          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
+          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1200));
 
           const [summaryData, progressData] = await Promise.all([
             Promise.race([summaryPromise, timeoutPromise]),
@@ -503,7 +503,7 @@ export function Login() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-[var(--bg-base)]/85 backdrop-blur-md"
+            className="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 bg-[var(--bg-base)]"
           >
             <div className="flex flex-col items-center text-center animate-in fade-in zoom-in duration-300 max-w-md w-full">
               {/* Dual-Spinning Ring Emblem Matching Admin Login/Dashboard */}
