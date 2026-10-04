@@ -68,11 +68,12 @@ export const NotificationHelper = {
           name: 'Study Reminders',
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 200, 200, 200],
-          sound: 'default',
+          lightColor: '#4F46E5',
         });
       }
 
-      // Schedule recurring daily reminder for 7:00 PM (19:00)
+      // Schedule recurring daily reminder for 7:00 PM (19:00) with modern SDK 52+ typed trigger
+      const dailyTriggerType = Notifications.SchedulableTriggerInputTypes?.DAILY || 'daily';
       await Notifications.scheduleNotificationAsync({
         identifier: DAILY_REMINDER_ID,
         content: {
@@ -83,9 +84,10 @@ export const NotificationHelper = {
           channelId: 'speakmate-reminders',
         },
         trigger: {
+          type: dailyTriggerType,
           hour: 19,
           minute: 0,
-          repeats: true,
+          channelId: 'speakmate-reminders',
         },
       });
     } catch (e) {
