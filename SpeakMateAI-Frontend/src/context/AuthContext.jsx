@@ -34,15 +34,33 @@ export function AuthProvider({ children }) {
   const syncUserProfile = (userData) => {
     if (!userData) return;
     try {
+      const isStudentUser = Boolean(
+        userData.accountType === "STUDENT" ||
+        userData.isSchoolStudent ||
+        userData.role === "STUDENT" ||
+        userData.schoolId
+      );
+
+      const effectiveAccountType = isStudentUser ? "STUDENT" : (userData.accountType || "INDIVIDUAL_USER");
+      localStorage.setItem("speakmate_account_type", effectiveAccountType);
+
       const effectiveGrade = userData.schoolGrade || (userData.standard ? (userData.standard.toLowerCase().includes("std") ? userData.standard : `${userData.standard}th Std`) : null);
-      if (effectiveGrade) {
+      if (effectiveGrade && isStudentUser) {
         localStorage.setItem("speakmate_school_grade", effectiveGrade);
-      } else if (userData.accountType !== "STUDENT" && !userData.isSchoolStudent) {
+      } else {
         localStorage.removeItem("speakmate_school_grade");
       }
 
-      if (userData.standard) {
+      if (userData.standard && isStudentUser) {
         localStorage.setItem("speakmate_standard", userData.standard);
+      } else {
+        localStorage.removeItem("speakmate_standard");
+      }
+
+      if (userData.schoolCode && isStudentUser) {
+        localStorage.setItem("speakmate_school_code", userData.schoolCode);
+      } else if (!isStudentUser) {
+        localStorage.removeItem("speakmate_school_code");
       }
 
       const cleanAge = typeof userData.ageGroup === "string" ? userData.ageGroup : (userData.ageGroup?.ageGroup || null);
@@ -52,10 +70,6 @@ export function AuthProvider({ children }) {
 
       if (userData.englishLevel) {
         localStorage.setItem("speakmate_english_level", userData.englishLevel);
-      }
-
-      if (userData.accountType) {
-        localStorage.setItem("speakmate_account_type", userData.accountType);
       }
 
       if (userData.preferredAccent) {

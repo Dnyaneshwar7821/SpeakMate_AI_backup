@@ -17,7 +17,11 @@ export function getCachedDashboardData(currentUserEmail) {
   const normEmail = currentUserEmail ? String(currentUserEmail).toLowerCase().trim() : null;
 
   if (inMemoryDashboardCache) {
-    if (!normEmail || !inMemoryDashboardCache._userEmail || inMemoryDashboardCache._userEmail === normEmail) {
+    if (normEmail) {
+      if (inMemoryDashboardCache._userEmail === normEmail) {
+        return inMemoryDashboardCache;
+      }
+    } else if (!inMemoryDashboardCache._userEmail) {
       return inMemoryDashboardCache;
     }
   }
@@ -26,7 +30,12 @@ export function getCachedDashboardData(currentUserEmail) {
     const stored = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (!normEmail || !parsed._userEmail || parsed._userEmail === normEmail) {
+      if (normEmail) {
+        if (parsed._userEmail === normEmail) {
+          inMemoryDashboardCache = parsed;
+          return parsed;
+        }
+      } else if (!parsed._userEmail) {
         inMemoryDashboardCache = parsed;
         return parsed;
       }

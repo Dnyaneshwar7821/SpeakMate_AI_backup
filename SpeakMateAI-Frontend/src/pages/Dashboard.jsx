@@ -131,9 +131,14 @@ export function Dashboard() {
   const [accountType, setAccountType] = useState(
     () => safeString(user?.accountType || localStorage.getItem("speakmate_account_type"), "INDIVIDUAL_USER")
   );
-  const [activeGrade, setActiveGrade] = useState(
-    () => safeString(user?.schoolGrade || localStorage.getItem("speakmate_school_grade"), "1st Std")
-  );
+  const [activeGrade, setActiveGrade] = useState(() => {
+    if (user?.schoolGrade) return safeString(user.schoolGrade, "1st Std");
+    const acc = user?.accountType || localStorage.getItem("speakmate_account_type");
+    if (acc === "STUDENT") {
+      return safeString(localStorage.getItem("speakmate_school_grade"), "1st Std");
+    }
+    return "";
+  });
   const [activeAgeGroup, setActiveAgeGroup] = useState(
     () => safeString(user?.ageGroup || localStorage.getItem("speakmate_age_group"), "Professional")
   );
@@ -143,20 +148,25 @@ export function Dashboard() {
 
   // Aligned student detection matching Navbar and mobile app
   const isStudent = useMemo(() => {
-    return (
-      accountType === "STUDENT" ||
-      user?.accountType === "STUDENT" ||
+    const effectiveAcc = user?.accountType || accountType;
+    if (effectiveAcc === "INDIVIDUAL_USER" || effectiveAcc === "USER") return false;
+    return Boolean(
+      effectiveAcc === "STUDENT" ||
       user?.role === "STUDENT" ||
       Boolean(user?.isSchoolStudent) ||
-      Boolean(user?.schoolGrade) ||
       Boolean(user?.schoolId) ||
-      Boolean(localStorage.getItem("speakmate_school_grade"))
+      (effectiveAcc !== "INDIVIDUAL_USER" && Boolean(user?.schoolGrade)) ||
+      (effectiveAcc !== "INDIVIDUAL_USER" && localStorage.getItem("speakmate_account_type") === "STUDENT")
     );
   }, [accountType, user]);
 
   useEffect(() => {
     if (user?.accountType) setAccountType(safeString(user.accountType, "INDIVIDUAL_USER"));
-    if (user?.schoolGrade) setActiveGrade(safeString(user.schoolGrade, "1st Std"));
+    if (user?.schoolGrade) {
+      setActiveGrade(safeString(user.schoolGrade, "1st Std"));
+    } else if (user?.accountType === "INDIVIDUAL_USER" || user?.accountType === "USER") {
+      setActiveGrade("");
+    }
     if (user?.ageGroup) setActiveAgeGroup(safeString(user.ageGroup, "Professional"));
     if (user?.englishLevel) setActiveEnglishLevel(safeString(user.englishLevel, "Beginner"));
   }, [user?.accountType, user?.schoolGrade, user?.ageGroup, user?.englishLevel]);
@@ -249,9 +259,18 @@ export function Dashboard() {
           }
           if (data.profile) {
             if (data.profile.ageGroup) setActiveAgeGroup(safeString(data.profile.ageGroup, "Professional"));
-            if (data.profile.schoolGrade) setActiveGrade(safeString(data.profile.schoolGrade, "1st Std"));
             if (data.profile.englishLevel) setActiveEnglishLevel(safeString(data.profile.englishLevel, "Beginner"));
-            if (data.profile.role) setAccountType(safeString(data.profile.role, "INDIVIDUAL_USER"));
+            if (data.profile.role) {
+              const r = safeString(data.profile.role, "INDIVIDUAL_USER");
+              setAccountType(r);
+              if (r === "STUDENT" && data.profile.schoolGrade) {
+                setActiveGrade(safeString(data.profile.schoolGrade, "1st Std"));
+              } else if (r === "INDIVIDUAL_USER") {
+                setActiveGrade("");
+              }
+            } else if (data.profile.schoolGrade) {
+              setActiveGrade(safeString(data.profile.schoolGrade, "1st Std"));
+            }
           }
           const synced = syncBackendProgress(data, user);
           const backendStats = data.statistics || {};

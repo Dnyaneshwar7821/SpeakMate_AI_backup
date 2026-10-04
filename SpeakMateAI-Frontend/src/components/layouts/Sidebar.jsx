@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ROUTES from "../../constants/routes";
@@ -130,11 +130,17 @@ const ACCOUNT_ITEMS = [
 
 export const Sidebar = memo(function Sidebar() {
   const { user } = useAuth();
-  const isStudent =
-    user?.accountType === "STUDENT" ||
-    Boolean(user?.schoolGrade) ||
-    Boolean(user?.schoolId) ||
-    localStorage.getItem("speakmate_account_type") === "STUDENT";
+  const isStudent = useMemo(() => {
+    if (user?.accountType === "INDIVIDUAL_USER" || user?.accountType === "USER") return false;
+    return Boolean(
+      user?.accountType === "STUDENT" ||
+      user?.isSchoolStudent ||
+      user?.role === "STUDENT" ||
+      user?.schoolId ||
+      (user?.schoolGrade && user?.accountType !== "INDIVIDUAL_USER") ||
+      localStorage.getItem("speakmate_account_type") === "STUDENT"
+    );
+  }, [user]);
 
   return (
     <aside className="w-64 lg:w-72 shrink-0 border-r border-[var(--border-default)] bg-[var(--bg-surface)] h-[calc(100vh-80px)] sticky top-20 flex flex-col justify-between p-4 overflow-y-auto z-30 transition-colors duration-200 contain-layout">
@@ -205,8 +211,14 @@ export const Sidebar = memo(function Sidebar() {
       {/* USER BOTTOM CARD */}
       <div className="pt-3 border-t border-[var(--border-default)]">
         <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] flex items-center gap-3 shadow-inner">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-[#6C63FF] via-[#8B5CF6] to-[#FF6584] text-white font-black text-sm shadow-md">
-            {user?.firstName ? user.firstName.charAt(0).toUpperCase() : user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-[#6C63FF] via-[#8B5CF6] to-[#FF6584] text-white font-black text-sm shadow-md overflow-hidden">
+            {user?.avatar && user.avatar.length <= 4 ? (
+              <span className="text-xl">{user.avatar}</span>
+            ) : user?.avatar && user.avatar.startsWith("http") ? (
+              <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              user?.firstName ? user.firstName.charAt(0).toUpperCase() : user?.name ? user.name.charAt(0).toUpperCase() : "U"
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
@@ -216,9 +228,9 @@ export const Sidebar = memo(function Sidebar() {
               )}
             </div>
             <p className="text-[10px] font-extrabold text-[#6C63FF] truncate">
-              {localStorage.getItem("speakmate_account_type") === "STUDENT" && (user?.schoolGrade || localStorage.getItem("speakmate_school_grade"))
+              {isStudent && (user?.schoolGrade || localStorage.getItem("speakmate_school_grade"))
                 ? `Std: ${user?.schoolGrade || localStorage.getItem("speakmate_school_grade")}`
-                : `CEFR: ${user?.englishLevel || user?.level || "B1 Intermediate"}`}
+                : `CEFR: ${user?.englishLevel || user?.level || localStorage.getItem("speakmate_english_level") || "B1 Intermediate"}`}
             </p>
           </div>
         </div>

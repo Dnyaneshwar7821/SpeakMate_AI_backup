@@ -314,10 +314,15 @@ export const Navbar = memo(function Navbar() {
   }, [user]);
 
   const isStudent =
-    user?.accountType === "STUDENT" ||
-    Boolean(user?.schoolGrade) ||
-    Boolean(user?.schoolId) ||
-    localStorage.getItem("speakmate_account_type") === "STUDENT";
+    user?.accountType === "INDIVIDUAL_USER" || user?.accountType === "USER"
+      ? false
+      : Boolean(
+          user?.accountType === "STUDENT" ||
+          user?.isSchoolStudent ||
+          user?.schoolGrade ||
+          user?.schoolId ||
+          localStorage.getItem("speakmate_account_type") === "STUDENT"
+        );
 
   const handleLogout = () => {
     logout();
@@ -373,7 +378,7 @@ export const Navbar = memo(function Navbar() {
         {/* Left Section: Brand Logo */}
         <div className="flex items-center gap-6">
           <Link
-            to={isAuthenticated ? (isStudent ? ROUTES.STUDENT_DASHBOARD : ROUTES.DASHBOARD) : ROUTES.HOME}
+            to={isAuthenticated ? ROUTES.DASHBOARD : ROUTES.HOME}
             className="flex items-center gap-3 min-w-0 group"
           >
             <img
@@ -644,7 +649,7 @@ export const Navbar = memo(function Navbar() {
 
                       <div className="space-y-1">
                         <Link
-                          to={isStudent ? ROUTES.STUDENT_DASHBOARD : ROUTES.DASHBOARD}
+                          to={ROUTES.DASHBOARD}
                           className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all"
                           onClick={() => setDropdownOpen(false)}
                         >
