@@ -94,6 +94,7 @@ export default function SettingsScreen({ navigation }) {
   );
 
   const [currentAvatarModel, setCurrentAvatarModel] = useState(() => getCachedAvatarModel() || 'haru');
+  const [justSaved, setJustSaved] = useState(false);
 
   // Saved baseline to distinguish pending draft changes from persisted preferences (Hybrid UX)
   const [savedBaseline, setSavedBaseline] = useState({
@@ -104,6 +105,7 @@ export default function SettingsScreen({ navigation }) {
 
   const load = async () => {
     try {
+      setJustSaved(false);
       const [settings, voices, onboardingVoice, onboardingData, savedType, savedVoice, savedAvatarModel] = await Promise.all([
         settingsService.get().catch(() => null),
         VoiceService.getAvailableEnglishVoices(),
@@ -154,24 +156,8 @@ export default function SettingsScreen({ navigation }) {
   );
 
   const update = (key, value) => {
+    setJustSaved(false);
     setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const discardChanges = async () => {
-    try {
-      const savedAvatarModel = await AsyncStorage.getItem('speakmate_avatar_model');
-      if (savedAvatarModel) {
-        setCurrentAvatarModel(savedAvatarModel);
-        setCachedAvatarModel(savedAvatarModel);
-      }
-    } catch (_) {}
-    setForm((current) => ({
-      ...current,
-      language: savedBaseline.language,
-      aiVoice: savedBaseline.aiVoice,
-      ageGroup: savedBaseline.ageGroup,
-    }));
-    showToast('Changes Discarded', 'info', 'Restored previously saved preferences');
   };
 
   const save = async () => {
@@ -220,6 +206,11 @@ export default function SettingsScreen({ navigation }) {
         aiVoice: form.aiVoice,
         ageGroup: form.ageGroup,
       });
+
+      setJustSaved(true);
+      setTimeout(() => {
+        setJustSaved(false);
+      }, 3500);
 
       DashboardCache.clear();
       showToast('Preferences Saved ✓', 'success', 'All tutor voice and language settings updated');
@@ -671,51 +662,30 @@ export default function SettingsScreen({ navigation }) {
             </View>
           </Card>
 
-          {/* HYBRID SAVE & DISCARD CONTROLS */}
+          {/* SAVE BUTTON */}
           <TouchableOpacity
             onPress={save}
             disabled={saving}
             activeOpacity={0.85}
             style={[
               styles.enhancedSaveBtn,
-              hasPendingChanges
-                ? { backgroundColor: COLORS.primary, shadowColor: COLORS.primary, elevation: 4 }
-                : { backgroundColor: isDark ? '#334155' : '#E2E8F0', elevation: 0, shadowOpacity: 0 }
+              justSaved && { backgroundColor: '#10B981', shadowColor: '#10B981' }
             ]}
           >
             <Ionicons
-              name={hasPendingChanges ? "save-outline" : "checkmark-circle-outline"}
+              name={justSaved ? "checkmark-circle" : "save-outline"}
               size={20}
-              color={hasPendingChanges ? "#FFFFFF" : (isDark ? '#94A3B8' : '#64748B')}
+              color="#FFFFFF"
               style={styles.saveBtnIcon}
             />
-            <Text
-              style={[
-                styles.enhancedSaveBtnText,
-                { color: hasPendingChanges ? "#FFFFFF" : (isDark ? '#94A3B8' : '#64748B') }
-              ]}
-            >
+            <Text style={styles.enhancedSaveBtnText}>
               {saving
                 ? 'Saving Preferences...'
-                : hasPendingChanges
-                ? `Save Settings (${pendingChanges.length} Pending)`
-                : 'All Preferences Saved ✓'}
+                : justSaved
+                ? 'All Preferences Saved ✓'
+                : 'Save Settings'}
             </Text>
           </TouchableOpacity>
-
-          {hasPendingChanges && (
-            <TouchableOpacity
-              onPress={discardChanges}
-              disabled={saving}
-              activeOpacity={0.7}
-              style={styles.discardBtn}
-            >
-              <Ionicons name="refresh-outline" size={15} color={sublabelColor} style={{ marginRight: 5 }} />
-              <Text style={[styles.discardBtnText, { color: sublabelColor }]}>
-                Discard Pending Changes
-              </Text>
-            </TouchableOpacity>
-          )}
         </ScrollView>
 
         {/* ENHANCED LANGUAGE SELECTION MODAL */}
@@ -1059,7 +1029,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 18,
     marginTop: 28,
-    marginBottom: 10,
+    marginBottom: 24,
+    backgroundColor: COLORS.primary,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -1184,16 +1155,5 @@ const styles = StyleSheet.create({
   pendingBadgeMiniText: {
     fontSize: 9,
     fontWeight: '800',
-  },
-  discardBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
-  discardBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
   },
 });
