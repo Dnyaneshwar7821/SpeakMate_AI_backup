@@ -34,10 +34,8 @@ export function Progress() {
 
   const [activeTab, setActiveTab] = useState("overview"); // 'overview', 'fluency', 'roadmap', 'rhythm'
   const [loading, setLoading] = useState(false);
-  const [selectedTimeframe, setSelectedTimeframe] = useState("7d");
   const [liveStats, setLiveStats] = useState(() => getLiveProgressStats());
   const [rhythmList, setRhythmList] = useState([]);
-  const [loadingRhythm, setLoadingRhythm] = useState(false);
 
   // Fluency Diagnostic Studio State
   const [selectedPrompt, setSelectedPrompt] = useState(FLUENCY_PROMPTS[0]);
@@ -57,26 +55,24 @@ export function Progress() {
   const recordingSecondsRef = useRef(0);
   const timerRef = useRef(null);
 
-  const fetchRhythm = useCallback(async (timeframe) => {
+  const fetchRhythm = useCallback(async () => {
     try {
-      setLoadingRhythm(true);
-      const days = timeframe === "30d" ? 30 : 7;
-      const res = await dashboardService.rhythm(days);
+      const res = await dashboardService.rhythm(7);
       if (Array.isArray(res) && res.length > 0) {
         setRhythmList(res);
-      } else {
-        setRhythmList(liveStats.weeklyData || []);
+      } else if (liveStats.weeklyData && liveStats.weeklyData.length > 0) {
+        setRhythmList(liveStats.weeklyData);
       }
     } catch (e) {
-      setRhythmList(liveStats.weeklyData || []);
-    } finally {
-      setLoadingRhythm(false);
+      if (liveStats.weeklyData && liveStats.weeklyData.length > 0) {
+        setRhythmList(liveStats.weeklyData);
+      }
     }
   }, [liveStats.weeklyData]);
 
   useEffect(() => {
-    fetchRhythm(selectedTimeframe);
-  }, [selectedTimeframe, fetchRhythm]);
+    fetchRhythm();
+  }, [fetchRhythm]);
 
   const updateStats = async () => {
     try {
@@ -101,7 +97,7 @@ export function Progress() {
       } else {
         setLiveStats(local);
       }
-      fetchRhythm(selectedTimeframe);
+      fetchRhythm();
     } catch (err) {
       console.warn("Failed to load progress stats", err);
     } finally {
@@ -1017,118 +1013,57 @@ export function Progress() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className={`text-lg sm:text-xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                  {selectedTimeframe === "30d" ? "30-Day" : "Weekly"} Practice Rhythm ({totalRhythmMinutes} mins)
+                  Weekly Practice Rhythm & Habits ({totalRhythmMinutes} mins)
                 </h3>
                 <p className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                  Daily practice minutes compared against your 20m daily target.
+                  7-Day practice minutes compared against your 20m daily target (Monday – Sunday).
                 </p>
               </div>
 
-              <div className={`flex items-center gap-1 p-1 rounded-xl border ${
-                isDark ? "bg-slate-800 border-white/10" : "bg-slate-100 border-slate-200"
-              }`}>
-                <button
-                  onClick={() => setSelectedTimeframe("7d")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    selectedTimeframe === "7d"
-                      ? "bg-[#6C63FF] text-white shadow-sm"
-                      : isDark
-                      ? "text-slate-400 hover:text-white"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  7 Days
-                </button>
-                <button
-                  onClick={() => setSelectedTimeframe("30d")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    selectedTimeframe === "30d"
-                      ? "bg-[#6C63FF] text-white shadow-sm"
-                      : isDark
-                      ? "text-slate-400 hover:text-white"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  30 Days
-                </button>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                  🎯 Daily Target: 20m
+                </span>
+                <span className={`text-xs font-bold ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Mon – Sun
+                </span>
               </div>
             </div>
 
-            {/* Rhythm Bar Chart */}
-            {loadingRhythm ? (
-              <div className="h-44 flex items-center justify-center">
-                <div className="inline-block h-7 w-7 animate-spin rounded-full border-3 border-[#6C63FF] border-t-transparent" />
-              </div>
-            ) : selectedTimeframe === "7d" ? (
-              <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-6 px-2">
-                {activeRhythmData.map((d, i) => {
-                  const mins = d.studyMinutes || 0;
-                  const heightPct = Math.max(mins > 0 ? 12 : 4, (mins / maxMins) * 100);
-                  const isGoalMet = mins >= 20;
-                  return (
-                    <div key={i} className="flex flex-col items-center gap-2 h-full justify-end group relative">
-                      <div className={`text-[10px] font-black opacity-0 group-hover:opacity-100 transition-all absolute -top-1 pointer-events-none z-10 px-2 py-0.5 rounded shadow ${
-                        isDark ? "bg-slate-800 text-white border border-slate-700" : "bg-white text-slate-800 border"
-                      }`}>
-                        {mins}m {d.speakingSessions > 0 ? `• ${d.speakingSessions} speaks` : ""}
-                      </div>
-                      <div className={`w-full max-w-[40px] rounded-xl h-28 flex items-end p-1 border ${
-                        isDark ? "bg-slate-800/80 border-white/10" : "bg-slate-100 border-slate-200"
-                      }`}>
-                        <div
-                          className={`w-full rounded-lg transition-all duration-500 shadow-sm ${
-                            isGoalMet
-                              ? "bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-emerald-500/30"
-                              : mins > 0
-                              ? "bg-gradient-to-t from-[#6C63FF] to-indigo-400 shadow-[#6C63FF]/30"
-                              : isDark ? "bg-slate-700/30" : "bg-slate-200"
-                          }`}
-                          style={{ height: `${heightPct}%` }}
-                        />
-                      </div>
-                      <span className={`text-[11px] font-black ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                        {d.day || (d.date ? d.date.slice(5) : `D${i + 1}`)}
-                      </span>
+            {/* 7-Day Habit & Rhythm Bar Chart */}
+            <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-6 px-2">
+              {activeRhythmData.map((d, i) => {
+                const mins = d.studyMinutes || 0;
+                const heightPct = Math.max(mins > 0 ? 12 : 4, (mins / maxMins) * 100);
+                const isGoalMet = mins >= 20;
+                return (
+                  <div key={i} className="flex flex-col items-center gap-2 h-full justify-end group relative">
+                    <div className={`text-[10px] font-black opacity-0 group-hover:opacity-100 transition-all absolute -top-1 pointer-events-none z-10 px-2 py-0.5 rounded shadow ${
+                      isDark ? "bg-slate-800 text-white border border-slate-700" : "bg-white text-slate-800 border"
+                    }`}>
+                      {mins}m {d.speakingSessions > 0 ? `• ${d.speakingSessions} speaks` : ""}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex items-end justify-between gap-1 sm:gap-1.5 h-44 pt-6 px-1 overflow-x-auto custom-scrollbar">
-                {activeRhythmData.map((d, i) => {
-                  const mins = d.studyMinutes || 0;
-                  const heightPct = Math.max(mins > 0 ? 12 : 4, (mins / maxMins) * 100);
-                  const isGoalMet = mins >= 20;
-                  const dateLabel = d.date ? d.date.split("-").slice(1).join("/") : `${i + 1}`;
-                  return (
-                    <div key={i} className="flex flex-col items-center gap-1.5 h-full justify-end group min-w-[22px] sm:min-w-[26px] flex-1 relative">
-                      <div className={`text-[10px] font-black opacity-0 group-hover:opacity-100 transition-all absolute -top-5 pointer-events-none z-20 whitespace-nowrap px-2 py-0.5 rounded shadow ${
-                        isDark ? "bg-slate-800 text-white border border-slate-700" : "bg-white text-slate-800 border shadow"
-                      }`}>
-                        {d.date || d.day}: {mins}m {d.speakingSessions > 0 ? `(${d.speakingSessions} speaking)` : ""}
-                      </div>
-                      <div className={`w-full rounded-md h-28 flex items-end p-0.5 border ${
-                        isDark ? "bg-slate-800/80 border-white/10" : "bg-slate-100 border-slate-200"
-                      }`}>
-                        <div
-                          className={`w-full rounded-sm transition-all duration-300 shadow-sm ${
-                            isGoalMet
-                              ? "bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-emerald-500/30"
-                              : mins > 0
-                              ? "bg-gradient-to-t from-[#6C63FF] to-indigo-400 shadow-[#6C63FF]/30"
-                              : isDark ? "bg-slate-700/30" : "bg-slate-200"
-                          }`}
-                          style={{ height: `${heightPct}%` }}
-                        />
-                      </div>
-                      <span className={`text-[9px] font-bold truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                        {dateLabel}
-                      </span>
+                    <div className={`w-full max-w-[40px] rounded-xl h-28 flex items-end p-1 border ${
+                      isDark ? "bg-slate-800/80 border-white/10" : "bg-slate-100 border-slate-200"
+                    }`}>
+                      <div
+                        className={`w-full rounded-lg transition-all duration-500 shadow-sm ${
+                          isGoalMet
+                            ? "bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-emerald-500/30"
+                            : mins > 0
+                            ? "bg-gradient-to-t from-[#6C63FF] to-indigo-400 shadow-[#6C63FF]/30"
+                            : isDark ? "bg-slate-700/30" : "bg-slate-200"
+                        }`}
+                        style={{ height: `${heightPct}%` }}
+                      />
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <span className={`text-[11px] font-black ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                      {d.day || (d.date ? d.date.slice(5) : `D${i + 1}`)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
 
           </div>
         </div>

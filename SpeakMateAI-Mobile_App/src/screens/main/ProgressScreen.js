@@ -52,32 +52,6 @@ const generateInstant7DayRhythm = (existingWeekly = []) => {
   });
 };
 
-// Instant fallback generator for rolling 30-day window ending today
-const generateInstant30DayRhythm = (existing7d = []) => {
-  const today = new Date();
-  const existingMap = {};
-  (existing7d || []).forEach((item) => {
-    if (item?.date) existingMap[item.date] = item;
-  });
-  const days = [];
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const dateStr = formatLocalDate(d);
-    const dayName = dayNames[d.getDay()];
-    const match = existingMap[dateStr];
-    days.push({
-      day: dayName,
-      date: dateStr,
-      studyMinutes: match ? (match.studyMinutes || 0) : 0,
-      lessonsCompleted: match ? (match.lessonsCompleted || 0) : 0,
-      speakingSessions: match ? (match.speakingSessions || 0) : 0,
-    });
-  }
-  return days;
-};
-
 // CEFR Level Configuration (500 XP per level scale)
 const CEFR_LEVELS = [
   { code: 'A1', name: 'Beginner', minXp: 0, maxXp: 500, color: '#3B82F6', desc: 'Can understand basic phrases & introduce oneself.' },
@@ -97,20 +71,11 @@ export default function ProgressScreen({ navigation }) {
     error: '',
     dashboard: cachedDashboard,
   }));
-  const [selectedTimeframe, setSelectedTimeframe] = useState('7d'); // '7d' | '30d'
 
   // Instant Frame-0 rhythm state initialized from cache or synthesized fallback (0ms)
-  const [rhythmMap, setRhythmMap] = useState(() => {
+  const [rhythmData, setRhythmData] = useState(() => {
     const cached7d = RhythmCache.get('7d', user?.id) || cachedDashboard?.weeklyProgress;
-    const initial7d = generateInstant7DayRhythm(cached7d);
-    const cached30d = RhythmCache.get('30d', user?.id);
-    const initial30d = (Array.isArray(cached30d) && cached30d.length > 0)
-      ? cached30d
-      : generateInstant30DayRhythm(initial7d);
-    return {
-      '7d': initial7d,
-      '30d': initial30d,
-    };
+    return generateInstant7DayRhythm(cached7d);
   });
 
   const load = async (silent = false) => {
@@ -123,7 +88,7 @@ export default function ProgressScreen({ navigation }) {
         DashboardCache.set(dashboard, user.id);
         if (Array.isArray(dashboard.weeklyProgress) && dashboard.weeklyProgress.length > 0) {
           RhythmCache.set('7d', dashboard.weeklyProgress, user.id);
-          setRhythmMap((prev) => ({ ...prev, '7d': dashboard.weeklyProgress }));
+          setRhythmData(dashboard.weeklyProgress);
         }
       }
       setState({ loading: false, error: '', dashboard });
@@ -136,22 +101,13 @@ export default function ProgressScreen({ navigation }) {
     }
   };
 
-  // Background silent fetch for rhythm data - NO blocking loaders, seamless UI
+  // Background silent fetch for 7-day weekly rhythm data - NO blocking loaders, seamless UI
   const fetchRhythmsInBackground = useCallback(() => {
     const userId = user?.id;
-    // Silent 7d sync
     dashboardService.rhythm(7).then((res7d) => {
       if (Array.isArray(res7d) && res7d.length > 0) {
         RhythmCache.set('7d', res7d, userId);
-        setRhythmMap((prev) => ({ ...prev, '7d': res7d }));
-      }
-    }).catch(() => {});
-
-    // Silent 30d sync
-    dashboardService.rhythm(30).then((res30d) => {
-      if (Array.isArray(res30d) && res30d.length > 0) {
-        RhythmCache.set('30d', res30d, userId);
-        setRhythmMap((prev) => ({ ...prev, '30d': res30d }));
+        setRhythmData(res7d);
       }
     }).catch(() => {});
   }, [user?.id]);
@@ -166,17 +122,15 @@ export default function ProgressScreen({ navigation }) {
   // Sync with dashboard summary if updated
   useEffect(() => {
     if (state.dashboard?.weeklyProgress?.length) {
-      setRhythmMap((prev) => ({
-        ...prev,
-        '7d': state.dashboard.weeklyProgress,
-      }));
+      RhythmCache.set('7d', state.dashboard.weeklyProgress, user?.id);
+      setRhythmData(state.dashboard.weeklyProgress);
     }
-  }, [state.dashboard?.weeklyProgress]);
+  }, [state.dashboard?.weeklyProgress, user?.id]);
 
   const d = state.dashboard;
   const progress = d?.progress || {};
   const stats = d?.statistics || {};
-  const activeRhythm = rhythmMap[selectedTimeframe] || [];
+  const activeRhythm = rhythmData || [];
 
   // Level & XP calculations (500 XP per level)
   const xp = progress.xp || 0;
@@ -356,89 +310,44 @@ export default function ProgressScreen({ navigation }) {
           {/* Weekly Practice Rhythm & Goal Tracker */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 10 }}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 0, marginTop: 0 }]}>
-              {selectedTimeframe === '30d' ? '30-Day Rhythm' : 'Weekly Rhythm'} ({totalRhythmMinutes} mins)
+              Weekly Rhythm ({totalRhythmMinutes} mins)
             </Text>
-            <View style={[styles.timeframeToggle, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-              <TouchableOpacity
-                style={[styles.timeframeBtn, selectedTimeframe === '7d' && styles.timeframeBtnActive]}
-                onPress={() => setSelectedTimeframe('7d')}
-              >
-                <Text style={[styles.timeframeText, selectedTimeframe === '7d' && styles.timeframeTextActive]}>7 Days</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.timeframeBtn, selectedTimeframe === '30d' && styles.timeframeBtnActive]}
-                onPress={() => setSelectedTimeframe('30d')}
-              >
-                <Text style={[styles.timeframeText, selectedTimeframe === '30d' && styles.timeframeTextActive]}>30 Days</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981' }}>🎯 Daily Goal: 20m</Text>
           </View>
 
           <Card style={[styles.chartCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
             <View style={styles.chartHeader}>
               <Text style={[styles.chartSubtitle, { color: theme.textSecondary }]}>
-                {selectedTimeframe === '30d' ? '30-Day Daily Speaking & Practice' : 'Daily Speaking & Practice Minutes'}
+                Daily Speaking & Practice Minutes
               </Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#10B981' }}>🎯 Daily Goal: 20m</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: theme.textSecondary }}>Mon – Sun</Text>
             </View>
 
-            {selectedTimeframe === '7d' ? (
-              <View style={styles.barChartContainer}>
-                {activeRhythm.map((item, index) => {
-                  const barHeight = ((item.studyMinutes || 0) / maxMins) * 110;
-                  const isGoalMet = (item.studyMinutes || 0) >= 20;
-                  return (
-                    <View key={index} style={styles.chartColumn}>
-                      <View style={styles.barWrapper}>
-                        <View
-                          style={[
-                            styles.bar,
-                            {
-                              height: Math.max(6, barHeight),
-                              backgroundColor: isGoalMet ? '#10B981' : COLORS.primary,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={[styles.chartDayText, { color: theme.textSecondary }]}>{item.day || `D${index + 1}`}</Text>
-                      <Text style={[styles.chartMinText, { color: isGoalMet ? '#10B981' : theme.textSecondary }]}>
-                        {item.studyMinutes || 0}m
-                      </Text>
+            <View style={styles.barChartContainer}>
+              {activeRhythm.map((item, index) => {
+                const barHeight = ((item.studyMinutes || 0) / maxMins) * 110;
+                const isGoalMet = (item.studyMinutes || 0) >= 20;
+                return (
+                  <View key={index} style={styles.chartColumn}>
+                    <View style={styles.barWrapper}>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: Math.max(6, barHeight),
+                            backgroundColor: isGoalMet ? '#10B981' : COLORS.primary,
+                          },
+                        ]}
+                      />
                     </View>
-                  );
-                })}
-              </View>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4, paddingVertical: 10, alignItems: 'flex-end' }}>
-                {activeRhythm.map((item, index) => {
-                  const barHeight = ((item.studyMinutes || 0) / maxMins) * 105;
-                  const isGoalMet = (item.studyMinutes || 0) >= 20;
-                  const dateLabel = item.date ? item.date.split('-').slice(1).join('/') : `${index + 1}`;
-                  return (
-                    <View key={index} style={{ alignItems: 'center', minWidth: 26, marginHorizontal: 3 }}>
-                      <Text style={{ fontSize: 9, fontWeight: '700', color: isGoalMet ? '#10B981' : theme.textSecondary, marginBottom: 4 }}>
-                        {item.studyMinutes || 0}m
-                      </Text>
-                      <View style={[styles.barWrapper, { width: 14, height: 110 }]}>
-                        <View
-                          style={[
-                            styles.bar,
-                            {
-                              width: 14,
-                              height: Math.max(6, barHeight),
-                              backgroundColor: isGoalMet ? '#10B981' : COLORS.primary,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={[styles.chartDayText, { fontSize: 9, color: theme.textSecondary, marginTop: 4 }]}>
-                        {dateLabel}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-            )}
+                    <Text style={[styles.chartDayText, { color: theme.textSecondary }]}>{item.day || `D${index + 1}`}</Text>
+                    <Text style={[styles.chartMinText, { color: isGoalMet ? '#10B981' : theme.textSecondary }]}>
+                      {item.studyMinutes || 0}m
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           </Card>
 
           {/* Lifetime Learning Statistics */}
