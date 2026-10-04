@@ -9,6 +9,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
