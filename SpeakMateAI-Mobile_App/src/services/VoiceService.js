@@ -15,11 +15,50 @@ export const VOICE_PROFILES = [
   { code: 'Default', accent: 'System Default', locale: 'en-US', gender: 'female', label: 'System Default' },
 ];
 
-/**
- * SpeakMate Centralized Avatar Voice Profiles
- * Provides tailored, natural acoustic differentiation (pitch, rate, locale, preferred voices)
- * ensuring all avatars sound distinct without unnatural distortion.
- */
+let currentUtteranceSession = 0;
+
+function chunkTextForTTS(text, maxChunkLen = 2000) {
+  if (!text || text.length <= maxChunkLen) {
+    return [text];
+  }
+  const chunks = [];
+  let remaining = text.trim();
+
+  while (remaining.length > maxChunkLen) {
+    let splitIdx = -1;
+    const slice = remaining.slice(0, maxChunkLen);
+
+    // Prefer sentence boundaries (. ! ?)
+    const sentenceMatch = slice.match(/([.!?\n])\s+(?=[^.!?\n]*$)/);
+    if (sentenceMatch && sentenceMatch.index > 200) {
+      splitIdx = sentenceMatch.index + 1;
+    } else {
+      // Fallback: clause punctuation (, ; : —)
+      const clauseMatch = slice.match(/([,;:—])\s+(?=[^,;:—]*$)/);
+      if (clauseMatch && clauseMatch.index > 200) {
+        splitIdx = clauseMatch.index + 1;
+      } else {
+        // Fallback: last whitespace
+        const lastSpace = slice.lastIndexOf(' ');
+        if (lastSpace > 200) {
+          splitIdx = lastSpace;
+        } else {
+          splitIdx = maxChunkLen;
+        }
+      }
+    }
+
+    const chunk = remaining.slice(0, splitIdx).trim();
+    if (chunk) chunks.push(chunk);
+    remaining = remaining.slice(splitIdx).trim();
+  }
+
+  if (remaining) {
+    chunks.push(remaining);
+  }
+  return chunks;
+}
+
 export const AVATAR_VOICE_PROFILES = {
   haru: {
     avatarId: 'haru',
@@ -1041,14 +1080,72 @@ export const VoiceService = {
       options.voice = systemVoiceId;
     }
 
-    // ── 9. Speak ──────────────────────────────────────────────────────────────
+    // ── 9. Speak with Automatic Chunking (Safeguards Android 4000 char TTS limit) ──
+    const chunks = chunkTextForTTS(cleanedText, 2000);
+    const sessionId = ++currentUtteranceSession;
+
     try {
       Speech.stop();
-      Speech.speak(cleanedText, options);
-    } catch (e) {
-      console.warn('[VoiceService] Speech.speak failed:', e);
-      if (onError) onError(e);
+    } catch (_) {}
+
+    if (chunks.length === 1) {
+      try {
+        const res = Speech.speak(chunks[0], options);
+        if (res && typeof res.catch === 'function') {
+          res.catch((err) => {
+            console.warn('[VoiceService] Speech.speak rejected:', err);
+            if (options.onError) options.onError(err);
+          });
+        }
+      } catch (e) {
+        console.warn('[VoiceService] Speech.speak failed:', e);
+        if (onError) onError(e);
+      }
+      return;
     }
+
+    // Multi-chunk sequential playback
+    let currentIdx = 0;
+    const speakNextChunk = () => {
+      if (sessionId !== currentUtteranceSession) return;
+      if (currentIdx >= chunks.length) {
+        if (onDone) onDone();
+        return;
+      }
+
+      const chunk = chunks[currentIdx];
+      const isFirst = currentIdx === 0;
+
+      const chunkOptions = {
+        ...options,
+        onStart: isFirst ? onStart : undefined,
+        onDone: () => {
+          if (sessionId !== currentUtteranceSession) return;
+          currentIdx++;
+          speakNextChunk();
+        },
+        onError: (err) => {
+          if (sessionId !== currentUtteranceSession) return;
+          console.warn('[VoiceService] Multi-chunk TTS error:', err);
+          if (options.onError) options.onError(err);
+        },
+      };
+
+      try {
+        const res = Speech.speak(chunk, chunkOptions);
+        if (res && typeof res.catch === 'function') {
+          res.catch((err) => {
+            console.warn('[VoiceService] Speech.speak rejected in chunk:', err);
+            if (chunkOptions.onError) chunkOptions.onError(err);
+          });
+        }
+      } catch (e) {
+        console.warn('[VoiceService] Speech.speak chunk failed:', e);
+        if (options.onError) options.onError(e);
+      }
+    };
+
+    speakNextChunk();
   },
 
   speakSequential: async (segments = [], options = {}, pauseMs = 400) => {
@@ -1099,6 +1196,7 @@ export const VoiceService = {
   },
 
   stop: () => {
+    currentUtteranceSession++;
     try {
       Speech.stop();
     } catch (e) {
