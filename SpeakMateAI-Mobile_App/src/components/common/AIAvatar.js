@@ -414,7 +414,7 @@ export default function AIAvatar({
         />
       </View>
 
-      {/* ── Layer 8: Glassmorphic State / Speaking Pill ── */}
+      {/* ── Layer 8: Glassmorphic State / Speaking Pill (Stable, anchored in pink box zone) ── */}
       {!hideStatusPill && (
         <Animated.View
           style={[
@@ -422,7 +422,6 @@ export default function AIAvatar({
             {
               borderColor: `${config.ringGlow}40`,
               shadowColor: config.ringGlow,
-              transform: [{ translateY: floatY }],
             },
           ]}
         >
@@ -562,13 +561,15 @@ const styles = StyleSheet.create({
     zIndex:       15,
   },
 
-  // 8. Glassmorphic Status Pill
+  // 8. Glassmorphic Status Pill (Anchored stably in pink box area, completely clear of chat)
   statusPill: {
+    position:          'absolute',
+    bottom:            10,
+    alignSelf:         'center',
     flexDirection:     'row',
     alignItems:        'center',
     justifyContent:    'center',
     gap:               8,
-    marginTop:         14,
     minWidth:          120,
     paddingHorizontal: 15,
     paddingVertical:   6.5,
@@ -579,7 +580,7 @@ const styles = StyleSheet.create({
     shadowRadius:      8,
     shadowOffset:      { width: 0, height: 2 },
     elevation:         6,
-    zIndex:            20,
+    zIndex:            25,
   },
   statusDot: {
     width:        8,
