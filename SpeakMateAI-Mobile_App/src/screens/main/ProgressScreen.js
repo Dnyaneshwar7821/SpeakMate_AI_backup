@@ -6,7 +6,6 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,10 +14,69 @@ import { Card, Screen, StateView } from '../../components/ui';
 import { dashboardService } from '../../services/appServices';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthContext } from '../../context/AuthContext';
-import { DashboardCache } from '../../utils/dashboardCache';
+import { DashboardCache, RhythmCache } from '../../utils/dashboardCache';
 import { COLORS } from '../../constants/colors';
 
 const { width } = Dimensions.get('window');
+
+// Local date string formatter without UTC skew
+const formatLocalDate = (d) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Instant fallback generator for 7-day week (Mon to Sun)
+const generateInstant7DayRhythm = (existingWeekly = []) => {
+  if (Array.isArray(existingWeekly) && existingWeekly.length > 0) {
+    return existingWeekly;
+  }
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const distanceToMonday = (dayOfWeek + 6) % 7;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - distanceToMonday);
+
+  return dayNames.map((name, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      day: name,
+      date: formatLocalDate(d),
+      studyMinutes: 0,
+      lessonsCompleted: 0,
+      speakingSessions: 0,
+    };
+  });
+};
+
+// Instant fallback generator for rolling 30-day window ending today
+const generateInstant30DayRhythm = (existing7d = []) => {
+  const today = new Date();
+  const existingMap = {};
+  (existing7d || []).forEach((item) => {
+    if (item?.date) existingMap[item.date] = item;
+  });
+  const days = [];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = formatLocalDate(d);
+    const dayName = dayNames[d.getDay()];
+    const match = existingMap[dateStr];
+    days.push({
+      day: dayName,
+      date: dateStr,
+      studyMinutes: match ? (match.studyMinutes || 0) : 0,
+      lessonsCompleted: match ? (match.lessonsCompleted || 0) : 0,
+      speakingSessions: match ? (match.speakingSessions || 0) : 0,
+    });
+  }
+  return days;
+};
 
 // CEFR Level Configuration (500 XP per level scale)
 const CEFR_LEVELS = [
@@ -40,8 +98,20 @@ export default function ProgressScreen({ navigation }) {
     dashboard: cachedDashboard,
   }));
   const [selectedTimeframe, setSelectedTimeframe] = useState('7d'); // '7d' | '30d'
-  const [rhythmData, setRhythmData] = useState([]);
-  const [loadingRhythm, setLoadingRhythm] = useState(false);
+
+  // Instant Frame-0 rhythm state initialized from cache or synthesized fallback (0ms)
+  const [rhythmMap, setRhythmMap] = useState(() => {
+    const cached7d = RhythmCache.get('7d', user?.id) || cachedDashboard?.weeklyProgress;
+    const initial7d = generateInstant7DayRhythm(cached7d);
+    const cached30d = RhythmCache.get('30d', user?.id);
+    const initial30d = (Array.isArray(cached30d) && cached30d.length > 0)
+      ? cached30d
+      : generateInstant30DayRhythm(initial7d);
+    return {
+      '7d': initial7d,
+      '30d': initial30d,
+    };
+  });
 
   const load = async (silent = false) => {
     if (!silent && !state.dashboard) {
@@ -51,6 +121,10 @@ export default function ProgressScreen({ navigation }) {
       const dashboard = await dashboardService.summary();
       if (dashboard && user?.id) {
         DashboardCache.set(dashboard, user.id);
+        if (Array.isArray(dashboard.weeklyProgress) && dashboard.weeklyProgress.length > 0) {
+          RhythmCache.set('7d', dashboard.weeklyProgress, user.id);
+          setRhythmMap((prev) => ({ ...prev, '7d': dashboard.weeklyProgress }));
+        }
       }
       setState({ loading: false, error: '', dashboard });
     } catch (error) {
@@ -62,37 +136,47 @@ export default function ProgressScreen({ navigation }) {
     }
   };
 
+  // Background silent fetch for rhythm data - NO blocking loaders, seamless UI
+  const fetchRhythmsInBackground = useCallback(() => {
+    const userId = user?.id;
+    // Silent 7d sync
+    dashboardService.rhythm(7).then((res7d) => {
+      if (Array.isArray(res7d) && res7d.length > 0) {
+        RhythmCache.set('7d', res7d, userId);
+        setRhythmMap((prev) => ({ ...prev, '7d': res7d }));
+      }
+    }).catch(() => {});
+
+    // Silent 30d sync
+    dashboardService.rhythm(30).then((res30d) => {
+      if (Array.isArray(res30d) && res30d.length > 0) {
+        RhythmCache.set('30d', res30d, userId);
+        setRhythmMap((prev) => ({ ...prev, '30d': res30d }));
+      }
+    }).catch(() => {});
+  }, [user?.id]);
+
   useFocusEffect(
     useCallback(() => {
       load(Boolean(DashboardCache.get(user?.id)));
-    }, [user?.id])
+      fetchRhythmsInBackground();
+    }, [user?.id, fetchRhythmsInBackground])
   );
 
-  const fetchRhythm = useCallback(async (timeframe) => {
-    try {
-      setLoadingRhythm(true);
-      const days = timeframe === '30d' ? 30 : 7;
-      const res = await dashboardService.rhythm(days);
-      if (Array.isArray(res) && res.length > 0) {
-        setRhythmData(res);
-      } else {
-        setRhythmData(state.dashboard?.weeklyProgress || []);
-      }
-    } catch {
-      setRhythmData(state.dashboard?.weeklyProgress || []);
-    } finally {
-      setLoadingRhythm(false);
+  // Sync with dashboard summary if updated
+  useEffect(() => {
+    if (state.dashboard?.weeklyProgress?.length) {
+      setRhythmMap((prev) => ({
+        ...prev,
+        '7d': state.dashboard.weeklyProgress,
+      }));
     }
   }, [state.dashboard?.weeklyProgress]);
-
-  useEffect(() => {
-    fetchRhythm(selectedTimeframe);
-  }, [selectedTimeframe, fetchRhythm]);
 
   const d = state.dashboard;
   const progress = d?.progress || {};
   const stats = d?.statistics || {};
-  const activeRhythm = rhythmData.length > 0 ? rhythmData : (d?.weeklyProgress || []);
+  const activeRhythm = rhythmMap[selectedTimeframe] || [];
 
   // Level & XP calculations (500 XP per level)
   const xp = progress.xp || 0;
@@ -298,11 +382,7 @@ export default function ProgressScreen({ navigation }) {
               <Text style={{ fontSize: 11, fontWeight: '800', color: '#10B981' }}>🎯 Daily Goal: 20m</Text>
             </View>
 
-            {loadingRhythm ? (
-              <View style={{ height: 140, alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              </View>
-            ) : selectedTimeframe === '7d' ? (
+            {selectedTimeframe === '7d' ? (
               <View style={styles.barChartContainer}>
                 {activeRhythm.map((item, index) => {
                   const barHeight = ((item.studyMinutes || 0) / maxMins) * 110;

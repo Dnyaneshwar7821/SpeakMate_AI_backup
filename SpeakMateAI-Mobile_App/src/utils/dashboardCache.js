@@ -1,14 +1,84 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DASHBOARD_CACHE_PREFIX = 'speakmate_dashboard_summary_cache_';
+const RHYTHM_CACHE_PREFIX = 'speakmate_rhythm_cache_';
 
 // In-memory cache + persistent disk cache to make dashboard load instantly (0ms) on cold & warm starts
 let cachedDashboardData = null;
 let cachedUserId = null;
 
+// In-memory cache + persistent disk cache for rhythm data ('7d' and '30d')
+let cachedRhythmData = { '7d': null, '30d': null };
+let cachedRhythmUserId = null;
+
+export const RhythmCache = {
+  init: async (userId) => {
+    try {
+      cachedRhythmUserId = userId || null;
+      const key7d = `${RHYTHM_CACHE_PREFIX}7d_${userId || 'default'}`;
+      const key30d = `${RHYTHM_CACHE_PREFIX}30d_${userId || 'default'}`;
+      const [raw7d, raw30d] = await Promise.all([
+        AsyncStorage.getItem(key7d),
+        AsyncStorage.getItem(key30d),
+      ]);
+      if (raw7d) {
+        try {
+          const parsed7d = JSON.parse(raw7d);
+          if (Array.isArray(parsed7d) && parsed7d.length > 0) cachedRhythmData['7d'] = parsed7d;
+        } catch (_) {}
+      }
+      if (raw30d) {
+        try {
+          const parsed30d = JSON.parse(raw30d);
+          if (Array.isArray(parsed30d) && parsed30d.length > 0) cachedRhythmData['30d'] = parsed30d;
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('RhythmCache.init error:', e);
+    }
+    return cachedRhythmData;
+  },
+  get: (timeframe, userId) => {
+    if (userId && cachedRhythmUserId && String(cachedRhythmUserId) !== String(userId)) {
+      return null;
+    }
+    return cachedRhythmData[timeframe] || null;
+  },
+  getAll: (userId) => {
+    if (userId && cachedRhythmUserId && String(cachedRhythmUserId) !== String(userId)) {
+      return { '7d': null, '30d': null };
+    }
+    return cachedRhythmData;
+  },
+  set: (timeframe, data, userId) => {
+    if (!data || !Array.isArray(data)) return;
+    if (userId) cachedRhythmUserId = userId;
+    cachedRhythmData[timeframe] = data;
+    try {
+      const key = `${RHYTHM_CACHE_PREFIX}${timeframe}_${userId || cachedRhythmUserId || 'default'}`;
+      AsyncStorage.setItem(key, JSON.stringify(data)).catch((err) => {
+        console.warn('RhythmCache disk save error:', err);
+      });
+    } catch (_) {}
+  },
+  clearMemory: () => {
+    cachedRhythmData = { '7d': null, '30d': null };
+    cachedRhythmUserId = null;
+  },
+  clear: (userId) => {
+    cachedRhythmData = { '7d': null, '30d': null };
+    cachedRhythmUserId = null;
+    if (userId) {
+      AsyncStorage.removeItem(`${RHYTHM_CACHE_PREFIX}7d_${userId}`).catch(() => {});
+      AsyncStorage.removeItem(`${RHYTHM_CACHE_PREFIX}30d_${userId}`).catch(() => {});
+    }
+  },
+};
+
 export const DashboardCache = {
   init: async (userId) => {
     try {
+      RhythmCache.init(userId).catch(() => {});
       const key = `${DASHBOARD_CACHE_PREFIX}${userId || 'default'}`;
       const raw = await AsyncStorage.getItem(key);
       if (raw) {
@@ -16,6 +86,9 @@ export const DashboardCache = {
         if (parsed) {
           cachedDashboardData = parsed;
           cachedUserId = userId || null;
+          if (Array.isArray(parsed.weeklyProgress) && parsed.weeklyProgress.length > 0) {
+            RhythmCache.set('7d', parsed.weeklyProgress, userId);
+          }
           return parsed;
         }
       }
@@ -34,6 +107,9 @@ export const DashboardCache = {
     if (!data) return;
     cachedDashboardData = data;
     if (userId) cachedUserId = userId;
+    if (Array.isArray(data.weeklyProgress) && data.weeklyProgress.length > 0) {
+      RhythmCache.set('7d', data.weeklyProgress, userId || cachedUserId);
+    }
     try {
       const key = `${DASHBOARD_CACHE_PREFIX}${userId || cachedUserId || 'default'}`;
       AsyncStorage.setItem(key, JSON.stringify(data)).catch((err) => {
@@ -52,10 +128,12 @@ export const DashboardCache = {
   clearMemory: () => {
     cachedDashboardData = null;
     cachedUserId = null;
+    RhythmCache.clearMemory();
   },
   clear: (userId) => {
     cachedDashboardData = null;
     cachedUserId = null;
+    RhythmCache.clear(userId);
     if (userId) {
       AsyncStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${userId}`).catch(() => {});
     }
@@ -218,4 +296,5 @@ export const CurriculumCache = {
   },
 };
 
+export { DashboardCache, CurriculumCache, RhythmCache };
 export default DashboardCache;
