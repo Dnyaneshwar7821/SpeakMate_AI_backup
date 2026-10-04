@@ -32,6 +32,7 @@ if (Platform.OS === 'android' && !global.nativeFabricUIManager && UIManager.setL
 import { useTheme } from '../../context/ThemeContext';
 import { speechService, settingsService } from '../../services/appServices';
 import { VoiceService } from '../../services/VoiceService';
+import { getCachedAvatarModel } from '../../config/AvatarCatalog';
 import {
   DEFAULT_ROLE,
   QUICK_SUGGESTIONS_BY_ROLE,
@@ -79,9 +80,38 @@ export function AssistantModal({
   const [isRecording, setIsRecording] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const [userVoiceSettings, setUserVoiceSettings] = useState({
-    voice: 'IN Female',
+    voice: 'Default',
     speed: 1.0,
   });
+  const [activeAvatarModel, setActiveAvatarModel] = useState(() => getCachedAvatarModel() || 'haru');
+  const [activeVoiceCode, setActiveVoiceCode] = useState(null);
+  const [availableVoices, setAvailableVoices] = useState([]);
+
+  // Dynamically sync active tutor avatar and voice whenever assistant modal opens
+  useEffect(() => {
+    if (isOpen) {
+      (async () => {
+        try {
+          const [savedAvatar, savedVoice, savedSpeed, voices] = await Promise.all([
+            AsyncStorage.getItem('speakmate_avatar_model').catch(() => null),
+            AsyncStorage.getItem('speakmate_selected_voice').catch(() => null),
+            AsyncStorage.getItem('speakmate_voice_speed').catch(() => null),
+            VoiceService.getAvailableEnglishVoices().catch(() => []),
+          ]);
+          const model = getCachedAvatarModel() || savedAvatar || 'haru';
+          setActiveAvatarModel(model);
+          setActiveVoiceCode(savedVoice);
+          if (savedVoice || savedSpeed) {
+            setUserVoiceSettings({
+              voice: savedVoice || 'Default',
+              speed: savedSpeed ? parseFloat(savedSpeed) : 1.0,
+            });
+          }
+          if (voices && voices.length > 0) setAvailableVoices(voices);
+        } catch (_) {}
+      })();
+    }
+  }, [isOpen]);
 
   const animProgress = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
   const [isMounted, setIsMounted] = useState(Boolean(isOpen));
@@ -312,8 +342,10 @@ export function AssistantModal({
       }
 
       VoiceService.speak(cleanText, {
-        voiceType: userVoiceSettings.voice,
-        speechSpeed: userVoiceSettings.speed,
+        avatarId: activeAvatarModel,
+        voiceType: activeVoiceCode || userVoiceSettings.voice,
+        speechSpeed: userVoiceSettings.speed || 1.0,
+        availableVoices,
         onStart: () => {
           setSpeakingMessageId(messageId);
         },

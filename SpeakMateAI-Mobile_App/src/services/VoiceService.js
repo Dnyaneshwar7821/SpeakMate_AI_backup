@@ -386,10 +386,11 @@ export const VoiceService = {
   selectSystemVoiceForAvatar: (availableVoices, avatarProfile, userSelectedAccent = null) => {
     if (!availableVoices || availableVoices.length === 0) return null;
 
-    const isCartoon = avatarProfile.category === 'cartoon';
+    // Only Female Teacher (haru) and Male Teacher (chitose) have access to regional voice overrides from Settings
+    // All other 8 avatars (Doraemon, SpongeBob, Chhota Bheem, Ninja Hattori, Tom, Ben 10, Scooby-Doo, Shizuka) strictly use their own signature voices
+    const isTeacherCoach = avatarProfile.avatarId === 'haru' || avatarProfile.avatarId === 'chitose';
 
-    // If user explicitly configured an accent in Settings, only override if it's a human coach
-    if (!isCartoon && userSelectedAccent && userSelectedAccent !== 'Default' && !userSelectedAccent.toLowerCase().includes('friendly')) {
+    if (isTeacherCoach && userSelectedAccent && userSelectedAccent !== 'Default' && !userSelectedAccent.toLowerCase().includes('friendly')) {
       const accentVoice = VoiceService.selectSystemVoice(availableVoices, userSelectedAccent);
       if (accentVoice) return accentVoice;
     }

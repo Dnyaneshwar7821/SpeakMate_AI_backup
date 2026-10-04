@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { vocabularyService, settingsService, progressService } from '../../services/appServices';
 import { VoiceService } from '../../services/VoiceService';
+import { getCachedAvatarModel } from '../../config/AvatarCatalog';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(width - 36, 400);
@@ -133,6 +134,7 @@ export default function VocabularyScreen() {
   // Settings & Voices
   const [settings, setSettings] = useState(null);
   const [availableVoices, setAvailableVoices] = useState([]);
+  const [activeAvatarModel, setActiveAvatarModel] = useState(() => getCachedAvatarModel() || 'haru');
 
   // 3D Flashcard State & Physics
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -160,15 +162,19 @@ export default function VocabularyScreen() {
   // Load User Profile & Calibrated Curriculums
   const loadUserData = async () => {
     try {
-      const [savedAccType, savedGrade, savedAgeGroup, s, voices, savedVoice, backendWords] = await Promise.all([
+      const [savedAccType, savedGrade, savedAgeGroup, s, voices, savedVoice, savedAvatar, backendWords] = await Promise.all([
         AsyncStorage.getItem('speakmate_account_type'),
         AsyncStorage.getItem('speakmate_school_grade'),
         AsyncStorage.getItem('speakmate_age_group'),
         settingsService.get().catch(() => null),
         VoiceService.getAvailableEnglishVoices(),
         AsyncStorage.getItem('speakmate_selected_voice'),
+        AsyncStorage.getItem('speakmate_avatar_model'),
         vocabularyService.all().catch(() => []),
       ]);
+
+      const effAvatar = getCachedAvatarModel() || savedAvatar || 'haru';
+      setActiveAvatarModel(effAvatar);
 
       const effAccType = savedAccType || 'INDIVIDUAL_USER';
       const effectiveVoice = savedVoice || s?.aiVoice || 'Default';
@@ -280,6 +286,7 @@ export default function VocabularyScreen() {
     if (settings?.isMuted || !txt) return;
     VoiceService.stop();
     VoiceService.speak(txt, {
+      avatarId: activeAvatarModel,
       voiceType: settings?.aiVoice || 'Default',
       availableVoices,
       onStart: () => setIsSpeaking(true),
@@ -615,14 +622,22 @@ export default function VocabularyScreen() {
       if (newStreak > maxStreak) setMaxStreak(newStreak);
 
       if (settings?.soundEffects !== false) {
-        Speech.speak('Correct!', { language: 'en-US', pitch: 1.25, rate: 1.1 });
+        VoiceService.speak('Correct!', {
+          avatarId: activeAvatarModel,
+          voiceType: settings?.aiVoice || 'Default',
+          availableVoices,
+        });
       }
     } else {
       setStreakCount(0);
       setMistakesList((prev) => [...prev, { ...currentQ, userAnswer: option }]);
 
       if (settings?.soundEffects !== false) {
-        Speech.speak('Review answer below.', { language: 'en-US', pitch: 0.95, rate: 1.0 });
+        VoiceService.speak('Review answer below.', {
+          avatarId: activeAvatarModel,
+          voiceType: settings?.aiVoice || 'Default',
+          availableVoices,
+        });
       }
     }
   };

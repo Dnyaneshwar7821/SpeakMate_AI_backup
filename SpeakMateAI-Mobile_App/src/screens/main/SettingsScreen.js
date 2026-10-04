@@ -157,7 +157,14 @@ export default function SettingsScreen({ navigation }) {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const discardChanges = () => {
+  const discardChanges = async () => {
+    try {
+      const savedAvatarModel = await AsyncStorage.getItem('speakmate_avatar_model');
+      if (savedAvatarModel) {
+        setCurrentAvatarModel(savedAvatarModel);
+        setCachedAvatarModel(savedAvatarModel);
+      }
+    } catch (_) {}
     setForm((current) => ({
       ...current,
       language: savedBaseline.language,
@@ -177,19 +184,19 @@ export default function SettingsScreen({ navigation }) {
       }
 
       // 2. Sync Voice and Avatar to AsyncStorage
+      // Regional voice selection in Settings ALWAYS automatically switches avatar model to:
+      // - Male Teacher ('chitose') for male regional voices
+      // - Female Teacher ('haru') for female regional voices
       if (form.aiVoice) {
         const profile = VOICE_PROFILES.find((p) => p.code === form.aiVoice);
         await AsyncStorage.setItem('speakmate_selected_voice', form.aiVoice);
         await AsyncStorage.setItem('speakmate_ai_voice', form.aiVoice);
-        if (profile?.gender) {
-          await AsyncStorage.setItem('speakmate_voice_gender', profile.gender);
-          if (!currentAvatarModel || currentAvatarModel === 'haru' || currentAvatarModel === 'chitose') {
-            const coachModel = profile.gender === 'male' ? 'chitose' : 'haru';
-            await AsyncStorage.setItem('speakmate_avatar_model', coachModel);
-            setCachedAvatarModel(coachModel);
-            setCurrentAvatarModel(coachModel);
-          }
-        }
+        const coachGender = profile?.gender || 'female';
+        const coachModel = coachGender === 'male' ? 'chitose' : 'haru';
+        await AsyncStorage.setItem('speakmate_voice_gender', coachGender);
+        await AsyncStorage.setItem('speakmate_avatar_model', coachModel);
+        setCachedAvatarModel(coachModel);
+        setCurrentAvatarModel(coachModel);
       }
 
       // 3. Sync Age Group via Profile Service, Onboarding Service, AuthContext & AsyncStorage
@@ -248,7 +255,8 @@ export default function SettingsScreen({ navigation }) {
     form.aiVoice !== savedBaseline.aiVoice
       ? (isMaleTutor ? 'chitose' : 'haru')
       : (currentAvatarModel || (isMaleTutor ? 'chitose' : 'haru'))
-  );
+  ) || getAvatarById('haru');
+  const isCharacterAvatar = currentAvatarModel && currentAvatarModel !== 'haru' && currentAvatarModel !== 'chitose';
 
   // Filtered languages based on search query
   const filteredLanguages = LANGUAGE_OPTIONS.filter((lang) => 
@@ -293,7 +301,9 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                   <Text style={[styles.statusVoiceName, { color: labelColor }]} numberOfLines={1}>
                     {activeAvatar.emoji} {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'}) •{' '}
-                    {OnboardingVoiceService.isSystemDefault(form.aiVoice)
+                    {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
+                      ? `${activeAvatar.name} Signature Voice`
+                      : OnboardingVoiceService.isSystemDefault(form.aiVoice)
                       ? `Default (${onboardingVoiceStyle})`
                       : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
                   </Text>
@@ -399,7 +409,11 @@ export default function SettingsScreen({ navigation }) {
                 </View>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.rowTitle, { color: labelColor }]}>Voice Accent & Dialect</Text>
-                  <Text style={[styles.rowDesc, { color: sublabelColor }]}>Audio pronunciation tutor model</Text>
+                  <Text style={[styles.rowDesc, { color: sublabelColor }]}>
+                    {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
+                      ? `${activeAvatar.name} Signature Voice (Tap to switch tutor)`
+                      : 'Audio pronunciation tutor model'}
+                  </Text>
                 </View>
               </View>
               <View style={styles.pickerRowRight}>
@@ -409,7 +423,9 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                 )}
                 <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">
-                  {OnboardingVoiceService.isSystemDefault(form.aiVoice)
+                  {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
+                    ? `${activeAvatar.name} Voice`
+                    : OnboardingVoiceService.isSystemDefault(form.aiVoice)
                     ? `System Default (${onboardingVoiceStyle})`
                     : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
                 </Text>
@@ -789,7 +805,12 @@ export default function SettingsScreen({ navigation }) {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: modalBg }]}>
               <View style={[styles.modalHeader, { borderBottomColor: dividerColor }]}>
-                <Text style={[styles.modalTitle, { color: labelColor }]}>Choose Speaking Tutor Voice</Text>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.modalTitle, { color: labelColor }]}>Choose Speaking Tutor Voice</Text>
+                  <Text style={{ fontSize: 12, color: sublabelColor, marginTop: 2 }}>
+                    Selecting a regional voice switches your active tutor to Female Teacher (Haru) or Male Teacher (Chitose).
+                  </Text>
+                </View>
                 <TouchableOpacity onPress={() => setShowVoiceModal(false)}>
                   <Ionicons name="close" size={24} color={sublabelColor} />
                 </TouchableOpacity>
@@ -808,18 +829,24 @@ export default function SettingsScreen({ navigation }) {
                       onPress={async () => {
                         update('aiVoice', profile.code);
 
-                        // Direct UX: Play audio voice preview sample so user hears the accent immediately
+                        // Selecting a regional voice switches the draft active tutor to Male or Female Teacher
+                        const targetCoach = profile.gender === 'male' ? 'chitose' : 'haru';
+                        setCurrentAvatarModel(targetCoach);
+
+                        // Direct UX: Play audio voice preview sample so user hears the accent immediately with teacher avatar
                         if (profile.code === 'Default') {
                           // Load the exact saved onboarding voice config and play it
                           const onboardingConfig = await OnboardingVoiceService.load();
                           const previewMsg = `Hello! I am your ${onboardingConfig.style.toLowerCase()} English tutor.`;
                           VoiceService.speak(previewMsg, {
+                            avatarId: targetCoach,
                             voiceType: 'Default',
                             availableVoices,
                           });
                         } else {
                           const previewMsg = `Hello! I'm your ${profile.accent} English tutor.`;
                           VoiceService.speak(previewMsg, {
+                            avatarId: targetCoach,
                             voiceType: profile.code,
                             availableVoices,
                           });
