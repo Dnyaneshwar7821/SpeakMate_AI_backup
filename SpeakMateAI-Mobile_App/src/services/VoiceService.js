@@ -66,12 +66,12 @@ export const AVATAR_VOICE_PROFILES = {
     avatarId: 'haru',
     name: 'Teacher',
     category: 'human',
-    intendedGender: 'female',
+    intendedGender: 'male',
     voiceCode: 'Teacher',
-    targetLocale: 'en-IN',
-    basePitch: 1.12,
-    baseRate: 0.98,
-    preferredVoices: ['inf', 'ing', 'inm', 'cbf', 'ena', 'enc', 'lekha', 'veena', 'samantha', 'victoria', 'karen', 'female'],
+    targetLocale: 'en-US',
+    basePitch: 1.06,
+    baseRate: 1.03,
+    preferredVoices: ['zarvox', 'fred', 'alex', 'daniel', 'tpc', 'tpf', 'iog', 'ind', 'male'],
   },
   chitose: {
     avatarId: 'chitose',
@@ -99,12 +99,12 @@ export const AVATAR_VOICE_PROFILES = {
     avatarId: 'robopaws',
     name: 'Doraemon',
     category: 'cartoon',
-    intendedGender: 'male',
+    intendedGender: 'female',
     voiceCode: 'Doraemon',
-    targetLocale: 'en-US',
-    basePitch: 1.06,
-    baseRate: 1.03,
-    preferredVoices: ['zarvox', 'fred', 'alex', 'daniel', 'tpc', 'tpf', 'iog', 'ind', 'male'],
+    targetLocale: 'en-IN',
+    basePitch: 1.12,
+    baseRate: 0.98,
+    preferredVoices: ['inf', 'ing', 'inm', 'cbf', 'ena', 'enc', 'lekha', 'veena', 'samantha', 'victoria', 'karen', 'female'],
   },
   spongebob: {
     avatarId: 'spongebob',
@@ -432,12 +432,11 @@ export const VoiceService = {
 
       // ── Character-Specific Acoustic Timbre Matches ──
       if (charId === 'robopaws' || charId.includes('doraemon')) {
-        // Robotic / Mischievous / Kind Futuristic Male
-        if (id.includes('zarvox') || name.includes('zarvox') || id.includes('robot')) score += 500;
-        else if (id.includes('fred') || name.includes('fred')) score += 350;
-        else if (id.includes('tpc') || id.includes('tpf')) score += 250;
-        else if (id.includes('alex') || name.includes('alex')) score += 200;
-        else if (id.includes('daniel') || name.includes('daniel')) score += 180;
+        // High-register, warm, playful Indian voice (matching iconic Doraemon anime dub)
+        if (lang.startsWith('en-in') || id.includes('en-in') || name.includes('india')) score += 300;
+        if (id.includes('inf') || name.includes('lekha') || name.includes('veena')) score += 450;
+        else if (id.includes('ing') || id.includes('inm') || id.includes('cbf') || id.includes('ena')) score += 350;
+        else if (id.includes('samantha') || id.includes('sfg')) score += 180;
       } else if (charId === 'spongebob' || charId.includes('sponge')) {
         // High-register, energetic, youthful cartoon boy
         if (id.includes('iog') || name.includes('iog')) score += 450;
@@ -481,11 +480,12 @@ export const VoiceService = {
         else if (id.includes('victoria') || name.includes('victoria')) score += 350;
         else if (id.includes('iol') || id.includes('iom') || id.includes('karen')) score += 250;
       } else if (charId === 'haru' || charId.includes('teacher')) {
-        // Kind, warm, articulate Indian female teacher
-        if (lang.startsWith('en-in') || id.includes('en-in') || name.includes('india')) score += 300;
-        if (id.includes('inf') || name.includes('lekha') || name.includes('veena')) score += 450;
-        else if (id.includes('ing') || id.includes('inm') || id.includes('cbf') || id.includes('ena')) score += 350;
-        else if (id.includes('samantha') || id.includes('sfg')) score += 180;
+        // Clear, articulate teacher voice (switched from Doraemon)
+        if (id.includes('zarvox') || name.includes('zarvox') || id.includes('robot')) score += 500;
+        else if (id.includes('fred') || name.includes('fred')) score += 350;
+        else if (id.includes('tpc') || id.includes('tpf')) score += 250;
+        else if (id.includes('alex') || name.includes('alex')) score += 200;
+        else if (id.includes('daniel') || name.includes('daniel')) score += 180;
       } else if (charId === 'chitose' || charId.includes('maleteacher')) {
         // Calm, patient, articulate Indian male teacher
         if (lang.startsWith('en-in') || id.includes('en-in') || name.includes('india')) score += 300;
@@ -546,9 +546,9 @@ export const VoiceService = {
   getAvatarGender: (voiceType, onboardingVoiceStyle = 'Friendly') => {
     if (!voiceType) return 'female';
     const vt = String(voiceType).toLowerCase();
-    if (vt === 'robopaws' || vt === 'robocat' || vt === 'robot') return 'robopaws';
+    if (vt === 'robopaws' || vt === 'robocat' || vt === 'robot' || vt === 'doraemon') return 'female';
     if (vt === 'chitose') return 'male';
-    if (vt === 'haru') return 'female';
+    if (vt === 'haru' || vt === 'teacher') return 'male';
     if (vt === 'male') return 'male';
     if (vt === 'female') return 'female';
     if (vt.includes('male') && !vt.includes('female')) return 'male';
