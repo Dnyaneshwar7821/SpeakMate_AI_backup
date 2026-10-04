@@ -95,6 +95,13 @@ export default function SettingsScreen({ navigation }) {
 
   const [currentAvatarModel, setCurrentAvatarModel] = useState(() => getCachedAvatarModel() || 'haru');
 
+  // Saved baseline to distinguish pending draft changes from persisted preferences (Hybrid UX)
+  const [savedBaseline, setSavedBaseline] = useState({
+    language: defaults.language,
+    aiVoice: defaults.aiVoice,
+    ageGroup: defaults.ageGroup,
+  });
+
   const load = async () => {
     try {
       const [settings, voices, onboardingVoice, onboardingData, savedType, savedVoice, savedAvatarModel] = await Promise.all([
@@ -112,13 +119,24 @@ export default function SettingsScreen({ navigation }) {
         setCachedAvatarModel(savedAvatarModel);
       }
       const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
+      const initialAgeGroup = onboardingData?.ageGroup || user?.ageGroup || 'Professional';
+      const initialLanguage = settings?.language || defaults.language;
+
       setForm({
         ...defaults,
         ...settings,
+        language: initialLanguage,
         darkMode: globalIsDark,
         aiVoice: effectiveVoice,
-        ageGroup: onboardingData?.ageGroup || user?.ageGroup || 'Professional',
+        ageGroup: initialAgeGroup,
       });
+
+      setSavedBaseline({
+        language: initialLanguage,
+        aiVoice: effectiveVoice,
+        ageGroup: initialAgeGroup,
+      });
+
       setAvailableVoices(voices);
       if (onboardingVoice) {
         setOnboardingVoiceStyle(onboardingVoice);
@@ -137,6 +155,16 @@ export default function SettingsScreen({ navigation }) {
 
   const update = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const discardChanges = () => {
+    setForm((current) => ({
+      ...current,
+      language: savedBaseline.language,
+      aiVoice: savedBaseline.aiVoice,
+      ageGroup: savedBaseline.ageGroup,
+    }));
+    showToast('Changes Discarded', 'info', 'Restored previously saved preferences');
   };
 
   const save = async () => {
@@ -165,7 +193,7 @@ export default function SettingsScreen({ navigation }) {
       }
 
       // 3. Sync Age Group via Profile Service, Onboarding Service, AuthContext & AsyncStorage
-      if (form.ageGroup) {
+      if (form.ageGroup && !isStudent) {
         await AsyncStorage.setItem('speakmate_age_group', form.ageGroup);
         await profileService.update({
           firstName: user?.firstName,
@@ -178,6 +206,13 @@ export default function SettingsScreen({ navigation }) {
           await updateUser({ ageGroup: form.ageGroup });
         }
       }
+
+      // 4. Update saved baseline to reflect committed values
+      setSavedBaseline({
+        language: form.language,
+        aiVoice: form.aiVoice,
+        ageGroup: form.ageGroup,
+      });
 
       DashboardCache.clear();
       showToast('Preferences Saved ✓', 'success', 'All tutor voice and language settings updated');
@@ -196,8 +231,24 @@ export default function SettingsScreen({ navigation }) {
   const modalBg = isDark ? '#1E293B' : '#FFFFFF';
   const optionActiveBg = isDark ? '#334155' : '#EEF2FF';
 
+  // Badges & pending highlight colors
+  const pendingBadgeBg = isDark ? '#451A03' : '#FEF3C7';
+  const pendingBadgeBorder = isDark ? '#92400E' : '#F59E0B';
+  const pendingBadgeTextColor = isDark ? '#FDE68A' : '#B45309';
+
+  // Track pending changes that require explicit Save
+  const pendingChanges = [];
+  if (form.language !== savedBaseline.language) pendingChanges.push('Language Focus');
+  if (form.aiVoice !== savedBaseline.aiVoice) pendingChanges.push('Voice Accent');
+  if (!isStudent && form.ageGroup !== savedBaseline.ageGroup) pendingChanges.push('Age Group');
+  const hasPendingChanges = pendingChanges.length > 0;
+
   const isMaleTutor = VoiceService.getAvatarGender(form.aiVoice, onboardingVoiceStyle) === 'male';
-  const activeAvatar = getAvatarById(currentAvatarModel || (isMaleTutor ? 'chitose' : 'haru'));
+  const activeAvatar = getAvatarById(
+    form.aiVoice !== savedBaseline.aiVoice
+      ? (isMaleTutor ? 'chitose' : 'haru')
+      : (currentAvatarModel || (isMaleTutor ? 'chitose' : 'haru'))
+  );
 
   // Filtered languages based on search query
   const filteredLanguages = LANGUAGE_OPTIONS.filter((lang) => 
@@ -232,7 +283,14 @@ export default function SettingsScreen({ navigation }) {
                   )}
                 </View>
                 <View style={styles.statusInfo}>
-                  <Text style={styles.statusLabel}>ACTIVE SPEAKING TUTOR</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Text style={styles.statusLabel}>ACTIVE SPEAKING TUTOR</Text>
+                    {form.aiVoice !== savedBaseline.aiVoice && (
+                      <View style={[styles.pendingBadgeMini, { backgroundColor: pendingBadgeBg }]}>
+                        <Text style={[styles.pendingBadgeMiniText, { color: pendingBadgeTextColor }]}>Pending Save</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={[styles.statusVoiceName, { color: labelColor }]} numberOfLines={1}>
                     {activeAvatar.emoji} {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'}) •{' '}
                     {OnboardingVoiceService.isSystemDefault(form.aiVoice)
@@ -289,8 +347,13 @@ export default function SettingsScreen({ navigation }) {
 
           {/* CATEGORY 1: LEARNING & PREFERENCES */}
           <View style={styles.sectionHeaderContainer}>
-            <Ionicons name="school-outline" size={16} color={COLORS.primary} />
-            <Text style={[styles.sectionHeader, { color: sublabelColor }]}>Learning Preferences</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <Ionicons name="school-outline" size={16} color={COLORS.primary} />
+              <Text style={[styles.sectionHeader, { color: sublabelColor }]}>Learning Preferences</Text>
+            </View>
+            <View style={[styles.badgeTag, { backgroundColor: isDark ? '#312E81' : '#EEF2FF' }]}>
+              <Text style={[styles.badgeTagText, { color: isDark ? '#A5B4FC' : '#4F46E5' }]}>Requires Save</Text>
+            </View>
           </View>
           <Card style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}>
             {/* Target Language Selector */}
@@ -312,6 +375,11 @@ export default function SettingsScreen({ navigation }) {
                 </View>
               </View>
               <View style={styles.pickerRowRight}>
+                {form.language !== savedBaseline.language && (
+                  <View style={[styles.pendingBadge, { backgroundColor: pendingBadgeBg, borderColor: pendingBadgeBorder }]}>
+                    <Text style={[styles.pendingBadgeText, { color: pendingBadgeTextColor }]}>Pending</Text>
+                  </View>
+                )}
                 <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">{form.language}</Text>
                 <Ionicons name="chevron-forward" size={16} color={sublabelColor} />
               </View>
@@ -335,6 +403,11 @@ export default function SettingsScreen({ navigation }) {
                 </View>
               </View>
               <View style={styles.pickerRowRight}>
+                {form.aiVoice !== savedBaseline.aiVoice && (
+                  <View style={[styles.pendingBadge, { backgroundColor: pendingBadgeBg, borderColor: pendingBadgeBorder }]}>
+                    <Text style={[styles.pendingBadgeText, { color: pendingBadgeTextColor }]}>Pending</Text>
+                  </View>
+                )}
                 <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">
                   {OnboardingVoiceService.isSystemDefault(form.aiVoice)
                     ? `System Default (${onboardingVoiceStyle})`
@@ -398,6 +471,11 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                 </View>
                 <View style={styles.pickerRowRight}>
+                  {form.ageGroup !== savedBaseline.ageGroup && (
+                    <View style={[styles.pendingBadge, { backgroundColor: pendingBadgeBg, borderColor: pendingBadgeBorder }]}>
+                      <Text style={[styles.pendingBadgeText, { color: pendingBadgeTextColor }]}>Pending</Text>
+                    </View>
+                  )}
                   <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">
                     {AGE_OPTIONS.find((a) => a.code === form.ageGroup)?.label || form.ageGroup || 'Professional'}
                   </Text>
@@ -409,8 +487,13 @@ export default function SettingsScreen({ navigation }) {
 
           {/* CATEGORY 2: GENERAL APP BEHAVIOR */}
           <View style={styles.sectionHeaderContainer}>
-            <Ionicons name="options-outline" size={16} color="#7C3AED" />
-            <Text style={[styles.sectionHeader, { color: sublabelColor }]}>App Behavior</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <Ionicons name="options-outline" size={16} color="#7C3AED" />
+              <Text style={[styles.sectionHeader, { color: sublabelColor }]}>App Behavior</Text>
+            </View>
+            <View style={[styles.badgeTag, { backgroundColor: isDark ? '#064E3B' : '#DEF7EC' }]}>
+              <Text style={[styles.badgeTagText, { color: isDark ? '#6EE7B7' : '#03543F' }]}>Auto-applied</Text>
+            </View>
           </View>
           <Card style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}>
             {/* Auto Play Audio Switch */}
@@ -428,7 +511,14 @@ export default function SettingsScreen({ navigation }) {
                 value={Boolean(form.autoPlayAudio)} 
                 onValueChange={(value) => {
                   update('autoPlayAudio', value);
-                  settingsService.update({ ...form, autoPlayAudio: value, darkMode: globalIsDark }).catch(() => {});
+                  settingsService.update({
+                    ...form,
+                    language: savedBaseline.language,
+                    aiVoice: savedBaseline.aiVoice,
+                    ageGroup: savedBaseline.ageGroup,
+                    autoPlayAudio: value,
+                    darkMode: globalIsDark,
+                  }).catch(() => {});
                 }} 
                 trackColor={{ true: COLORS.primary }}
               />
@@ -451,7 +541,14 @@ export default function SettingsScreen({ navigation }) {
                 value={Boolean(form.soundEffects)} 
                 onValueChange={(value) => {
                   update('soundEffects', value);
-                  settingsService.update({ ...form, soundEffects: value, darkMode: globalIsDark }).catch(() => {});
+                  settingsService.update({
+                    ...form,
+                    language: savedBaseline.language,
+                    aiVoice: savedBaseline.aiVoice,
+                    ageGroup: savedBaseline.ageGroup,
+                    soundEffects: value,
+                    darkMode: globalIsDark,
+                  }).catch(() => {});
                 }} 
                 trackColor={{ true: COLORS.primary }}
               />
@@ -475,7 +572,13 @@ export default function SettingsScreen({ navigation }) {
                 onValueChange={async (value) => {
                   update('darkMode', value);
                   await setDarkMode(value);
-                  settingsService.update({ ...form, darkMode: value }).catch(() => {});
+                  settingsService.update({
+                    ...form,
+                    language: savedBaseline.language,
+                    aiVoice: savedBaseline.aiVoice,
+                    ageGroup: savedBaseline.ageGroup,
+                    darkMode: value,
+                  }).catch(() => {});
                 }} 
                 trackColor={{ true: COLORS.primary }}
               />
@@ -484,8 +587,13 @@ export default function SettingsScreen({ navigation }) {
 
           {/* CATEGORY 3: NOTIFICATIONS */}
           <View style={styles.sectionHeaderContainer}>
-            <Ionicons name="notifications-outline" size={16} color="#059669" />
-            <Text style={[styles.sectionHeader, { color: sublabelColor }]}>Alerts & Notifications</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <Ionicons name="notifications-outline" size={16} color="#059669" />
+              <Text style={[styles.sectionHeader, { color: sublabelColor }]}>Alerts & Notifications</Text>
+            </View>
+            <View style={[styles.badgeTag, { backgroundColor: isDark ? '#064E3B' : '#DEF7EC' }]}>
+              <Text style={[styles.badgeTagText, { color: isDark ? '#6EE7B7' : '#03543F' }]}>Auto-applied</Text>
+            </View>
           </View>
           <Card style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}>
             {/* Notifications Switch */}
@@ -503,7 +611,14 @@ export default function SettingsScreen({ navigation }) {
                 value={Boolean(form.notificationsEnabled)} 
                 onValueChange={(value) => {
                   update('notificationsEnabled', value);
-                  settingsService.update({ ...form, notificationsEnabled: value, darkMode: globalIsDark }).catch(() => {});
+                  settingsService.update({
+                    ...form,
+                    language: savedBaseline.language,
+                    aiVoice: savedBaseline.aiVoice,
+                    ageGroup: savedBaseline.ageGroup,
+                    notificationsEnabled: value,
+                    darkMode: globalIsDark,
+                  }).catch(() => {});
                 }} 
                 trackColor={{ true: COLORS.primary }}
               />
@@ -526,25 +641,65 @@ export default function SettingsScreen({ navigation }) {
                 value={Boolean(form.dailyReminder)} 
                 onValueChange={(value) => {
                   update('dailyReminder', value);
-                  settingsService.update({ ...form, dailyReminder: value, darkMode: globalIsDark }).catch(() => {});
+                  settingsService.update({
+                    ...form,
+                    language: savedBaseline.language,
+                    aiVoice: savedBaseline.aiVoice,
+                    ageGroup: savedBaseline.ageGroup,
+                    dailyReminder: value,
+                    darkMode: globalIsDark,
+                  }).catch(() => {});
                 }} 
                 trackColor={{ true: COLORS.primary }}
               />
             </View>
           </Card>
 
-          {/* PREMIUM SAVE SETTINGS BUTTON */}
+          {/* HYBRID SAVE & DISCARD CONTROLS */}
           <TouchableOpacity
             onPress={save}
             disabled={saving}
             activeOpacity={0.85}
-            style={[styles.enhancedSaveBtn, { backgroundColor: COLORS.primary }]}
+            style={[
+              styles.enhancedSaveBtn,
+              hasPendingChanges
+                ? { backgroundColor: COLORS.primary, shadowColor: COLORS.primary, elevation: 4 }
+                : { backgroundColor: isDark ? '#334155' : '#E2E8F0', elevation: 0, shadowOpacity: 0 }
+            ]}
           >
-            <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" style={styles.saveBtnIcon} />
-            <Text style={styles.enhancedSaveBtnText}>
-              {saving ? 'Saving Preferences...' : 'Save Settings'}
+            <Ionicons
+              name={hasPendingChanges ? "save-outline" : "checkmark-circle-outline"}
+              size={20}
+              color={hasPendingChanges ? "#FFFFFF" : (isDark ? '#94A3B8' : '#64748B')}
+              style={styles.saveBtnIcon}
+            />
+            <Text
+              style={[
+                styles.enhancedSaveBtnText,
+                { color: hasPendingChanges ? "#FFFFFF" : (isDark ? '#94A3B8' : '#64748B') }
+              ]}
+            >
+              {saving
+                ? 'Saving Preferences...'
+                : hasPendingChanges
+                ? `Save Settings (${pendingChanges.length} Pending)`
+                : 'All Preferences Saved ✓'}
             </Text>
           </TouchableOpacity>
+
+          {hasPendingChanges && (
+            <TouchableOpacity
+              onPress={discardChanges}
+              disabled={saving}
+              activeOpacity={0.7}
+              style={styles.discardBtn}
+            >
+              <Ionicons name="refresh-outline" size={15} color={sublabelColor} style={{ marginRight: 5 }} />
+              <Text style={[styles.discardBtnText, { color: sublabelColor }]}>
+                Discard Pending Changes
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         {/* ENHANCED LANGUAGE SELECTION MODAL */}
@@ -593,7 +748,6 @@ export default function SettingsScreen({ navigation }) {
                         ]}
                         onPress={() => {
                           update('language', item.code);
-                          settingsService.update({ ...form, language: item.code, darkMode: globalIsDark }).catch(() => {});
                           setShowLanguageModal(false);
                         }}
                         activeOpacity={0.7}
@@ -653,21 +807,8 @@ export default function SettingsScreen({ navigation }) {
                       ]}
                       onPress={async () => {
                         update('aiVoice', profile.code);
-                        await AsyncStorage.setItem('speakmate_selected_voice', profile.code);
-                        await AsyncStorage.setItem('speakmate_ai_voice', profile.code);
-                        if (profile.gender) {
-                          await AsyncStorage.setItem('speakmate_voice_gender', profile.gender);
-                          if (!currentAvatarModel || currentAvatarModel === 'haru' || currentAvatarModel === 'chitose') {
-                            const coachModel = profile.gender === 'male' ? 'chitose' : 'haru';
-                            await AsyncStorage.setItem('speakmate_avatar_model', coachModel);
-                            setCachedAvatarModel(coachModel);
-                            setCurrentAvatarModel(coachModel);
-                          }
-                        }
 
-                        // Auto-save setting changes immediately in background
-                        settingsService.update({ ...form, aiVoice: profile.code, darkMode: globalIsDark }).catch(() => {});
-
+                        // Direct UX: Play audio voice preview sample so user hears the accent immediately
                         if (profile.code === 'Default') {
                           // Load the exact saved onboarding voice config and play it
                           const onboardingConfig = await OnboardingVoiceService.load();
@@ -736,18 +877,8 @@ export default function SettingsScreen({ navigation }) {
                         styles.modalOptionRow,
                         isSelected && { backgroundColor: optionActiveBg }
                       ]}
-                      onPress={async () => {
+                      onPress={() => {
                         update('ageGroup', item.code);
-                        await AsyncStorage.setItem('speakmate_age_group', item.code).catch(() => {});
-                        settingsService.update({ ...form, ageGroup: item.code, darkMode: globalIsDark }).catch(() => {});
-                        profileService.update({
-                          firstName: user?.firstName,
-                          lastName: user?.lastName,
-                          email: user?.email,
-                          ageGroup: item.code,
-                        }).catch(() => {});
-                        onboardingService.update({ ageGroup: item.code }).catch(() => {});
-                        if (updateUser) updateUser({ ageGroup: item.code });
                         setShowAgeModal(false);
                       }}
                       activeOpacity={0.7}
@@ -994,6 +1125,47 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   noResultsText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  badgeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgeTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  pendingBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginRight: 6,
+  },
+  pendingBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  pendingBadgeMini: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+  },
+  pendingBadgeMiniText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  discardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  discardBtnText: {
     fontSize: 13,
     fontWeight: '700',
   },
