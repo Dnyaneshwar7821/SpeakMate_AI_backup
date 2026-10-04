@@ -549,6 +549,30 @@ export default function ConversationScreen({ navigation, route }) {
     return unsubscribe;
   }, [navigation]);
 
+  // Screen blur cleanup: Stop TTS, cancel recording and VAD, pause timer
+  useEffect(() => {
+    const unsubBlur = navigation.addListener('blur', () => {
+      VoiceService.stop();
+      setIsSpeaking(false);
+      setCurrentSpokenText('');
+      setStatusText('Waiting for Response');
+      updateIsPaused(true);
+
+      if (recordingRef.current || isRecordingRef.current) {
+        try {
+          if (recordingRef.current) {
+            recordingRef.current.stop().catch(() => {});
+          }
+        } catch (_) {}
+        recordingRef.current = null;
+        isRecordingRef.current = false;
+        setIsRecording(false);
+      }
+    });
+
+    return unsubBlur;
+  }, [navigation]);
+
   // Separate effect: manage timer based on isPaused
   useEffect(() => {
     if (timerInterval.current) {

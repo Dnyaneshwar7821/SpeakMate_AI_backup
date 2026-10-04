@@ -767,6 +767,31 @@ export default function ConversationChatScreen({ navigation, route }) {
     return unsubscribe;
   }, [navigation]);
 
+  // Screen blur cleanup: Stop TTS, cancel recording and VAD, dismiss keyboard and popup menus
+  useEffect(() => {
+    const unsubBlur = navigation.addListener('blur', () => {
+      VoiceService.stop();
+      setIsSpeaking(false);
+      setCurrentSpokenText('');
+      setStatusText('Waiting for Response');
+      setMenuVisible(false);
+      Keyboard.dismiss();
+
+      if (recordingRef.current || isRecordingRef.current) {
+        try {
+          if (recordingRef.current) {
+            recordingRef.current.stop().catch(() => {});
+          }
+        } catch (_) {}
+        recordingRef.current = null;
+        isRecordingRef.current = false;
+        setRecording(false);
+      }
+    });
+
+    return unsubBlur;
+  }, [navigation]);
+
   const getSpeakableText = (msg) => {
     if (!msg) return '';
     let text = msg.message || '';

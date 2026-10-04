@@ -27,7 +27,7 @@ import { getDisplayName } from '../../utils/format';
 import { validateName, NAME_VALIDATION_ERROR, normalizeEmail, isValidEmail } from '../../utils/validation';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache, CurriculumCache } from '../../utils/dashboardCache';
-import { AVATAR_LIST, getAvatarById, setCachedAvatarModel } from '../../config/AvatarCatalog';
+import { AVATAR_LIST, getAvatarById, setCachedAvatarModel, getCachedAvatarModel } from '../../config/AvatarCatalog';
 import { prepareAvatarAsync, isImageUri, AVATAR_CATEGORIES, PRESET_EMOJI_AVATARS } from '../../utils/imageUtils';
 import { VoiceService } from '../../services/VoiceService';
 
@@ -86,10 +86,38 @@ export default function ProfileScreen({ navigation }) {
   const [selectedAvatarCategory, setSelectedAvatarCategory] = useState('emojis');
   const [updatingLevel, setUpdatingLevel] = useState(false);
   const [tutorGender, setTutorGender] = useState('female');
-  const [selectedAvatarId, setSelectedAvatarId] = useState('haru');
+  const [selectedAvatarId, setSelectedAvatarId] = useState(() => getCachedAvatarModel() || 'haru');
   const [selectedAgeGroup, setSelectedAgeGroup] = useState('Professional');
   const [showTutorModal, setShowTutorModal] = useState(false);
   const [playingTutorId, setPlayingTutorId] = useState(null);
+
+  // Synchronous saved baseline refs to prevent previous state flashes on tab switches
+  const savedProfileRef = useRef({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    avatar: user?.avatar || '🎓',
+    accountType: user?.accountType || (user?.role === 'STUDENT' ? 'STUDENT' : 'INDIVIDUAL_USER'),
+    ageGroup: user?.ageGroup || 'Professional',
+    schoolGrade: user?.schoolGrade || null,
+  });
+
+  const savedAvatarIdRef = useRef(getCachedAvatarModel() || 'haru');
+
+  // Keep savedProfileRef in sync when user context updates
+  useEffect(() => {
+    if (user) {
+      savedProfileRef.current = {
+        firstName: user.firstName || savedProfileRef.current.firstName,
+        lastName: user.lastName || savedProfileRef.current.lastName,
+        email: user.email || savedProfileRef.current.email,
+        avatar: user.avatar || savedProfileRef.current.avatar,
+        accountType: user.accountType || savedProfileRef.current.accountType,
+        ageGroup: user.ageGroup || savedProfileRef.current.ageGroup,
+        schoolGrade: user.schoolGrade || savedProfileRef.current.schoolGrade,
+      };
+    }
+  }, [user]);
 
   const playAvatarPreview = async (avatarInput) => {
     const entry = typeof avatarInput === 'object' ? avatarInput : getAvatarById(avatarInput);
@@ -381,6 +409,7 @@ export default function ProfileScreen({ navigation }) {
 
       const effectiveAvatar = getAvatarById(modelId);
       setSelectedAvatarId(effectiveAvatar.id);
+      savedAvatarIdRef.current = effectiveAvatar.id;
       setTutorGender(effectiveAvatar.gender);
       setCachedAvatarModel(effectiveAvatar.id);
 
@@ -389,6 +418,15 @@ export default function ProfileScreen({ navigation }) {
       setSelectedAgeGroup(effectiveAge);
       const mergedProfile = {
         ...profile,
+        accountType: effectiveAccType,
+        ageGroup: effectiveAge,
+        schoolGrade: effectiveGrade,
+      };
+      savedProfileRef.current = {
+        firstName: loadedForm.firstName,
+        lastName: loadedForm.lastName,
+        email: loadedForm.email,
+        avatar: profile?.avatar || user?.avatar || savedProfileRef.current.avatar,
         accountType: effectiveAccType,
         ageGroup: effectiveAge,
         schoolGrade: effectiveGrade,
@@ -408,11 +446,20 @@ export default function ProfileScreen({ navigation }) {
       const savedGrd = await AsyncStorage.getItem('speakmate_school_grade').catch(() => null);
       const fallbackAge = savedAge || user?.ageGroup || 'Professional';
       setSelectedAgeGroup(fallbackAge);
-      setForm({
+      const fallbackForm = {
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
         email: user?.email || '',
-      });
+      };
+      setForm(fallbackForm);
+      setOriginalForm(fallbackForm);
+      savedProfileRef.current = {
+        ...savedProfileRef.current,
+        ...fallbackForm,
+        accountType: isStudentUser ? 'STUDENT' : 'INDIVIDUAL_USER',
+        ageGroup: fallbackAge,
+        schoolGrade: isStudentUser ? (savedGrd || user?.schoolGrade || '1st Std') : null,
+      };
       setState({
         loading: false,
         error: error.userMessage || 'Unable to load profile.',
@@ -433,6 +480,7 @@ export default function ProfileScreen({ navigation }) {
     const voiceCode = entry.voiceProfile;
     const pitch = entry.defaultPitch;
 
+    savedAvatarIdRef.current = model;
     setSelectedAvatarId(model);
     setTutorGender(gender);
     setCachedAvatarModel(model);
@@ -450,20 +498,80 @@ export default function ProfileScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
+      // 1. Frame-0 instant synchronous reset of uncommitted drafts & lingering modals
+      setIsEditingInfo(false);
+      setInfoErrors({});
+      const baseline = savedProfileRef.current;
+      if (baseline) {
+        const resetForm = {
+          firstName: baseline.firstName || '',
+          lastName: baseline.lastName || '',
+          email: baseline.email || '',
+        };
+        setForm(resetForm);
+        setOriginalForm(resetForm);
+      }
+      const cachedAvatar = getCachedAvatarModel();
+      if (cachedAvatar) {
+        setSelectedAvatarId(cachedAvatar);
+        savedAvatarIdRef.current = cachedAvatar;
+        const entry = getAvatarById(cachedAvatar);
+        if (entry?.gender) setTutorGender(entry.gender);
+      }
+      setShowDeleteModal(false);
+      setShowTutorModal(false);
+      setShowAvatarModal(false);
+      VoiceService.stop();
+      setPlayingTutorId(null);
+
+      // 2. Refresh server & storage data in the background
       load(true);
+
+      // 3. Blur cleanup: cancel uncommitted edits, close modals, stop TTS audio, clear delete OTP timer
+      return () => {
+        setIsEditingInfo(false);
+        setInfoErrors({});
+        if (savedProfileRef.current) {
+          const resetForm = {
+            firstName: savedProfileRef.current.firstName || '',
+            lastName: savedProfileRef.current.lastName || '',
+            email: savedProfileRef.current.email || '',
+          };
+          setForm(resetForm);
+          setOriginalForm(resetForm);
+        }
+        setShowDeleteModal(false);
+        setShowTutorModal(false);
+        setShowAvatarModal(false);
+        VoiceService.stop();
+        setPlayingTutorId(null);
+        if (resendTimerRef.current) {
+          clearInterval(resendTimerRef.current);
+          resendTimerRef.current = null;
+        }
+        setResendCooldown(0);
+        setDeleteOtp('');
+        setOtpSent(false);
+        setOtpVerificationStatus('IDLE');
+        setOtpVerificationError('');
+        lastVerifiedOtpRef.current = '';
+        isVerifyingRef.current = false;
+      };
     }, [])
   );
 
   const handleCancelEditInfo = () => {
-    if (originalForm) {
-      setForm({ ...originalForm });
-    } else {
-      setForm({
-        firstName: state.profile?.firstName || user?.firstName || '',
-        lastName: state.profile?.lastName || user?.lastName || '',
-        email: state.profile?.email || user?.email || '',
-      });
-    }
+    const fallback = savedProfileRef.current || {
+      firstName: state.profile?.firstName || user?.firstName || '',
+      lastName: state.profile?.lastName || user?.lastName || '',
+      email: state.profile?.email || user?.email || '',
+    };
+    const cleanForm = originalForm || {
+      firstName: fallback.firstName || '',
+      lastName: fallback.lastName || '',
+      email: fallback.email || '',
+    };
+    setForm({ ...cleanForm });
     setInfoErrors({});
     setIsEditingInfo(false);
   };
@@ -516,6 +624,10 @@ export default function ProfileScreen({ navigation }) {
           firstName: cleanFirstName,
           lastName: cleanLastName,
           email: cleanEmail,
+        };
+        savedProfileRef.current = {
+          ...savedProfileRef.current,
+          ...savedForm,
         };
         setState({ loading: false, error: '', profile });
         if (updateUser) updateUser(profile);
@@ -600,6 +712,10 @@ export default function ProfileScreen({ navigation }) {
         DashboardCache.updateProfileAvatar(processed.dataUri);
         DashboardCache.clear();
         CurriculumCache.clear();
+        savedProfileRef.current = {
+          ...savedProfileRef.current,
+          avatar: updated?.avatar || processed.dataUri,
+        };
         setState((curr) => ({ ...curr, profile: updated }));
         if (updateUser) updateUser(updated);
         showToast('Photo Updated 📸', 'success', `Avatar updated successfully (${processed.approxKb} KB)!`);
@@ -622,6 +738,10 @@ export default function ProfileScreen({ navigation }) {
       DashboardCache.updateProfileAvatar(avatarItem);
       DashboardCache.clear();
       CurriculumCache.clear();
+      savedProfileRef.current = {
+        ...savedProfileRef.current,
+        avatar: updated?.avatar || avatarItem,
+      };
       setState((curr) => ({ ...curr, profile: updated }));
       if (updateUser) updateUser(updated);
       const isEmoji = !isImageUri(avatarItem);
@@ -674,6 +794,10 @@ export default function ProfileScreen({ navigation }) {
       await onboardingService.update({ ageGroup: newAge }).catch(() => {});
       DashboardCache.clear();
       CurriculumCache.clear();
+      savedProfileRef.current = {
+        ...savedProfileRef.current,
+        ageGroup: newAge,
+      };
       setState((curr) => ({
         ...curr,
         profile: {

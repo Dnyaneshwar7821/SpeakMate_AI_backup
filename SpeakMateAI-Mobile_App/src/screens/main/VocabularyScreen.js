@@ -231,6 +231,14 @@ export default function VocabularyScreen() {
       return () => {
         VoiceService.stop();
         setIsSpeaking(false);
+        setFlipped(false);
+        flipAnimation.setValue(0);
+        setQuizFinished((wasFinished) => {
+          if (wasFinished) {
+            setActiveTab('list');
+          }
+          return false;
+        });
       };
     }, [])
   );

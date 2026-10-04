@@ -133,6 +133,10 @@ export default function GrammarScreen() {
     useCallback(() => {
       loadHistory(Boolean(state.history && state.history.length > 0));
       loadSettingsAndVoices();
+
+      return () => {
+        VoiceService.stop();
+      };
     }, [state.history])
   );
 
