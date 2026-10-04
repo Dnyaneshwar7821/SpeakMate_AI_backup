@@ -295,7 +295,7 @@ export default function SettingsScreen({ navigation }) {
                     {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
                       ? `${activeAvatar.name} Signature Voice`
                       : OnboardingVoiceService.isSystemDefault(form.aiVoice)
-                      ? `Default (${onboardingVoiceStyle})`
+                      ? 'System Default'
                       : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
                   </Text>
                 </View>
@@ -417,7 +417,7 @@ export default function SettingsScreen({ navigation }) {
                   {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
                     ? `${activeAvatar.name} Voice`
                     : OnboardingVoiceService.isSystemDefault(form.aiVoice)
-                    ? `System Default (${onboardingVoiceStyle})`
+                    ? 'System Default'
                     : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={sublabelColor} />
@@ -778,7 +778,7 @@ export default function SettingsScreen({ navigation }) {
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.modalTitle, { color: labelColor }]}>Choose Speaking Tutor Voice</Text>
                   <Text style={{ fontSize: 12, color: sublabelColor, marginTop: 2 }}>
-                    Selecting a regional voice switches your active tutor to Female Teacher (Haru) or Male Teacher (Chitose).
+                    Selecting a regional voice switches your active tutor to Female Teacher or Male Teacher.
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowVoiceModal(false)}>
@@ -978,7 +978,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 10,
+    minWidth: 140,
   },
   iconBox: {
     width: 36,
@@ -1000,12 +1001,16 @@ const styles = StyleSheet.create({
   pickerRowRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexShrink: 1,
+    maxWidth: '52%',
     gap: 4,
   },
   pickerValueText: {
     fontSize: 13,
     fontWeight: '700',
     color: COLORS.primary,
+    flexShrink: 1,
   },
   divider: {
     height: 1,
