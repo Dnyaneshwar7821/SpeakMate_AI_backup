@@ -914,6 +914,10 @@ export default function ConversationChatScreen({ navigation, route }) {
         setIsSpeaking(true);
       },
       onDone: () => {
+        // Stop lip movement & clear spoken text during the 0.5s conversational pause
+        setIsSpeaking(false);
+        setCurrentSpokenText('');
+
         // Stage 2: 0.5s natural conversational pause before speaking dynamic conversation reply + follow-up
         if (!isMuted) {
           setTimeout(() => {
