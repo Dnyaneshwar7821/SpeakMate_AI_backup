@@ -128,7 +128,7 @@ export const AVATAR_CATALOG = {
     voiceLabel: 'Doraemon (Playful & Warm)',
     defaultPitch: 1.12,
     defaultRate: 0.98,
-    previewGreeting: "Hii, I am Dohraymon, your AI speaking coach. Let's practice English together!",
+    previewGreeting: "Hi! I am Doremon, your AI speaking coach. Let's practice English together!",
     type: 'puppet',
     puppetType: 'doraemon',
     modelPath: '/models/avatar/Doraemon.jpg',

@@ -877,10 +877,8 @@ export const VoiceService = {
 
     // 8. Phonetic TTS pronunciation normalizations for cartoon characters
     t = t
-      .replace(/\bDoraemon\b/g, "Dohraymon")
-      .replace(/\bdoraemon\b/g, "dohraymon")
-      .replace(/\bDoremon\b/g, "Dohraymon")
-      .replace(/\bdoremon\b/g, "dohraymon")
+      .replace(/\bDoraemon\b/g, "Doremon")
+      .replace(/\bdoraemon\b/g, "doremon")
       .replace(/\bg['’]day\b/gi, "Hello")
       .replace(/\bgood\s+day\b/gi, "Hello");
 
