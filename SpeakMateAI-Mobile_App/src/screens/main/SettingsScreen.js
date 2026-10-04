@@ -23,7 +23,7 @@ import { VoiceService, VOICE_PROFILES } from '../../services/VoiceService';
 import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache } from '../../utils/dashboardCache';
-import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel } from '../../config/AvatarCatalog';
+import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice } from '../../config/AvatarCatalog';
 import { NotificationHelper } from '../../services/NotificationHelper';
 
 const AGE_OPTIONS = [
@@ -140,10 +140,11 @@ export default function SettingsScreen({ navigation }) {
         AsyncStorage.getItem('speakmate_daily_reminder'),
       ]);
       if (savedType) setAccountType(savedType);
-      if (savedAvatarModel) {
-        setCurrentAvatarModel(savedAvatarModel);
-        setCachedAvatarModel(savedAvatarModel);
-        savedAvatarRef.current = savedAvatarModel;
+      const effectiveAvatarModel = savedAvatarModel || getCachedAvatarModel();
+      if (effectiveAvatarModel) {
+        setCurrentAvatarModel(effectiveAvatarModel);
+        setCachedAvatarModel(effectiveAvatarModel);
+        savedAvatarRef.current = effectiveAvatarModel;
       }
       const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
       const initialAgeGroup = onboardingData?.ageGroup || user?.ageGroup || 'Professional';
@@ -196,9 +197,10 @@ export default function SettingsScreen({ navigation }) {
           ageGroup: savedBaselineRef.current.ageGroup,
         }));
       }
-      if (savedAvatarRef.current) {
-        setCurrentAvatarModel(savedAvatarRef.current);
-        setCachedAvatarModel(savedAvatarRef.current);
+      const cachedAvatar = getCachedAvatarModel();
+      if (cachedAvatar) {
+        setCurrentAvatarModel(cachedAvatar);
+        savedAvatarRef.current = cachedAvatar;
       }
 
       load();
@@ -213,9 +215,10 @@ export default function SettingsScreen({ navigation }) {
             ageGroup: savedBaselineRef.current.ageGroup,
           }));
         }
-        if (savedAvatarRef.current) {
-          setCurrentAvatarModel(savedAvatarRef.current);
-          setCachedAvatarModel(savedAvatarRef.current);
+        const cached = getCachedAvatarModel();
+        if (cached) {
+          setCurrentAvatarModel(cached);
+          savedAvatarRef.current = cached;
         }
       };
     }, [])
@@ -236,19 +239,21 @@ export default function SettingsScreen({ navigation }) {
       }
 
       // 2. Sync Voice and Avatar to AsyncStorage
-      // Regional voice selection in Settings ALWAYS automatically switches avatar model to:
-      // - Male Teacher ('chitose') for male regional voices
-      // - Female Teacher ('haru') for female regional voices
       if (form.aiVoice) {
-        const profile = VOICE_PROFILES.find((p) => p.code === form.aiVoice);
         await AsyncStorage.setItem('speakmate_selected_voice', form.aiVoice);
         await AsyncStorage.setItem('speakmate_ai_voice', form.aiVoice);
-        const coachGender = profile?.gender || 'female';
-        const coachModel = coachGender === 'male' ? 'chitose' : 'haru';
-        await AsyncStorage.setItem('speakmate_voice_gender', coachGender);
-        await AsyncStorage.setItem('speakmate_avatar_model', coachModel);
-        setCachedAvatarModel(coachModel);
-        setCurrentAvatarModel(coachModel);
+
+        // Preserve character avatar model if a character voice or avatar is active!
+        // Only if a standard regional voice was selected, switch to chitose or haru.
+        const charAvatar = getAvatarByVoice(form.aiVoice) || (isCharacterAvatar ? activeAvatar : null);
+        const targetModel = charAvatar ? charAvatar.id : (isMaleTutor ? 'chitose' : 'haru');
+        const targetGender = charAvatar ? charAvatar.gender : (isMaleTutor ? 'male' : 'female');
+
+        await AsyncStorage.setItem('speakmate_voice_gender', targetGender);
+        await AsyncStorage.setItem('speakmate_avatar_model', targetModel);
+        setCachedAvatarModel(targetModel);
+        setCurrentAvatarModel(targetModel);
+        savedAvatarRef.current = targetModel;
       }
 
       // 3. Sync Age Group via Profile Service, Onboarding Service, AuthContext & AsyncStorage
@@ -275,8 +280,8 @@ export default function SettingsScreen({ navigation }) {
       setSavedBaseline(committedBaseline);
       savedBaselineRef.current = committedBaseline;
       if (form.aiVoice) {
-        const profile = VOICE_PROFILES.find((p) => p.code === form.aiVoice);
-        const coachModel = (profile?.gender || 'female') === 'male' ? 'chitose' : 'haru';
+        const charAvatar = getAvatarByVoice(form.aiVoice) || (isCharacterAvatar ? activeAvatar : null);
+        const coachModel = charAvatar ? charAvatar.id : (isMaleTutor ? 'chitose' : 'haru');
         savedAvatarRef.current = coachModel;
       }
 
@@ -328,13 +333,23 @@ export default function SettingsScreen({ navigation }) {
   if (!isStudent && form.ageGroup !== savedBaseline.ageGroup) pendingChanges.push('Age Group');
   const hasPendingChanges = pendingChanges.length > 0;
 
+  // Resolve active tutor avatar cleanly across all 10 avatars:
+  // 1. If form.aiVoice is a character's signature voice (e.g. 'Shizuka', 'Doraemon'), that avatar is active
+  // 2. If currentAvatarModel or the module cache is a character avatar (e.g. 'shizuku', 'robopaws', 'mao'), that avatar is active
+  // 3. Otherwise, resolve human coach (Male Teacher 'chitose' or Female Teacher 'haru') based on voice gender
+  const characterFromVoice = getAvatarByVoice(form.aiVoice);
+  const effectiveModel = currentAvatarModel || getCachedAvatarModel();
+  const characterFromModel = (effectiveModel && effectiveModel !== 'haru' && effectiveModel !== 'chitose')
+    ? getAvatarById(effectiveModel)
+    : null;
+
   const isMaleTutor = VoiceService.getAvatarGender(form.aiVoice, onboardingVoiceStyle) === 'male';
-  const activeAvatar = getAvatarById(
-    form.aiVoice !== savedBaseline.aiVoice
-      ? (isMaleTutor ? 'chitose' : 'haru')
-      : (currentAvatarModel || (isMaleTutor ? 'chitose' : 'haru'))
-  ) || getAvatarById('haru');
-  const isCharacterAvatar = currentAvatarModel && currentAvatarModel !== 'haru' && currentAvatarModel !== 'chitose';
+  const activeAvatar = characterFromVoice
+    || characterFromModel
+    || getAvatarById(isMaleTutor ? 'chitose' : 'haru')
+    || getAvatarById('haru');
+
+  const isCharacterAvatar = activeAvatar.id !== 'haru' && activeAvatar.id !== 'chitose';
 
   // Filtered languages based on search query
   const filteredLanguages = LANGUAGE_OPTIONS.filter((lang) => 
@@ -379,7 +394,7 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                   <Text style={[styles.statusVoiceName, { color: labelColor }]} numberOfLines={1}>
                     {activeAvatar.emoji} {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'}) •{' '}
-                    {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
+                    {isCharacterAvatar
                       ? `${activeAvatar.name} Signature Voice`
                       : OnboardingVoiceService.isSystemDefault(form.aiVoice)
                       ? 'System Default'
@@ -488,7 +503,7 @@ export default function SettingsScreen({ navigation }) {
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.rowTitle, { color: labelColor }]}>Voice Accent & Dialect</Text>
                   <Text style={[styles.rowDesc, { color: sublabelColor }]}>
-                    {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
+                    {isCharacterAvatar
                       ? `${activeAvatar.name} Signature Voice (Tap to switch tutor)`
                       : 'Audio pronunciation tutor model'}
                   </Text>
@@ -501,7 +516,7 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                 )}
                 <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">
-                  {isCharacterAvatar && form.aiVoice === savedBaseline.aiVoice
+                  {isCharacterAvatar
                     ? `${activeAvatar.name} Voice`
                     : OnboardingVoiceService.isSystemDefault(form.aiVoice)
                     ? 'System Default'

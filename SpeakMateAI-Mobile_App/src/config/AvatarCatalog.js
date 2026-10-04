@@ -348,6 +348,30 @@ export function getAvatarById(id) {
   return AVATAR_CATALOG[key] || AVATAR_CATALOG.haru;
 }
 
+/**
+ * Resolves avatar entry by voiceProfile or voiceCode (e.g. 'Shizuka' -> shizuku, 'Doraemon' -> robopaws)
+ * Returns null if the voiceCode is a standard regional human voice (e.g. 'US Male', 'Default').
+ */
+export function getAvatarByVoice(voiceCode) {
+  if (!voiceCode) return null;
+  const key = String(voiceCode).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (
+    key.includes('usmale') || key.includes('usfemale') ||
+    key.includes('ukmale') || key.includes('ukfemale') ||
+    key.includes('aumale') || key.includes('aufemale') ||
+    key.includes('inmale') || key.includes('infemale') ||
+    key === 'default'
+  ) {
+    return null;
+  }
+  return AVATAR_LIST.find((a) => {
+    const aKey = a.id.toLowerCase();
+    const aVoice = (a.voiceProfile || '').toLowerCase();
+    const aName = a.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return aKey === key || aVoice === key || aName === key;
+  }) || null;
+}
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let _cachedAvatarModel = null;

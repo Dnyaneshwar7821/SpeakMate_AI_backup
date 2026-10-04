@@ -27,7 +27,7 @@ import { getDisplayName } from '../../utils/format';
 import { validateName, NAME_VALIDATION_ERROR, normalizeEmail, isValidEmail } from '../../utils/validation';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache, CurriculumCache } from '../../utils/dashboardCache';
-import { AVATAR_LIST, getAvatarById, setCachedAvatarModel, getCachedAvatarModel } from '../../config/AvatarCatalog';
+import { AVATAR_LIST, getAvatarById, setCachedAvatarModel, getCachedAvatarModel, getAvatarByVoice } from '../../config/AvatarCatalog';
 import { prepareAvatarAsync, isImageUri, AVATAR_CATEGORIES, PRESET_EMOJI_AVATARS } from '../../utils/imageUtils';
 import { VoiceService } from '../../services/VoiceService';
 
@@ -116,6 +116,21 @@ export default function ProfileScreen({ navigation }) {
         ageGroup: user.ageGroup || savedProfileRef.current.ageGroup,
         schoolGrade: user.schoolGrade || savedProfileRef.current.schoolGrade,
       };
+      if (user.avatar) {
+        setState((curr) => {
+          if (!curr.profile || curr.profile.avatar !== user.avatar) {
+            return {
+              ...curr,
+              profile: {
+                ...(curr.profile || {}),
+                ...user,
+                avatar: user.avatar,
+              },
+            };
+          }
+          return curr;
+        });
+      }
     }
   }, [user]);
 
@@ -400,7 +415,9 @@ export default function ProfileScreen({ navigation }) {
         AsyncStorage.removeItem('speakmate_school_grade').catch(() => {});
       }
 
-      let modelId = savedAvatarModel;
+      // Check: 1. savedAvatarModel from storage, 2. Global module cache, 3. Signature voice if character voice, 4. fallback by gender
+      const voiceAvatar = getAvatarByVoice(savedVoice);
+      let modelId = savedAvatarModel || getCachedAvatarModel() || (voiceAvatar ? voiceAvatar.id : null);
       const isMaleVoice = savedGender === 'male' || (savedVoice && savedVoice.toLowerCase().includes('male') && !savedVoice.toLowerCase().includes('female'));
 
       if (!modelId) {
@@ -426,7 +443,7 @@ export default function ProfileScreen({ navigation }) {
         firstName: loadedForm.firstName,
         lastName: loadedForm.lastName,
         email: loadedForm.email,
-        avatar: profile?.avatar || user?.avatar || savedProfileRef.current.avatar,
+        avatar: savedProfileRef.current.avatar || profile?.avatar || user?.avatar || '🎓',
         accountType: effectiveAccType,
         ageGroup: effectiveAge,
         schoolGrade: effectiveGrade,
@@ -518,6 +535,24 @@ export default function ProfileScreen({ navigation }) {
         const entry = getAvatarById(cachedAvatar);
         if (entry?.gender) setTutorGender(entry.gender);
       }
+
+      // Sync user profile avatar synchronously for Frame-0 instant visual fidelity
+      const activeUserAvatar = savedProfileRef.current?.avatar || user?.avatar;
+      if (activeUserAvatar) {
+        setState((curr) => {
+          if (!curr.profile || curr.profile.avatar !== activeUserAvatar) {
+            return {
+              ...curr,
+              profile: {
+                ...(curr.profile || {}),
+                avatar: activeUserAvatar,
+              },
+            };
+          }
+          return curr;
+        });
+      }
+
       setShowDeleteModal(false);
       setShowTutorModal(false);
       setShowAvatarModal(false);
@@ -707,17 +742,29 @@ export default function ProfileScreen({ navigation }) {
         return;
       }
 
+      // Optimistically update avatar on Frame 0
+      savedProfileRef.current = {
+        ...savedProfileRef.current,
+        avatar: processed.dataUri,
+      };
+      setState((curr) => ({
+        ...curr,
+        profile: {
+          ...(curr.profile || {}),
+          avatar: processed.dataUri,
+        },
+      }));
+      if (updateUser) updateUser({ avatar: processed.dataUri });
+      DashboardCache.updateProfileAvatar(processed.dataUri);
+
       try {
         const updated = await profileService.updateAvatar(processed.dataUri);
-        DashboardCache.updateProfileAvatar(processed.dataUri);
-        DashboardCache.clear();
-        CurriculumCache.clear();
         savedProfileRef.current = {
           ...savedProfileRef.current,
           avatar: updated?.avatar || processed.dataUri,
         };
-        setState((curr) => ({ ...curr, profile: updated }));
-        if (updateUser) updateUser(updated);
+        setState((curr) => ({ ...curr, profile: updated || { ...(curr.profile || {}), avatar: processed.dataUri } }));
+        if (updateUser && updated) updateUser(updated);
         showToast('Photo Updated 📸', 'success', `Avatar updated successfully (${processed.approxKb} KB)!`);
       } catch (uploadError) {
         showToast('Upload Failed', 'error', uploadError.userMessage || 'Unable to update profile photo.');
@@ -732,18 +779,30 @@ export default function ProfileScreen({ navigation }) {
 
   const handleSelectPresetAvatar = async (avatarItem) => {
     setShowAvatarModal(false);
+    // Optimistically update instantly on Frame 0 (zero flash, zero delay)
+    savedProfileRef.current = {
+      ...savedProfileRef.current,
+      avatar: avatarItem,
+    };
+    setState((curr) => ({
+      ...curr,
+      profile: {
+        ...(curr.profile || {}),
+        avatar: avatarItem,
+      },
+    }));
+    if (updateUser) updateUser({ avatar: avatarItem });
+    DashboardCache.updateProfileAvatar(avatarItem);
+
     setUploadingPhoto(true);
     try {
       const updated = await profileService.updateAvatar(avatarItem);
-      DashboardCache.updateProfileAvatar(avatarItem);
-      DashboardCache.clear();
-      CurriculumCache.clear();
       savedProfileRef.current = {
         ...savedProfileRef.current,
         avatar: updated?.avatar || avatarItem,
       };
-      setState((curr) => ({ ...curr, profile: updated }));
-      if (updateUser) updateUser(updated);
+      setState((curr) => ({ ...curr, profile: updated || { ...(curr.profile || {}), avatar: avatarItem } }));
+      if (updateUser && updated) updateUser(updated);
       const isEmoji = !isImageUri(avatarItem);
       showToast(
         'Avatar Changed 🎉',
@@ -832,7 +891,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  const avatarValue = state.profile?.avatar || user?.avatar || '🎓';
+  const avatarValue = savedProfileRef.current?.avatar || state.profile?.avatar || user?.avatar || '🎓';
   const isPhotoUri = isImageUri(avatarValue);
 
   // Math for Level Progress Bar (500 XP per Level)
@@ -1047,7 +1106,8 @@ export default function ProfileScreen({ navigation }) {
 
         {/* AI Speaking Tutor Avatar Active Card */}
         {(() => {
-          const activeTutor = getAvatarById(selectedAvatarId);
+          const effectiveTutorModel = getCachedAvatarModel() || selectedAvatarId || savedAvatarIdRef.current || 'haru';
+          const activeTutor = getAvatarById(effectiveTutorModel);
           const isSpeakingActive = playingTutorId === activeTutor.id;
           return (
             <Card style={{ backgroundColor: cardBg, marginBottom: 14 }}>
@@ -1807,7 +1867,8 @@ export default function ProfileScreen({ navigation }) {
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
               <View style={styles.modalTutorGrid}>
                 {AVATAR_LIST.map((av) => {
-                  const isSelected = selectedAvatarId === av.id;
+                  const effectiveSelectedId = getCachedAvatarModel() || selectedAvatarId || savedAvatarIdRef.current;
+                  const isSelected = effectiveSelectedId === av.id;
                   const isSpeakingThis = playingTutorId === av.id;
                   return (
                     <TouchableOpacity
