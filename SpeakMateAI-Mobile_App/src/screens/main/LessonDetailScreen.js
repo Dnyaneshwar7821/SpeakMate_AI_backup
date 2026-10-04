@@ -242,14 +242,16 @@ export default function LessonDetailScreen({ navigation, route }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', async () => {
       try {
-        const [s, voices, onboardingVoice, savedVoice] = await Promise.all([
+        const [s, voices, onboardingVoice, savedVoice, savedSoundEffects] = await Promise.all([
           settingsService.get().catch(() => null),
           VoiceService.getAvailableEnglishVoices(),
           AsyncStorage.getItem('speakmate_onboarding_voice'),
           AsyncStorage.getItem('speakmate_selected_voice'),
+          AsyncStorage.getItem('speakmate_sound_effects'),
         ]);
         const effectiveVoice = savedVoice || s?.aiVoice || 'Default';
-        setSettings({ ...s, aiVoice: effectiveVoice, onboardingVoice });
+        const effectiveSound = savedSoundEffects !== null ? savedSoundEffects === 'true' : (s?.soundEffects ?? true);
+        setSettings({ ...s, aiVoice: effectiveVoice, onboardingVoice, soundEffects: effectiveSound });
         if (voices && voices.length > 0) {
           setAvailableVoices(voices);
         }
@@ -1203,7 +1205,7 @@ export default function LessonDetailScreen({ navigation, route }) {
       quizScoreRef.current += 1;
       setQuizScore(quizScoreRef.current);
     }
-    if (settings?.soundEffects) {
+    if (settings?.soundEffects !== false) {
       VoiceService.speak(isCorrect ? "Correct!" : "Oops!", {
         voiceType: settings?.aiVoice || 'Default',
         availableVoices,

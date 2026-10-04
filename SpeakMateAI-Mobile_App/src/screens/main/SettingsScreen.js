@@ -24,6 +24,7 @@ import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache } from '../../utils/dashboardCache';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel } from '../../config/AvatarCatalog';
+import { NotificationHelper } from '../../services/NotificationHelper';
 
 const AGE_OPTIONS = [
   { code: 'Kids', label: 'Kids (6-12) 🎈', desc: 'Simple words, fun stories & high encouragement' },
@@ -106,7 +107,19 @@ export default function SettingsScreen({ navigation }) {
   const load = async () => {
     try {
       setJustSaved(false);
-      const [settings, voices, onboardingVoice, onboardingData, savedType, savedVoice, savedAvatarModel] = await Promise.all([
+      const [
+        settings,
+        voices,
+        onboardingVoice,
+        onboardingData,
+        savedType,
+        savedVoice,
+        savedAvatarModel,
+        savedAutoPlay,
+        savedSound,
+        savedNotif,
+        savedReminder,
+      ] = await Promise.all([
         settingsService.get().catch(() => null),
         VoiceService.getAvailableEnglishVoices(),
         AsyncStorage.getItem('speakmate_onboarding_voice'),
@@ -114,6 +127,10 @@ export default function SettingsScreen({ navigation }) {
         AsyncStorage.getItem('speakmate_account_type'),
         AsyncStorage.getItem('speakmate_selected_voice'),
         AsyncStorage.getItem('speakmate_avatar_model'),
+        AsyncStorage.getItem('speakmate_auto_play_audio'),
+        AsyncStorage.getItem('speakmate_sound_effects'),
+        AsyncStorage.getItem('speakmate_notifications_enabled'),
+        AsyncStorage.getItem('speakmate_daily_reminder'),
       ]);
       if (savedType) setAccountType(savedType);
       if (savedAvatarModel) {
@@ -123,6 +140,10 @@ export default function SettingsScreen({ navigation }) {
       const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
       const initialAgeGroup = onboardingData?.ageGroup || user?.ageGroup || 'Professional';
       const initialLanguage = settings?.language || defaults.language;
+      const effAutoPlay = savedAutoPlay !== null ? savedAutoPlay === 'true' : (settings?.autoPlayAudio ?? false);
+      const effSound = savedSound !== null ? savedSound === 'true' : (settings?.soundEffects ?? true);
+      const effNotif = savedNotif !== null ? savedNotif === 'true' : (settings?.notificationsEnabled ?? true);
+      const effReminder = savedReminder !== null ? savedReminder === 'true' : (settings?.dailyReminder ?? true);
 
       setForm({
         ...defaults,
@@ -131,6 +152,10 @@ export default function SettingsScreen({ navigation }) {
         darkMode: globalIsDark,
         aiVoice: effectiveVoice,
         ageGroup: initialAgeGroup,
+        autoPlayAudio: effAutoPlay,
+        soundEffects: effSound,
+        notificationsEnabled: effNotif,
+        dailyReminder: effReminder,
       });
 
       setSavedBaseline({
@@ -206,6 +231,20 @@ export default function SettingsScreen({ navigation }) {
         aiVoice: form.aiVoice,
         ageGroup: form.ageGroup,
       });
+
+      // 5. Sync behavioral toggles to local storage and schedule device notifications
+      await Promise.all([
+        AsyncStorage.setItem('speakmate_auto_play_audio', String(form.autoPlayAudio)),
+        AsyncStorage.setItem('speakmate_sound_effects', String(form.soundEffects)),
+        AsyncStorage.setItem('speakmate_notifications_enabled', String(form.notificationsEnabled)),
+        AsyncStorage.setItem('speakmate_daily_reminder', String(form.dailyReminder)),
+      ]).catch(() => {});
+
+      if (form.notificationsEnabled && form.dailyReminder) {
+        NotificationHelper.scheduleDailyReminder(true).catch(() => {});
+      } else {
+        NotificationHelper.scheduleDailyReminder(false).catch(() => {});
+      }
 
       setJustSaved(true);
       setTimeout(() => {
@@ -518,6 +557,7 @@ export default function SettingsScreen({ navigation }) {
                 value={Boolean(form.autoPlayAudio)} 
                 onValueChange={(value) => {
                   update('autoPlayAudio', value);
+                  AsyncStorage.setItem('speakmate_auto_play_audio', String(value)).catch(() => {});
                   settingsService.update({
                     ...form,
                     language: savedBaseline.language,
@@ -548,6 +588,7 @@ export default function SettingsScreen({ navigation }) {
                 value={Boolean(form.soundEffects)} 
                 onValueChange={(value) => {
                   update('soundEffects', value);
+                  AsyncStorage.setItem('speakmate_sound_effects', String(value)).catch(() => {});
                   settingsService.update({
                     ...form,
                     language: savedBaseline.language,
@@ -616,8 +657,24 @@ export default function SettingsScreen({ navigation }) {
               </View>
               <Switch 
                 value={Boolean(form.notificationsEnabled)} 
-                onValueChange={(value) => {
+                onValueChange={async (value) => {
                   update('notificationsEnabled', value);
+                  await AsyncStorage.setItem('speakmate_notifications_enabled', String(value)).catch(() => {});
+                  if (value) {
+                    const granted = await NotificationHelper.requestPermissions();
+                    if (granted) {
+                      await NotificationHelper.registerPushToken();
+                      if (form.dailyReminder) {
+                        await NotificationHelper.scheduleDailyReminder(true);
+                      }
+                      showToast('Notifications Active ✓', 'success', 'Push notifications enabled');
+                    } else {
+                      showToast('Permission Needed', 'info', 'Please enable notifications in device settings');
+                    }
+                  } else {
+                    await NotificationHelper.cancelAllReminders();
+                    showToast('Notifications Paused', 'info', 'Push notifications turned off');
+                  }
                   settingsService.update({
                     ...form,
                     language: savedBaseline.language,
@@ -641,13 +698,25 @@ export default function SettingsScreen({ navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rowTitle, { color: labelColor }]}>Daily Reminder Alerts</Text>
-                  <Text style={[styles.rowDesc, { color: sublabelColor }]}>Maintain your daily study streak</Text>
+                  <Text style={[styles.rowDesc, { color: sublabelColor }]}>Maintain your daily study streak (7:00 PM)</Text>
                 </View>
               </View>
               <Switch 
                 value={Boolean(form.dailyReminder)} 
-                onValueChange={(value) => {
+                onValueChange={async (value) => {
                   update('dailyReminder', value);
+                  await AsyncStorage.setItem('speakmate_daily_reminder', String(value)).catch(() => {});
+                  if (value) {
+                    if (form.notificationsEnabled !== false) {
+                      await NotificationHelper.scheduleDailyReminder(true);
+                      showToast('Daily Reminder Set ✓', 'success', 'Alert set for 7:00 PM daily');
+                    } else {
+                      showToast('Turn On Notifications', 'info', 'Enable Push Notifications to receive daily reminders');
+                    }
+                  } else {
+                    await NotificationHelper.scheduleDailyReminder(false);
+                    showToast('Daily Reminder Off', 'info', 'Daily study streak reminder cancelled');
+                  }
                   settingsService.update({
                     ...form,
                     language: savedBaseline.language,

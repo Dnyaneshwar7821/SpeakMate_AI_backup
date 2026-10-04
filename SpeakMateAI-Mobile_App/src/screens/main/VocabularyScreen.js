@@ -162,7 +162,7 @@ export default function VocabularyScreen() {
   // Load User Profile & Calibrated Curriculums
   const loadUserData = async () => {
     try {
-      const [savedAccType, savedGrade, savedAgeGroup, s, voices, savedVoice, savedAvatar, backendWords] = await Promise.all([
+      const [savedAccType, savedGrade, savedAgeGroup, s, voices, savedVoice, savedAvatar, savedAutoPlay, savedSoundEffects, backendWords] = await Promise.all([
         AsyncStorage.getItem('speakmate_account_type'),
         AsyncStorage.getItem('speakmate_school_grade'),
         AsyncStorage.getItem('speakmate_age_group'),
@@ -170,6 +170,8 @@ export default function VocabularyScreen() {
         VoiceService.getAvailableEnglishVoices(),
         AsyncStorage.getItem('speakmate_selected_voice'),
         AsyncStorage.getItem('speakmate_avatar_model'),
+        AsyncStorage.getItem('speakmate_auto_play_audio'),
+        AsyncStorage.getItem('speakmate_sound_effects'),
         vocabularyService.all().catch(() => []),
       ]);
 
@@ -178,7 +180,14 @@ export default function VocabularyScreen() {
 
       const effAccType = savedAccType || 'INDIVIDUAL_USER';
       const effectiveVoice = savedVoice || s?.aiVoice || 'Default';
-      setSettings({ ...s, aiVoice: effectiveVoice });
+      const effectiveAutoPlay = savedAutoPlay !== null ? savedAutoPlay === 'true' : (s?.autoPlayAudio ?? true);
+      const effectiveSoundEffects = savedSoundEffects !== null ? savedSoundEffects === 'true' : (s?.soundEffects ?? true);
+      setSettings({
+        ...s,
+        aiVoice: effectiveVoice,
+        autoPlayAudio: effectiveAutoPlay,
+        soundEffects: effectiveSoundEffects,
+      });
       setAvailableVoices(voices);
 
       let profileKey = '1st Std';
@@ -295,15 +304,15 @@ export default function VocabularyScreen() {
     });
   };
 
-  // STEP 1: Auto-pronounce word on mount or card change without flipping!
+  // STEP 1: Auto-pronounce word on mount or card change without flipping (Respects Auto-play Pronunciation setting)!
   useEffect(() => {
-    if (activeTab === 'flashcards' && currentCard && !flipped) {
+    if (activeTab === 'flashcards' && currentCard && !flipped && settings?.autoPlayAudio !== false) {
       const timer = setTimeout(() => {
         playWordPronunciation(currentCard.word);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [currentCardIndex, activeTab]);
+  }, [currentCardIndex, activeTab, settings?.autoPlayAudio]);
 
   // Add Custom Word with AI
   const addWord = async () => {
