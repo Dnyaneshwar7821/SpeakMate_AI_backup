@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
@@ -172,6 +173,7 @@ export function Dashboard() {
   }, [user?.accountType, user?.schoolGrade, user?.ageGroup, user?.englishLevel]);
 
   const [dashboardData, setDashboardData] = useState(() => getCachedDashboardData(user?.email));
+  const [isInitialLoading, setIsInitialLoading] = useState(() => !getCachedDashboardData(user?.email));
 
   // Initial stats with safe fallbacks and preloaded dashboard metrics
   const [stats, setStats] = useState(() => {
@@ -299,6 +301,7 @@ export function Dashboard() {
       .catch(() => {})
       .finally(() => {
         setIsLoading(false);
+        setIsInitialLoading(false);
       });
   }, [user]);
 
@@ -642,6 +645,41 @@ export function Dashboard() {
       route: ROUTES.PROGRESS,
     },
   ], [totalLessonsCount, actualCompletedLessons, backendStats, stats]);
+
+  if (isInitialLoading && !dashboardData) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-base)]/85 backdrop-blur-md transition-all duration-300">
+        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
+          {/* Animated Dual-Ring Emblem Matching Admin Reference */}
+          <div className="relative flex h-24 w-24 items-center justify-center">
+            {/* Outer spinning ring */}
+            <div className="absolute inset-0 rounded-full border-[3px] border-[#6C63FF]/20 border-t-[#6C63FF] animate-spin" />
+            {/* Inner counter-spinning ring */}
+            <div className="absolute inset-2 rounded-full border-[3px] border-purple-500/20 border-b-purple-500 animate-[spin_1.5s_linear_infinite_reverse]" />
+            {/* Center glowing badge */}
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6C63FF] to-purple-600 text-white shadow-lg shadow-[#6C63FF]/30">
+              <Sparkles className="h-6 w-6" />
+            </div>
+          </div>
+
+          <h2 className="mt-6 text-xl font-extrabold tracking-tight text-[#6C63FF]">
+            SpeakMate AI
+          </h2>
+          <div className="mt-2 flex items-center gap-1 text-sm font-semibold tracking-wide text-[var(--text-secondary)]">
+            Loading dashboard
+            <span className="flex w-4">
+              <span className="animate-[ping_1.4s_infinite] text-xl leading-none">.</span>
+              <span className="animate-[ping_1.4s_0.2s_infinite] text-xl leading-none">.</span>
+              <span className="animate-[ping_1.4s_0.4s_infinite] text-xl leading-none">.</span>
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[var(--text-muted)] font-medium">
+            Synchronizing your live fluency statistics and streaks
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 px-2 sm:px-4 lg:px-6 py-2">

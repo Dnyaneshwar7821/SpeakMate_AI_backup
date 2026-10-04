@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import ROUTES from "../constants/routes";
-import { dashboardService } from "../services/appServices";
+import { dashboardService, progressService } from "../services/appServices";
 import { setCachedDashboardData, clearDashboardCache } from "../utils/dashboardCache";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { syncBackendProgress } from "../utils/progressTracker";
@@ -138,7 +138,7 @@ export function Login() {
         clearDashboardCache();
         CurriculumCache.clear();
 
-        // Trigger branded post-login loader immediately
+        // 1. Show the Admin-style loader immediately
         setTransitioningUser({
           name: displayName,
           avatar: authenticatedUser.avatar,
@@ -148,26 +148,38 @@ export function Login() {
           email: userEmail,
         });
 
+        // 2. Fetch fresh dashboard summary & progress while the loader is displayed
         try {
-          // Guaranteed display duration (~1150ms) for snappy, branded visual experience
-          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 1150));
-          const prefetchPromise = dashboardService.summary().catch(() => null);
-          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 2500));
+          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 1300));
+          const summaryPromise = dashboardService.summary().catch(() => null);
+          const progressPromise = progressService.get().catch(() => null);
+          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
 
-          const [freshSummary] = await Promise.all([
-            Promise.race([prefetchPromise, timeoutPromise]),
+          const [summaryData, progressData] = await Promise.all([
+            Promise.race([summaryPromise, timeoutPromise]),
+            Promise.race([progressPromise, timeoutPromise]),
             minDelayPromise,
           ]);
 
-          if (freshSummary) {
-            setCachedDashboardData(freshSummary, userEmail);
-            syncBackendProgress(freshSummary, authenticatedUser);
-            window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: freshSummary }));
+          const finalSummary = summaryData || {};
+          if (progressData && !finalSummary.progress) {
+            finalSummary.progress = progressData;
+          }
+
+          if (finalSummary) {
+            setCachedDashboardData(finalSummary, userEmail);
+            const synced = syncBackendProgress(finalSummary, authenticatedUser);
+            const identifier = authenticatedUser?.id || authenticatedUser?.email || userEmail;
+            try {
+              localStorage.setItem(`speakmate_user_progress_stats_${identifier}`, JSON.stringify(synced));
+            } catch (_) {}
+            window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: synced }));
           }
         } catch (prepErr) {
           console.warn("Dashboard prefetch error:", prepErr);
         }
 
+        // 3. AFTER loading is complete and actual data is saved: navigate to Dashboard
         navigate(ROUTES.DASHBOARD, { replace: true });
       }
     } catch (err) {
@@ -483,7 +495,7 @@ export function Login() {
         </div>
       </div>
 
-      {/* Branded Post-Login Theme-Aware Transition Loader */}
+      {/* Branded Post-Login Theme-Aware Transition Loader (Admin Reference) */}
       <AnimatePresence>
         {transitioningUser && (
           <motion.div
@@ -491,85 +503,50 @@ export function Login() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-[var(--bg-base)]/95 backdrop-blur-2xl"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-[var(--bg-base)]/85 backdrop-blur-md"
           >
-            {/* Ambient Background Aura Lights */}
-            <div className="absolute w-96 h-96 -top-24 -left-24 bg-[#6C63FF]/20 rounded-full blur-[140px] pointer-events-none animate-pulse" />
-            <div className="absolute w-96 h-96 -bottom-24 -right-24 bg-[#FF6584]/20 rounded-full blur-[140px] pointer-events-none animate-pulse delay-700" />
-
-            <div className="relative z-10 flex flex-col items-center max-w-md w-full text-center">
-              {/* Branded Logo with Theme Sensitivity and Pulse */}
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-                className="relative mb-6"
-              >
-                <div className="absolute -inset-6 bg-gradient-to-tr from-[#6C63FF]/30 via-[#8B5CF6]/20 to-[#FF6584]/25 rounded-3xl blur-2xl animate-pulse pointer-events-none" />
-                <div className="relative p-5 rounded-3xl bg-[var(--bg-surface)]/85 border border-[var(--border-default)] shadow-2xl backdrop-blur-xl">
-                  <img
-                    src={isDark ? "/assets/speakmate_logo.png" : "/assets/speakmate_logo_light.png"}
-                    alt="SpeakMate AI"
-                    className="h-16 sm:h-20 w-auto object-contain dark:drop-shadow-lg"
-                  />
+            <div className="flex flex-col items-center text-center animate-in fade-in zoom-in duration-300 max-w-md w-full">
+              {/* Dual-Spinning Ring Emblem Matching Admin Login/Dashboard */}
+              <div className="relative flex h-24 w-24 items-center justify-center">
+                {/* Outer spinning ring */}
+                <div className="absolute inset-0 rounded-full border-[3px] border-[#6C63FF]/20 border-t-[#6C63FF] animate-spin" />
+                {/* Inner counter-spinning ring */}
+                <div className="absolute inset-2 rounded-full border-[3px] border-purple-500/20 border-b-purple-500 animate-[spin_1.5s_linear_infinite_reverse]" />
+                {/* Center glowing badge */}
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6C63FF] to-purple-600 text-white shadow-lg shadow-[#6C63FF]/30">
+                  <Sparkles className="h-6 w-6 animate-pulse" />
                 </div>
-              </motion.div>
+              </div>
 
-              {/* User Persona & Personalized Welcome */}
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15, duration: 0.35 }}
-                className="space-y-2.5 mb-8"
-              >
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-sm text-xs font-black">
-                  {transitioningUser.isStudent ? (
-                    <span className="text-emerald-500 flex items-center gap-1.5">
-                      <span>🎓</span> Student Hub {transitioningUser.grade ? `• ${transitioningUser.grade}` : ""}
-                    </span>
-                  ) : transitioningUser.isPro ? (
-                    <span className="text-amber-400 flex items-center gap-1.5">
-                      <span>👑</span> SpeakMate Pro VIP
-                    </span>
-                  ) : (
-                    <span className="text-[#6C63FF] flex items-center gap-1.5">
-                      <span>✨</span> Personal Fluency Workspace
-                    </span>
-                  )}
-                </div>
+              {/* Title */}
+              <h2 className="mt-6 text-xl font-black tracking-tight text-[#6C63FF]">
+                SpeakMate AI
+              </h2>
 
-                <h2 className="text-2xl sm:text-3xl font-black text-[var(--text-primary)] tracking-tight">
-                  Welcome back, {transitioningUser.name}!
-                </h2>
-                <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-medium">
-                  Preparing your personalized dashboard & live speaking stats...
-                </p>
-              </motion.div>
+              {/* Status with animated pulsing dots */}
+              <div className="mt-2 flex items-center justify-center gap-1 font-semibold text-[var(--text-secondary)] text-sm">
+                <span>Loading dashboard</span>
+                <span className="flex w-4 justify-start">
+                  <span className="animate-[ping_1.4s_infinite] text-lg leading-none">.</span>
+                  <span className="animate-[ping_1.4s_0.2s_infinite] text-lg leading-none">.</span>
+                  <span className="animate-[ping_1.4s_0.4s_infinite] text-lg leading-none">.</span>
+                </span>
+              </div>
 
-              {/* Progress Bar Track */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.25, duration: 0.3 }}
-                className="w-full max-w-xs space-y-3"
-              >
-                <div className="h-2 w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-full overflow-hidden p-0.5 shadow-inner">
-                  <motion.div
-                    initial={{ width: "8%" }}
-                    animate={{ width: "100%" }}
-                    transition={{ duration: 1.1, ease: "easeInOut" }}
-                    className="h-full rounded-full bg-gradient-to-r from-[#6C63FF] via-[#8B5CF6] to-[#FF6584] shadow-md shadow-[#6C63FF]/40"
-                  />
-                </div>
+              {/* Personalized subMessage */}
+              <p className="mt-2 text-xs font-medium text-[var(--text-muted)] max-w-xs">
+                Welcome back, <span className="font-bold text-[var(--text-primary)]">{transitioningUser.name}</span>! Synchronizing your live fluency data and streak...
+              </p>
 
-                <div className="flex items-center justify-between text-[11px] font-extrabold text-[var(--text-muted)] px-1">
-                  <span className="flex items-center gap-1.5 text-emerald-500">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Syncing live fluency data
-                  </span>
-                  <span className="text-[#6C63FF] tracking-wider uppercase font-black">Loading</span>
-                </div>
-              </motion.div>
+              {/* Progress Track */}
+              <div className="w-56 mt-4 h-1.5 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-full overflow-hidden p-0.5">
+                <motion.div
+                  initial={{ width: "10%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 1.4, ease: "easeInOut" }}
+                  className="h-full rounded-full bg-gradient-to-r from-[#6C63FF] via-purple-500 to-[#FF6584]"
+                />
+              </div>
             </div>
           </motion.div>
         )}

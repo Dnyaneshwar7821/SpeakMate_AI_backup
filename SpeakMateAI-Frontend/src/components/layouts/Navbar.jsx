@@ -3,7 +3,8 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import ROUTES from "../../constants/routes";
-import { getLiveProgressStats } from "../../utils/progressTracker";
+import { getLiveProgressStats, syncBackendProgress } from "../../utils/progressTracker";
+import { getCachedDashboardData } from "../../utils/dashboardCache";
 import { StreakModal } from "../dashboard/StreakModal";
 import { AdminLoginModal } from "../common/AdminLoginModal";
 import { notificationService } from "../../services/appServices";
@@ -22,7 +23,13 @@ export const Navbar = memo(function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [liveStats, setLiveStats] = useState(() => getLiveProgressStats(user));
+  const [liveStats, setLiveStats] = useState(() => {
+    const cached = getCachedDashboardData(user?.email);
+    if (cached) {
+      return syncBackendProgress(cached, user);
+    }
+    return getLiveProgressStats(user);
+  });
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Searchable Quick Pages & Modules with exact sidebar titles and full keyword mappings
@@ -296,8 +303,9 @@ export const Navbar = memo(function Navbar() {
 
   useEffect(() => {
     const updateStats = (e) => {
-      if (e?.detail) {
-        setLiveStats(e.detail);
+      const source = e?.detail || getCachedDashboardData(user?.email);
+      if (source) {
+        setLiveStats(syncBackendProgress(source, user));
       } else {
         setLiveStats(getLiveProgressStats(user));
       }
