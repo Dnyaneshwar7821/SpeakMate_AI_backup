@@ -421,44 +421,62 @@ export const NativeAvatarView = memo(function NativeAvatarView({
 
   // 2. Ambient Halo Pulse
   useEffect(() => {
+    let loop = null;
+    let frameId = null;
+
     if (isSpeaking) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(haloPulse, { toValue: 1.10, duration: 320, useNativeDriver: true }),
-          Animated.timing(haloPulse, { toValue: 1.0, duration: 320, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-      return () => loop.stop();
+      frameId = requestAnimationFrame(() => {
+        loop = Animated.loop(
+          Animated.sequence([
+            Animated.timing(haloPulse, { toValue: 1.10, duration: 320, useNativeDriver: true }),
+            Animated.timing(haloPulse, { toValue: 1.0, duration: 320, useNativeDriver: true }),
+          ])
+        );
+        loop.start();
+      });
     } else {
       haloPulse.setValue(1.0);
     }
+
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      if (loop) loop.stop();
+    };
   }, [isSpeaking, haloPulse]);
 
   // 3. Speaking Head Nod & Cadence
   useEffect(() => {
+    let nodLoop = null;
+    let frameId = null;
+
     if (isSpeaking) {
-      const nodLoop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(speakingNod, {
-            toValue: 2.0,
-            duration: 380,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(speakingNod, {
-            toValue: -1.2,
-            duration: 380,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      nodLoop.start();
-      return () => nodLoop.stop();
+      frameId = requestAnimationFrame(() => {
+        nodLoop = Animated.loop(
+          Animated.sequence([
+            Animated.timing(speakingNod, {
+              toValue: 2.0,
+              duration: 380,
+              easing: Easing.inOut(Easing.quad),
+              useNativeDriver: true,
+            }),
+            Animated.timing(speakingNod, {
+              toValue: -1.2,
+              duration: 380,
+              easing: Easing.inOut(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ])
+        );
+        nodLoop.start();
+      });
     } else {
-      Animated.timing(speakingNod, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+      speakingNod.setValue(0);
     }
+
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      if (nodLoop) nodLoop.stop();
+    };
   }, [isSpeaking, speakingNod]);
 
   // 4. Real-Time Phonetic Lip-Sync Scheduler

@@ -231,27 +231,32 @@ export default function VocabularyScreen() {
   // Pulse animation while speaking
   useEffect(() => {
     let pulseAnim = null;
+    let frameId = null;
+
     if (isSpeaking) {
-      pulseAnim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(speakerPulse, {
-            toValue: 1.22,
-            duration: 320,
-            useNativeDriver: true,
-          }),
-          Animated.timing(speakerPulse, {
-            toValue: 1.0,
-            duration: 320,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseAnim.start();
+      frameId = requestAnimationFrame(() => {
+        pulseAnim = Animated.loop(
+          Animated.sequence([
+            Animated.timing(speakerPulse, {
+              toValue: 1.22,
+              duration: 320,
+              useNativeDriver: true,
+            }),
+            Animated.timing(speakerPulse, {
+              toValue: 1.0,
+              duration: 320,
+              useNativeDriver: true,
+            }),
+          ])
+        );
+        pulseAnim.start();
+      });
     } else {
       speakerPulse.setValue(1);
     }
 
     return () => {
+      if (frameId) cancelAnimationFrame(frameId);
       if (pulseAnim) pulseAnim.stop();
     };
   }, [isSpeaking]);

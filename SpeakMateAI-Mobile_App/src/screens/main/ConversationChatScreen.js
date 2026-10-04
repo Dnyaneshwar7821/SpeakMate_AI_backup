@@ -289,30 +289,36 @@ function VoiceWaveBars({ isRecording }) {
   ]).current;
 
   useEffect(() => {
-    let anim;
+    let anim = null;
+    let frameId = null;
+
     if (isRecording) {
-      const animations = animatedValues.map((val) => {
-        return Animated.loop(
-          Animated.sequence([
-            Animated.timing(val, {
-              toValue: 1.5 + Math.random() * 2.0,
-              duration: 250 + Math.random() * 200,
-              useNativeDriver: true,
-            }),
-            Animated.timing(val, {
-              toValue: 0.5 + Math.random() * 0.5,
-              duration: 250 + Math.random() * 200,
-              useNativeDriver: true,
-            }),
-          ])
-        );
+      frameId = requestAnimationFrame(() => {
+        const animations = animatedValues.map((val) => {
+          return Animated.loop(
+            Animated.sequence([
+              Animated.timing(val, {
+                toValue: 1.5 + Math.random() * 2.0,
+                duration: 250 + Math.random() * 200,
+                useNativeDriver: true,
+              }),
+              Animated.timing(val, {
+                toValue: 0.5 + Math.random() * 0.5,
+                duration: 250 + Math.random() * 200,
+                useNativeDriver: true,
+              }),
+            ])
+          );
+        });
+        anim = Animated.parallel(animations);
+        anim.start();
       });
-      anim = Animated.parallel(animations);
-      anim.start();
     } else {
       animatedValues.forEach(val => val.setValue(1));
     }
+
     return () => {
+      if (frameId) cancelAnimationFrame(frameId);
       if (anim) anim.stop();
     };
   }, [isRecording]);

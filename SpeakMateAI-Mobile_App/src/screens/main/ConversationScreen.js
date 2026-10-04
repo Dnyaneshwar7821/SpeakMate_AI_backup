@@ -101,42 +101,48 @@ function SoundWave({ isRecording }) {
 
   // Recording audio wave & pulse
   useEffect(() => {
-    let anim;
-    let ringLoop;
+    let anim = null;
+    let ringLoop = null;
+    let frameId = null;
+
     if (isRecording) {
-      const animations = animatedValues.map((val) => {
-        return Animated.loop(
+      frameId = requestAnimationFrame(() => {
+        const animations = animatedValues.map((val) => {
+          return Animated.loop(
+            Animated.sequence([
+              Animated.timing(val, {
+                toValue: 1.5 + Math.random() * 2.2,
+                duration: 180 + Math.random() * 160,
+                easing: Easing.linear,
+                useNativeDriver: true,
+              }),
+              Animated.timing(val, {
+                toValue: 0.6 + Math.random() * 0.4,
+                duration: 180 + Math.random() * 160,
+                easing: Easing.linear,
+                useNativeDriver: true,
+              }),
+            ])
+          );
+        });
+        anim = Animated.parallel(animations);
+        anim.start();
+
+        ringLoop = Animated.loop(
           Animated.sequence([
-            Animated.timing(val, {
-              toValue: 1.5 + Math.random() * 2.2,
-              duration: 180 + Math.random() * 160,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
-            Animated.timing(val, {
-              toValue: 0.6 + Math.random() * 0.4,
-              duration: 180 + Math.random() * 160,
-              easing: Easing.linear,
-              useNativeDriver: true,
-            }),
+            Animated.timing(pulseRing, { toValue: 1, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+            Animated.timing(pulseRing, { toValue: 0, duration: 40, useNativeDriver: true }),
           ])
         );
+        ringLoop.start();
       });
-      anim = Animated.parallel(animations);
-      anim.start();
-
-      ringLoop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseRing, { toValue: 1, duration: 1200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(pulseRing, { toValue: 0, duration: 0, useNativeDriver: true }),
-        ])
-      );
-      ringLoop.start();
     } else {
       animatedValues.forEach(val => val.setValue(1));
       pulseRing.setValue(0);
     }
+
     return () => {
+      if (frameId) cancelAnimationFrame(frameId);
       if (anim) anim.stop();
       if (ringLoop) ringLoop.stop();
     };

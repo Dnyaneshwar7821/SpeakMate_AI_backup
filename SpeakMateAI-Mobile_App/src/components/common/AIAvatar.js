@@ -67,20 +67,29 @@ function WaveBar({ delay, isSpeaking }) {
   const anim = useRef(new Animated.Value(0.25)).current;
 
   useEffect(() => {
-    if (!isSpeaking) {
-      Animated.timing(anim, { toValue: 0.25, duration: 200, useNativeDriver: true }).start();
-      return;
+    let animInstance = null;
+    let frameId = null;
+
+    if (isSpeaking) {
+      frameId = requestAnimationFrame(() => {
+        animInstance = Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.timing(anim, { toValue: 1, duration: 240, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+            Animated.timing(anim, { toValue: 0.2, duration: 240, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          ])
+        );
+        animInstance.start();
+      });
+    } else {
+      anim.setValue(0.25);
     }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(anim, { toValue: 1, duration: 240, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.2, duration: 240, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [isSpeaking]);
+
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      if (animInstance) animInstance.stop();
+    };
+  }, [isSpeaking, delay]);
 
   const scaleY = anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
   return <Animated.View style={[styles.waveBar, { transform: [{ scaleY }] }]} />;
@@ -216,20 +225,19 @@ export default function AIAvatar({
     return () => loop.stop();
   }, []);
 
-  // 3. State Ambient Glow Pulse
+  // 3. Continuous Ambient Glow Pulse (Mounted once, zero loop teardown/restart on state changes)
   useEffect(() => {
-    const duration = config.pulseSpeed;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 0,
-          duration,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -237,7 +245,7 @@ export default function AIAvatar({
     );
     loop.start();
     return () => loop.stop();
-  }, [resolvedState]);
+  }, []);
 
   // ── Interpolations ─────────────────────────────────────────────────────────
   const entranceScale   = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] });
