@@ -944,8 +944,8 @@ export default function ProfileScreen({ navigation }) {
               <View style={[styles.activeTutorHighlightCard, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
                 <View style={styles.activeTutorLeft}>
                   <View style={[styles.activeTutorEmojiBox, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF', borderColor: '#6366F1', borderWidth: 1.5 }]}>
-                    {activeTutor.image ? (
-                      <Image source={activeTutor.image} style={styles.activeTutorImage} resizeMode="contain" />
+                    {activeTutor.thumbnail || activeTutor.image ? (
+                      <Image source={activeTutor.thumbnail || activeTutor.image} style={styles.activeTutorImage} resizeMode="contain" />
                     ) : (
                       <Text style={{ fontSize: 32 }}>{activeTutor.emoji}</Text>
                     )}
@@ -1704,9 +1704,9 @@ export default function ProfileScreen({ navigation }) {
                       ]}
                     >
                       <View style={styles.tutorCardHeader}>
-                        {av.image ? (
+                        {av.thumbnail || av.image ? (
                           <View style={[styles.tutorThumbWrap, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}>
-                            <Image source={av.image} style={styles.tutorThumbImage} resizeMode="contain" />
+                            <Image source={av.thumbnail || av.image} style={styles.tutorThumbImage} resizeMode="contain" />
                           </View>
                         ) : (
                           <Text style={styles.tutorCardEmoji}>{av.emoji}</Text>

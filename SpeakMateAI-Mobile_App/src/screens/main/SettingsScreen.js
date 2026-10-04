@@ -362,8 +362,8 @@ export default function SettingsScreen({ navigation }) {
             <Card style={[styles.statusCard, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
               <View style={styles.statusContainer}>
                 <View style={[styles.avatarBg, { backgroundColor: isDark ? '#2E224F' : '#F3E8FF' }]}>
-                  {activeAvatar?.image ? (
-                    <Image source={activeAvatar.image} style={styles.tutorThumbImage} resizeMode="contain" />
+                  {activeAvatar?.thumbnail || activeAvatar?.image ? (
+                    <Image source={activeAvatar.thumbnail || activeAvatar.image} style={styles.tutorThumbImage} resizeMode="contain" />
                   ) : (
                     <Ionicons name="mic-sharp" size={24} color="#7C3AED" />
                   )}
