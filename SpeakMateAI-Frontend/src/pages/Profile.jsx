@@ -102,13 +102,13 @@ export function Profile() {
     firstName: user?.firstName || user?.name?.split(" ")[0] || "",
     lastName: user?.lastName || user?.name?.split(" ").slice(1).join(" ") || "",
     email: user?.email || "",
-    nativeLanguage: user?.nativeLanguage || user?.nativeLang || "English",
+    nativeLanguage: user?.nativeLanguage || user?.nativeLang || localStorage.getItem("speakmate_native_language") || "English",
   });
   const [originalForm, setOriginalForm] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar || "🎓");
+  const [selectedAvatar, setSelectedAvatar] = useState(() => user?.avatar || localStorage.getItem("speakmate_avatar") || "🎓");
   const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   const [schoolGrade, setSchoolGrade] = useState(
@@ -198,7 +198,13 @@ export function Profile() {
           };
           setForm(fetchedForm);
           setOriginalForm(fetchedForm);
-          if (profile.avatar) setSelectedAvatar(profile.avatar);
+          if (profile.avatar) {
+            setSelectedAvatar(profile.avatar);
+            localStorage.setItem("speakmate_avatar", profile.avatar);
+          }
+          if (profile.nativeLanguage) {
+            localStorage.setItem("speakmate_native_language", profile.nativeLanguage);
+          }
           if (profile.englishLevel && typeof profile.englishLevel === "string") {
             setCefrLevel(profile.englishLevel);
             localStorage.setItem("speakmate_english_level", profile.englishLevel);

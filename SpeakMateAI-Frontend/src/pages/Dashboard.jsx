@@ -267,7 +267,6 @@ export function Dashboard() {
       .then(([data, achs]) => {
         if (data) {
           setDashboardData(data);
-          setCachedDashboardData(data, user?.email);
           if (data.quote) {
             setDailyQuote(fetchOrGetDailyQuote(data.quote));
           }
@@ -302,6 +301,16 @@ export function Dashboard() {
           const finalBadgesUnlocked = verifiedAchsCount != null
             ? verifiedAchsCount
             : (data.badgesUnlocked != null ? Number(data.badgesUnlocked) : (synced.badgesUnlocked ?? 0));
+
+          const cachePayload = {
+            ...data,
+            ...synced,
+            badgesUnlocked: finalBadgesUnlocked,
+            accuracy: finalAccuracy,
+            totalHours: finalHours,
+            wordsLearned: finalWords,
+          };
+          setCachedDashboardData(cachePayload, user?.email);
 
           setStats((prev) => ({
             ...prev,

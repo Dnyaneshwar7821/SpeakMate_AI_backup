@@ -109,7 +109,10 @@ export function Lessons() {
   });
 
   const continueRowRef = useRef(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => {
+    const cached = CurriculumCache.getLessons(user?.id, profileKey);
+    return !cached || cached.length === 0;
+  });
   const [searchText, setSearchText] = useState(urlSearchQuery);
   const [searchResults, setSearchResults] = useState(null);
   const [activeTab, setActiveTab] = useState("All");
@@ -132,7 +135,8 @@ export function Lessons() {
     return Object.entries(counts).map(([name, lessonCount]) => ({ name, lessonCount }));
   }, [profileLessons]);
 
-  const loadData = async () => {
+  const loadData = async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     try {
       const [cont, list] = await Promise.all([
         lessonModuleService.continueLearning().catch(() => null),
@@ -262,7 +266,7 @@ export function Lessons() {
       setLessons(profileLessons);
     }
 
-    loadData();
+    loadData(!cachedLessons || cachedLessons.length === 0);
   }, [profileLessons, profileKey, user?.id]);
 
   useEffect(() => {
@@ -431,106 +435,113 @@ export function Lessons() {
       </div>
 
       {/* Continue Learning Row (Horizontally Slideable Right or Left) */}
-      {continueItems.length > 0 && searchResults === null && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📚</span>
-              <h2 className="text-2xl font-black text-[var(--text-primary)]">
-                Continue Learning
-                {continueItems.length > 1 && (
-                  <span className="text-xs font-bold text-[#6C63FF] ml-2 px-2.5 py-0.5 rounded-full bg-[#6C63FF]/10">
-                    {continueItems.length} in progress
-                  </span>
-                )}
-              </h2>
-            </div>
-            {continueItems.length > 1 && (
+      {searchResults === null && (
+        continueItems.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--text-secondary)] font-medium hidden sm:inline">
-                  Slide or use arrows
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (continueRowRef.current) {
-                      continueRowRef.current.scrollBy({ left: -340, behavior: 'smooth' });
-                    }
-                  }}
-                  className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-[#6C63FF]/20 text-[var(--text-primary)] border border-white/10 flex items-center justify-center transition-all shadow-sm active:scale-95 text-xs font-bold"
-                  title="Slide Left"
-                >
-                  ◀
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (continueRowRef.current) {
-                      continueRowRef.current.scrollBy({ left: 340, behavior: 'smooth' });
-                    }
-                  }}
-                  className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-[#6C63FF]/20 text-[var(--text-primary)] border border-white/10 flex items-center justify-center transition-all shadow-sm active:scale-95 text-xs font-bold"
-                  title="Slide Right"
-                >
-                  ▶
-                </button>
+                <span className="text-xl">📚</span>
+                <h2 className="text-2xl font-black text-[var(--text-primary)]">
+                  Continue Learning
+                  {continueItems.length > 1 && (
+                    <span className="text-xs font-bold text-[#6C63FF] ml-2 px-2.5 py-0.5 rounded-full bg-[#6C63FF]/10">
+                      {continueItems.length} in progress
+                    </span>
+                  )}
+                </h2>
               </div>
-            )}
-          </div>
-
-          <div
-            ref={continueRowRef}
-            className="flex gap-4 overflow-x-auto pb-3 pt-1 scroll-smooth snap-x scrollbar-thin scrollbar-thumb-[#6C63FF]/30 scrollbar-track-transparent"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {continueItems.map((item, idx) => {
-              const percent = Math.min(100, Math.max(10, item.progressPercent || 11));
-              return (
-                <div
-                  key={item.id ? `cont-${item.id}` : `cont-${item.title || idx}`}
-                  className="min-w-[290px] sm:min-w-[340px] max-w-[380px] flex-shrink-0 snap-start p-6 rounded-3xl bg-gradient-to-br from-[#4F46E5] via-[#6366F1] to-[#8B5CF6] text-white shadow-xl flex flex-col justify-between gap-4 border border-white/10 hover:shadow-2xl transition-all"
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-3 py-0.5 rounded-full border border-white/20">
-                        In Progress
-                      </span>
-                      <span className="text-xs font-bold text-[#FCD34D] flex items-center gap-1">
-                        ⭐ +{item.xpReward || 35} XP
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black line-clamp-1">{item.title}</h3>
-                      <p className="text-xs font-semibold opacity-85 mt-0.5">
-                        {item.category} • {item.level || 'All Levels'} • {item.estimatedMinutes || item.duration || 15} min
-                      </p>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="pt-1 space-y-1">
-                      <div className="w-full h-2 rounded-full bg-white/25 overflow-hidden">
-                        <div
-                          className="h-full bg-white rounded-full transition-all duration-300"
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                      <p className="text-[11px] font-semibold text-white/80 text-right">
-                        {percent}% complete
-                      </p>
-                    </div>
-                  </div>
-
+              {continueItems.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--text-secondary)] font-medium hidden sm:inline">
+                    Slide or use arrows
+                  </span>
                   <button
-                    onClick={() => handleOpenLesson(item)}
-                    className="w-full py-3 rounded-2xl bg-white text-[#4F46E5] font-black text-sm shadow-md hover:bg-slate-100 hover:scale-[1.02] active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => {
+                      if (continueRowRef.current) {
+                        continueRowRef.current.scrollBy({ left: -340, behavior: 'smooth' });
+                      }
+                    }}
+                    className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-[#6C63FF]/20 text-[var(--text-primary)] border border-white/10 flex items-center justify-center transition-all shadow-sm active:scale-95 text-xs font-bold"
+                    title="Slide Left"
                   >
-                    Resume Masterclass ▶
+                    ◀
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (continueRowRef.current) {
+                        continueRowRef.current.scrollBy({ left: 340, behavior: 'smooth' });
+                      }
+                    }}
+                    className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-[#6C63FF]/20 text-[var(--text-primary)] border border-white/10 flex items-center justify-center transition-all shadow-sm active:scale-95 text-xs font-bold"
+                    title="Slide Right"
+                  >
+                    ▶
                   </button>
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            <div
+              ref={continueRowRef}
+              className="flex gap-4 overflow-x-auto pb-3 pt-1 scroll-smooth snap-x scrollbar-thin scrollbar-thumb-[#6C63FF]/30 scrollbar-track-transparent"
+              style={{ scrollbarWidth: 'thin' }}
+            >
+              {continueItems.map((item, idx) => {
+                const percent = Math.min(100, Math.max(10, item.progressPercent || 11));
+                return (
+                  <div
+                    key={item.id ? `cont-${item.id}` : `cont-${item.title || idx}`}
+                    className="min-w-[290px] sm:min-w-[340px] max-w-[380px] flex-shrink-0 snap-start p-6 rounded-3xl bg-gradient-to-br from-[#4F46E5] via-[#6366F1] to-[#8B5CF6] text-white shadow-xl flex flex-col justify-between gap-4 border border-white/10 hover:shadow-2xl transition-all"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-3 py-0.5 rounded-full border border-white/20">
+                          In Progress
+                        </span>
+                        <span className="text-xs font-bold text-[#FCD34D] flex items-center gap-1">
+                          ⭐ +{item.xpReward || 35} XP
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black line-clamp-1">{item.title}</h3>
+                        <p className="text-xs font-semibold opacity-85 mt-0.5">
+                          {item.category} • {item.level || 'All Levels'} • {item.estimatedMinutes || item.duration || 15} min
+                        </p>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="pt-1 space-y-1">
+                        <div className="w-full h-2 rounded-full bg-white/25 overflow-hidden">
+                          <div
+                            className="h-full bg-white rounded-full transition-all duration-300"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] font-semibold text-white/80 text-right">
+                          {percent}% complete
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenLesson(item)}
+                      className="w-full py-3 rounded-2xl bg-white text-[#4F46E5] font-black text-sm shadow-md hover:bg-slate-100 hover:scale-[1.02] active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                    >
+                      Resume Masterclass ▶
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : loading ? (
+          <div className="space-y-3">
+            <div className="h-7 w-44 bg-[var(--bg-elevated)] rounded-xl animate-pulse" />
+            <div className="w-full sm:w-[340px] h-[190px] rounded-3xl bg-[var(--bg-elevated)] animate-pulse border border-[var(--border-default)]" />
+          </div>
+        ) : null
       )}
 
       {/* Categories Grid */}

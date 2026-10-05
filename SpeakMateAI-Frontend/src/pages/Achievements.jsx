@@ -240,15 +240,15 @@ const CATEGORIES = [
 ];
 
 export function Achievements() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [selectedFilter, setSelectedFilter] = useState("ALL"); // 'ALL' | 'UNLOCKED' | 'LOCKED'
   const [searchQuery, setSearchQuery] = useState("");
   const [liveStats, setLiveStats] = useState(() => getLiveProgressStats());
   const [backendAchievements, setBackendAchievements] = useState([]);
 
-  const syncAchievements = async () => {
-    setLoading(true);
+  const syncAchievements = async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     try {
       const [list, summary] = await Promise.all([
         achievementService.all().catch(() => []),
@@ -267,12 +267,13 @@ export function Achievements() {
   };
 
   useEffect(() => {
-    syncAchievements();
-    window.addEventListener("focus", syncAchievements);
-    window.addEventListener("speakmate_progress_updated", syncAchievements);
+    syncAchievements(true);
+    const handleRefresh = () => syncAchievements(false);
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("speakmate_progress_updated", handleRefresh);
     return () => {
-      window.removeEventListener("focus", syncAchievements);
-      window.removeEventListener("speakmate_progress_updated", syncAchievements);
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("speakmate_progress_updated", handleRefresh);
     };
   }, []);
 
@@ -284,7 +285,7 @@ export function Achievements() {
         (b) => b.title && b.title.trim().toLowerCase() === ach.title.trim().toLowerCase()
       );
       const meetsTarget = currentVal >= ach.target;
-      const unlocked = backendItem ? (Boolean(backendItem.unlocked) && meetsTarget) : meetsTarget;
+      const unlocked = backendItem ? (Boolean(backendItem.unlocked) && meetsTarget) : (loading ? false : meetsTarget);
       const progressPercent = Math.min(100, Math.max(0, (currentVal / ach.target) * 100));
 
       return {
@@ -294,15 +295,16 @@ export function Achievements() {
         progressPercent,
       };
     });
-  }, [liveStats, backendAchievements]);
+  }, [liveStats, backendAchievements, loading]);
 
   useEffect(() => {
+    if (loading) return;
     const unlockedCount = enrichedAchievements.filter((i) => i.unlocked).length;
     const current = getLiveProgressStats();
     if (current && current.badgesUnlocked !== unlockedCount) {
       saveProgressStats({ ...current, badgesUnlocked: unlockedCount }, null, false);
     }
-  }, [enrichedAchievements]);
+  }, [enrichedAchievements, loading]);
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -352,7 +354,11 @@ export function Achievements() {
           </div>
 
           <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center min-w-[140px]">
-            <p className="text-2xl font-black text-amber-400">+{totalEarnedXp}</p>
+            {loading ? (
+              <div className="h-8 w-16 bg-white/20 rounded-lg animate-pulse mx-auto mb-1" />
+            ) : (
+              <p className="text-2xl font-black text-amber-400">+{totalEarnedXp}</p>
+            )}
             <p className="text-[10px] font-bold uppercase text-indigo-200">Total XP Claimed</p>
           </div>
         </div>
@@ -360,13 +366,15 @@ export function Achievements() {
         {/* Global Progress Bar */}
         <div className="space-y-2 pt-2">
           <div className="flex items-center justify-between text-xs font-black text-indigo-200">
-            <span>Showcase Mastery: {totalUnlockedCount} of {totalCount} Medals</span>
-            <span className="text-amber-300">{showcasePercentage}%</span>
+            <span>
+              Showcase Mastery: {loading ? "Loading verified medals..." : `${totalUnlockedCount} of ${totalCount} Medals`}
+            </span>
+            <span className="text-amber-300">{loading ? "..." : `${showcasePercentage}%`}</span>
           </div>
           <div className="h-2.5 w-full bg-white/10 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 rounded-full transition-all duration-500"
-              style={{ width: `${showcasePercentage}%` }}
+              className={`h-full bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 rounded-full transition-all duration-500 ${loading ? "animate-pulse opacity-50" : ""}`}
+              style={{ width: loading ? "30%" : `${showcasePercentage}%` }}
             />
           </div>
         </div>
@@ -407,8 +415,8 @@ export function Achievements() {
         <div className="flex items-center gap-2">
           {[
             { id: "ALL", label: `All (${enrichedAchievements.length})` },
-            { id: "UNLOCKED", label: `Unlocked (${totalUnlockedCount})` },
-            { id: "LOCKED", label: `In Progress (${totalCount - totalUnlockedCount})` },
+            { id: "UNLOCKED", label: loading ? "Unlocked (...)" : `Unlocked (${totalUnlockedCount})` },
+            { id: "LOCKED", label: loading ? "In Progress (...)" : `In Progress (${totalCount - totalUnlockedCount})` },
           ].map((f) => (
             <button
               key={f.id}
@@ -427,7 +435,27 @@ export function Achievements() {
 
       {/* Achievement Grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredItems.length === 0 ? (
+        {loading ? (
+          [1, 2, 3, 4, 5, 6].map((sk) => (
+            <div
+              key={sk}
+              className="p-5 rounded-3xl border border-[var(--border-default)] bg-[var(--bg-surface)] animate-pulse space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--bg-elevated)]" />
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-32 bg-[var(--bg-elevated)] rounded" />
+                    <div className="h-3 w-20 bg-[var(--bg-elevated)] rounded" />
+                  </div>
+                </div>
+                <div className="h-6 w-14 bg-[var(--bg-elevated)] rounded-full" />
+              </div>
+              <div className="h-10 w-full bg-[var(--bg-elevated)] rounded-xl" />
+              <div className="h-2 w-full bg-[var(--bg-elevated)] rounded-full" />
+            </div>
+          ))
+        ) : filteredItems.length === 0 ? (
           <div className="col-span-full p-16 rounded-3xl glass-card text-center space-y-2">
             <span className="text-4xl">🏅</span>
             <p className="text-sm font-black text-[var(--text-primary)]">No achievements match your filter</p>

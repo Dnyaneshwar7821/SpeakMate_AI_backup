@@ -167,8 +167,8 @@ export function Vocabulary() {
     );
   };
 
-  const [items, setItems] = useState(() => getInitialCurated());
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [wordInput, setWordInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -191,7 +191,8 @@ export function Vocabulary() {
   const [mistakesList, setMistakesList] = useState([]);
   const [showMistakes, setShowMistakes] = useState(false);
 
-  const loadVocabulary = async () => {
+  const loadVocabulary = async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     try {
       const savedAccType = user?.accountType || localStorage.getItem("speakmate_account_type") || "INDIVIDUAL_USER";
       const savedGrade = user?.schoolGrade || localStorage.getItem("speakmate_school_grade") || "1st Std";
@@ -243,13 +244,9 @@ export function Vocabulary() {
   };
 
   useEffect(() => {
-    loadVocabulary();
-  }, [user?.ageGroup, user?.schoolGrade, user?.accountType]);
-
-  useEffect(() => {
-    loadVocabulary();
+    loadVocabulary(true);
     const handleRefresh = () => {
-      loadVocabulary();
+      loadVocabulary(false);
     };
     window.addEventListener("focus", handleRefresh);
     window.addEventListener("speakmate_progress_updated", handleRefresh);
@@ -261,7 +258,7 @@ export function Vocabulary() {
       window.removeEventListener("speakmate_settings_updated", handleRefresh);
       window.removeEventListener("speakmate_age_group_changed", handleRefresh);
     };
-  }, []);
+  }, [user?.ageGroup, user?.schoolGrade, user?.accountType]);
 
   const handleSpeak = (text) => {
     if (!text) return;
@@ -787,7 +784,7 @@ export function Vocabulary() {
 
             <div className="flex gap-2">
               {[
-                { key: "all", label: `All Words (${items.length})` },
+                { key: "all", label: loading ? "All Words (...)" : `All Words (${items.length})` },
                 { key: "favorites", label: "⭐ Favorites" },
               ].map((f) => (
                 <button
@@ -806,9 +803,24 @@ export function Vocabulary() {
           </div>
 
           {/* Word Cards Grid with Favorite Stars */}
-          {loading && filteredItems.length === 0 ? (
-            <div className="py-12">
-              <SpeakMateLoader message="Loading your vocabulary bank..." subMessage="Fetching words and definitions" />
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[1, 2, 3, 4, 5, 6].map((sk) => (
+                <div
+                  key={sk}
+                  className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-3xl p-5 shadow-sm animate-pulse space-y-4"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="h-6 w-32 bg-[var(--bg-elevated)] rounded-xl" />
+                    <div className="flex gap-2">
+                      <div className="h-8 w-8 bg-[var(--bg-elevated)] rounded-xl" />
+                      <div className="h-8 w-8 bg-[var(--bg-elevated)] rounded-xl" />
+                    </div>
+                  </div>
+                  <div className="h-4 w-4/5 bg-[var(--bg-elevated)] rounded-lg" />
+                  <div className="h-12 w-full bg-[var(--bg-elevated)] rounded-2xl" />
+                </div>
+              ))}
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-16 bg-[var(--bg-surface)] border border-dashed border-[var(--border-default)] rounded-3xl shadow-sm">

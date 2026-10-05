@@ -26,7 +26,7 @@ export function AiChat() {
   const { showConfirm } = useModal();
   const toast = useToast();
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [renameTargetSession, setRenameTargetSession] = useState(null);
   const [newTitle, setNewTitle] = useState("");
@@ -170,7 +170,20 @@ export function AiChat() {
       </div>
 
       {/* Recent Chat Conversations Row */}
-      {history.length > 0 && (
+      {loading ? (
+        <div className="space-y-4">
+          <div className="h-6 w-48 bg-[var(--bg-elevated)] rounded-xl animate-pulse" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3].map((sk) => (
+              <div key={sk} className="glass-card p-6 rounded-3xl space-y-3.5 border border-[var(--border-default)] animate-pulse">
+                <div className="h-4 w-20 bg-[var(--bg-elevated)] rounded-full" />
+                <div className="h-5 w-40 bg-[var(--bg-elevated)] rounded-lg" />
+                <div className="h-3 w-56 bg-[var(--bg-elevated)] rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : history.length > 0 ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black text-[var(--text-primary)]">Recent Chat Sessions</h2>
@@ -226,7 +239,7 @@ export function AiChat() {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Available AI Chat Modes Grid */}
       <div className="space-y-4">

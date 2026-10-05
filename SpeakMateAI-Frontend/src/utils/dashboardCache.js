@@ -1,19 +1,20 @@
 /**
  * dashboardCache.js
  * High-performance client cache for SpeakMate dashboard statistics and user rhythm.
- * Ensures instant loading of dashboard cards without showing previous user state or empty flashes.
+ * Ensures instant loading of dashboard cards without showing stale previous user state or empty flashes.
  */
 
 export const DASHBOARD_CACHE_KEY = "speakmate_dashboard_data_cache";
+export const DEFAULT_DASHBOARD_CACHE_TTL_MS = 180000; // 3 minutes TTL
 
 let inMemoryDashboardCache = null;
 
 /**
  * Retrieve cached dashboard data for the active user.
- * Validates that cached data matches the current authenticated user's email to prevent
- * showing stale or previous user session state.
+ * Validates that cached data matches the current authenticated user's email and
+ * is within the allowed TTL (default 3 minutes) to prevent showing stale numbers.
  */
-export function getCachedDashboardData(currentUserEmail) {
+export function getCachedDashboardData(currentUserEmail, maxAgeMs = DEFAULT_DASHBOARD_CACHE_TTL_MS) {
   let normEmail = currentUserEmail ? String(currentUserEmail).toLowerCase().trim() : null;
   if (!normEmail) {
     try {
@@ -25,12 +26,16 @@ export function getCachedDashboardData(currentUserEmail) {
     } catch (_) {}
   }
 
+  const now = Date.now();
+
   if (inMemoryDashboardCache) {
-    if (normEmail) {
-      if (inMemoryDashboardCache._userEmail === normEmail) {
-        return inMemoryDashboardCache;
-      }
-    } else if (!inMemoryDashboardCache._userEmail) {
+    const isEmailValid = normEmail
+      ? inMemoryDashboardCache._userEmail === normEmail
+      : !inMemoryDashboardCache._userEmail;
+
+    const isFresh = inMemoryDashboardCache._cachedAt && (now - inMemoryDashboardCache._cachedAt <= maxAgeMs);
+
+    if (isEmailValid && isFresh) {
       return inMemoryDashboardCache;
     }
   }
@@ -39,12 +44,13 @@ export function getCachedDashboardData(currentUserEmail) {
     const stored = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (normEmail) {
-        if (parsed._userEmail === normEmail) {
-          inMemoryDashboardCache = parsed;
-          return parsed;
-        }
-      } else if (!parsed._userEmail) {
+      const isEmailValid = normEmail
+        ? parsed._userEmail === normEmail
+        : !parsed._userEmail;
+
+      const isFresh = parsed._cachedAt && (now - parsed._cachedAt <= maxAgeMs);
+
+      if (isEmailValid && isFresh) {
         inMemoryDashboardCache = parsed;
         return parsed;
       }
@@ -55,7 +61,7 @@ export function getCachedDashboardData(currentUserEmail) {
 }
 
 /**
- * Store dashboard data in memory and sessionStorage tagged with the user's email.
+ * Store dashboard data in memory and sessionStorage tagged with the user's email and timestamp.
  */
 export function setCachedDashboardData(data, userEmail) {
   if (!data) return;
@@ -63,6 +69,7 @@ export function setCachedDashboardData(data, userEmail) {
   const payload = {
     ...data,
     ...(normEmail ? { _userEmail: normEmail } : {}),
+    _cachedAt: Date.now(),
   };
   inMemoryDashboardCache = payload;
   try {

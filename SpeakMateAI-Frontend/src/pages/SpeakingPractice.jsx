@@ -213,18 +213,22 @@ const normalizeAgeGroup = (rawAge) => {
 
 const SPEAKING_HISTORY_CACHE_KEY = "speakmate_speaking_history_cache";
 
-const getCachedSpeakingHistory = () => {
+const getCachedSpeakingHistory = (userEmail) => {
+  if (!userEmail) return [];
   try {
-    const raw = localStorage.getItem(SPEAKING_HISTORY_CACHE_KEY);
+    const key = `${SPEAKING_HISTORY_CACHE_KEY}_${String(userEmail).toLowerCase().trim()}`;
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 };
 
-const setCachedSpeakingHistory = (data) => {
+const setCachedSpeakingHistory = (data, userEmail) => {
+  if (!userEmail) return;
   try {
-    localStorage.setItem(SPEAKING_HISTORY_CACHE_KEY, JSON.stringify(data));
+    const key = `${SPEAKING_HISTORY_CACHE_KEY}_${String(userEmail).toLowerCase().trim()}`;
+    localStorage.setItem(key, JSON.stringify(data));
   } catch {}
 };
 
@@ -237,7 +241,7 @@ export function SpeakingPractice() {
   const accountType = localStorage.getItem("speakmate_account_type") || user?.accountType || "INDIVIDUAL_USER";
   const isStudent = accountType === "STUDENT" || Boolean(user?.schoolGrade) || Boolean(user?.isSchoolStudent);
 
-  const [history, setHistory] = useState(() => getCachedSpeakingHistory());
+  const [history, setHistory] = useState(() => getCachedSpeakingHistory(user?.email));
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
 
@@ -255,7 +259,7 @@ export function SpeakingPractice() {
         ? rawHistory.filter(item => item && (Number(item.overallScore || item.score || 0) > 0) && !String(item.previewMessage || '').includes('no speaking activity'))
         : [];
       setHistory(validHistory);
-      setCachedSpeakingHistory(validHistory);
+      setCachedSpeakingHistory(validHistory, user?.email);
 
       const effectiveAge = user?.ageGroup || localStorage.getItem("speakmate_age_group");
       if (effectiveAge) {
