@@ -595,7 +595,7 @@ export default function VocabularyScreen() {
     }
   };
 
-  // Toggle Mastered (+10 XP)
+  // Toggle Mastered (0 XP - mastering earns 0 XP, adding earns 5 XP)
   const toggleMastered = async (item) => {
     const newMastered = !item.mastered;
     try {
@@ -604,20 +604,12 @@ export default function VocabularyScreen() {
       }
       setUserWords((prev) => prev.map((w) => (w.id === item.id ? { ...w, mastered: newMastered } : w)));
       if (newMastered) {
-        Alert.alert('Word Mastered! 🧠', `"${item.word}" marked as Mastered! (+10 XP)`);
-        const prog = await progressService.get().catch(() => null);
-        if (prog) {
-          await progressService.update({
-            ...prog,
-            xp: (prog.xp || 0) + 10,
-            totalVocabularyWords: (prog.totalVocabularyWords || 0) + 1,
-          });
-        }
+        Alert.alert('Word Mastered! 🧠', `"${item.word}" marked as Mastered!`);
       }
     } catch (e) {
       setUserWords((prev) => prev.map((w) => (w.id === item.id ? { ...w, mastered: newMastered } : w)));
       if (newMastered) {
-        Alert.alert('Word Mastered! 🧠', `"${item.word}" marked as Mastered! (+10 XP)`);
+        Alert.alert('Word Mastered! 🧠', `"${item.word}" marked as Mastered!`);
       }
     }
   };

@@ -322,8 +322,13 @@ public class ProgressServiceImpl implements ProgressService {
 		int distinctScenarios = 0;
 
 		if (speakingSessionRepository != null) {
-			liveSpeakingSessions = (int) speakingSessionRepository.countByUserAndCompletedTrue(user);
-			List<SpeakingSession> rawCompletedSessions = speakingSessionRepository.findByUserAndCompletedTrue(user);
+			List<SpeakingSession> rawCompletedSessions = null;
+			if (user != null && user.getId() != null) {
+				rawCompletedSessions = speakingSessionRepository.findByUserIdAndCompletedTrueOrderByCreatedAtDesc(user.getId());
+			}
+			if (rawCompletedSessions == null || rawCompletedSessions.isEmpty()) {
+				rawCompletedSessions = speakingSessionRepository.findByUserAndCompletedTrue(user);
+			}
 			List<SpeakingSession> completedSessions = (rawCompletedSessions != null)
 					? rawCompletedSessions.stream()
 							.filter(s -> s != null && Boolean.TRUE.equals(s.getCompleted())
@@ -334,11 +339,9 @@ public class ProgressServiceImpl implements ProgressService {
 					: List.of();
 			if (!completedSessions.isEmpty()) {
 				liveSpeakingSessions = completedSessions.size();
-			}
-			if (!completedSessions.isEmpty()) {
+				int totalSpeakingSeconds = completedSessions.stream().mapToInt(s -> s.getDuration() != null ? s.getDuration() : 0).sum();
+				speakingMinutes = (int) Math.round(totalSpeakingSeconds / 60.0);
 				for (SpeakingSession s : completedSessions) {
-					int duration = s.getDuration() != null ? s.getDuration() : 0;
-					speakingMinutes += (int) Math.max(1, Math.ceil(duration / 60.0));
 					int sxp = s.getXpEarned() != null ? s.getXpEarned() : 0;
 					if (sxp <= 0) {
 						sxp = 15;

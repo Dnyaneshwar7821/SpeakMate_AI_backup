@@ -451,14 +451,14 @@ export function Vocabulary() {
       setItems((prev) => prev.map((w) => (w.id === item.id ? { ...w, mastered: updated } : w)));
       if (updated) {
         recordVocabularyMastered(1);
-        toast.success(`Word "${item.word}" marked as Mastered! (+10 XP 🧠)`);
+        toast.success(`Word "${item.word}" marked as Mastered! 🧠`);
       }
     } catch (e) {
       const updated = !item.mastered;
       setItems((prev) => prev.map((w) => (w.id === item.id ? { ...w, mastered: updated } : w)));
       if (updated) {
         recordVocabularyMastered(1);
-        toast.success(`Word "${item.word}" marked as Mastered! (+10 XP 🧠)`);
+        toast.success(`Word "${item.word}" marked as Mastered! 🧠`);
       }
     }
   };

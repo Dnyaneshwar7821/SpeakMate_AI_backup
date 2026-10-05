@@ -188,7 +188,9 @@ export function Dashboard() {
     const synced = cached ? syncBackendProgress(cached, user) : {};
 
     const accuracyVal = synced.accuracy ?? (backendStats.averageScore > 0 ? backendStats.averageScore : null);
-    const totalHoursVal = backendStats.totalStudyHours != null ? backendStats.totalStudyHours : synced.totalHours;
+    const totalHoursVal = backendStats.totalStudyHours != null
+      ? Number(backendStats.totalStudyHours)
+      : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
     const wordsVal = backendStats.vocabularyLearned ?? cached?.progress?.totalVocabularyWords ?? synced.wordsLearned;
 
     return {
@@ -283,8 +285,9 @@ export function Dashboard() {
           const synced = syncBackendProgress(data, user);
           const backendStats = data.statistics || {};
           const backendAccuracy = backendStats.averageScore > 0 ? backendStats.averageScore : null;
-          const finalAccuracy = synced.accuracy ?? backendAccuracy;
-          const finalHours = backendStats.totalStudyHours != null ? backendStats.totalStudyHours : synced.totalHours;
+          const finalHours = backendStats.totalStudyHours != null
+            ? Number(backendStats.totalStudyHours)
+            : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
           const finalWords = backendStats.vocabularyLearned ?? data.progress?.totalVocabularyWords ?? synced.wordsLearned;
           const targetFromBackend = data.dailyGoal?.targetSpeakingMinutes || data.dailyGoal?.dailyGoalMinutes;
 
@@ -863,8 +866,8 @@ export function Dashboard() {
               Vocabulary
             </span>
           </div>
-          <p className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-wider pt-1">Words Mastered</p>
-          <p className="text-2xl sm:text-3xl font-black text-amber-500">{stats.wordsLearned || 0}</p>
+          <p className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-wider pt-1">Vocabulary Added</p>
+          <p className="text-2xl sm:text-3xl font-black text-amber-500">{stats.wordsLearned || stats.totalVocabularyWords || 0}</p>
         </div>
 
         <Link

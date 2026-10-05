@@ -641,7 +641,13 @@ public class DashboardServiceImpl implements DashboardService {
 	@Override
 	public StatisticsResponse getStatistics() {
 		User user = getCurrentUser();
-		List<SpeakingSession> rawCompletedSessions = speakingSessionRepository.findByUserAndCompletedTrue(user);
+		List<SpeakingSession> rawCompletedSessions = null;
+		if (user != null && user.getId() != null) {
+			rawCompletedSessions = speakingSessionRepository.findByUserIdAndCompletedTrueOrderByCreatedAtDesc(user.getId());
+		}
+		if (rawCompletedSessions == null || rawCompletedSessions.isEmpty()) {
+			rawCompletedSessions = speakingSessionRepository.findByUserAndCompletedTrue(user);
+		}
 		List<SpeakingSession> completedSessions = (rawCompletedSessions != null)
 				? rawCompletedSessions.stream()
 						.filter(s -> s != null && Boolean.TRUE.equals(s.getCompleted())
@@ -650,9 +656,14 @@ public class DashboardServiceImpl implements DashboardService {
 								&& (s.getFeedback() == null || !s.getFeedback().contains("no speaking activity")))
 						.toList()
 				: List.of();
-		List<Vocabulary> vocabs = vocabularyRepository.findByUser(user);
+		List<Vocabulary> vocabs = (user != null && user.getId() != null) ? vocabularyRepository.findByUserId(user.getId()) : List.of();
+		if (vocabs.isEmpty()) {
+			vocabs = vocabularyRepository.findByUser(user);
+		}
 		List<GrammarHistory> grammars = grammarHistoryRepository.findByUser(user);
-		Progress progress = progressRepository.findByUser(user).orElse(null);
+		Progress progress = (user != null && user.getId() != null)
+				? progressRepository.findByUserId(user.getId()).orElseGet(() -> progressRepository.findByUser(user).orElse(null))
+				: progressRepository.findByUser(user).orElse(null);
 
 		// Every user's personalized curriculum track consists of exactly 20 lessons
 		int totalLessons = 20;
@@ -673,11 +684,16 @@ public class DashboardServiceImpl implements DashboardService {
 				.filter(sc -> !sc.isEmpty())
 				.distinct()
 				.count();
-		int vocabularyLearned = progress != null && progress.getTotalVocabularyWords() != null ? progress.getTotalVocabularyWords() : vocabs.size();
+		int vocabularyLearned = (vocabs != null && !vocabs.isEmpty())
+				? vocabs.size()
+				: (progress != null && progress.getTotalVocabularyWords() != null ? progress.getTotalVocabularyWords() : 0);
 		int grammarExercises = progress != null && progress.getTotalGrammarChecks() != null ? progress.getTotalGrammarChecks() : grammars.size();
 
 		int totalPracticeSeconds = completedSessions.stream().mapToInt(s -> s.getDuration() != null ? s.getDuration() : 0).sum();
 		double totalStudyHours = Math.round((totalPracticeSeconds / 3600.0) * 10.0) / 10.0;
+		if (totalStudyHours == 0.0 && progress != null && progress.getTotalPracticeMinutes() != null && progress.getTotalPracticeMinutes() > 0) {
+			totalStudyHours = Math.round((progress.getTotalPracticeMinutes() / 60.0) * 10.0) / 10.0;
+		}
 
 		int currentStreak = (progress != null && progress.getCurrentStreak() != null) ? progress.getCurrentStreak() : 0;
 		int longestStreak = (progress != null && progress.getLongestStreak() != null) ? progress.getLongestStreak() : 0;

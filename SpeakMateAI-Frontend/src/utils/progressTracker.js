@@ -273,10 +273,6 @@ export const syncBackendProgress = (backendData, userContext = null) => {
     ? Math.max(Number(current.streak || 0), Number(rawBackendStreak))
     : Number(current.streak || 0);
 
-  const finalMins = rawBackendMins !== undefined && rawBackendMins !== null
-    ? Math.max(Number(current.speakingMins || 0), Number(rawBackendMins))
-    : Number(current.speakingMins || 0);
-
   const backendStats = backendData.statistics || {};
   const rawBackendAvgScore = backendStats.averageScore ?? backendData.averageScore;
   const rawBackendVocab = backendStats.vocabularyLearned ?? backendData.progress?.totalVocabularyWords ?? backendData.profile?.totalVocabularyWords;
@@ -284,6 +280,13 @@ export const syncBackendProgress = (backendData, userContext = null) => {
   const rawBackendDistinctScenarios = backendStats.distinctScenarios ?? backendData.progress?.distinctSpeakingScenarios ?? backendData.distinctScenarios;
   const rawBackendGrammar = backendStats.grammarExercises ?? backendData.progress?.totalGrammarChecks ?? backendData.profile?.totalGrammarChecks;
   const rawBackendLessons = backendStats.completedLessons ?? backendData.completedLessons;
+
+  let finalMins = Number(current.speakingMins || 0);
+  if (backendStats.totalStudyHours != null) {
+    finalMins = Math.round(Number(backendStats.totalStudyHours) * 60);
+  } else if (rawBackendMins !== undefined && rawBackendMins !== null) {
+    finalMins = Number(rawBackendMins);
+  }
 
   const backendAccuracy = rawBackendAvgScore !== undefined && rawBackendAvgScore !== null && Number(rawBackendAvgScore) > 0
     ? Number(rawBackendAvgScore)
@@ -314,12 +317,15 @@ export const syncBackendProgress = (backendData, userContext = null) => {
     ? Number(rawBackendFreezes)
     : Number(current.streakFreezes ?? 1);
 
+  const finalHours = parseFloat(((finalMins || 0) / 60).toFixed(1));
+
   const synced = {
     ...current,
     xp: finalXp,
     level: Math.max(1, Math.floor((finalXp || 0) / 500) + 1),
     streak: finalStreak,
     speakingMins: finalMins,
+    totalHours: finalHours,
     longestStreak: Math.max(current.longestStreak || 0, finalStreak),
     wordsLearned: finalWords,
     speakingSessions: finalSessions,
@@ -391,13 +397,10 @@ export const recordGrammarCheck = (accuracyScore = 95, userContext = null) => {
   return stats;
 };
 
-// 3. Record Vocabulary Mastered (+10 XP)
+// 3. Record Vocabulary Mastered (0 XP - mastering earns 0 XP, adding earns 5 XP)
 export const recordVocabularyMastered = (count = 1, userContext = null) => {
   const stats = getLiveProgressStats(userContext);
-  stats.wordsLearned += count;
-  stats.todayMins = (stats.todayMins || 0) + count;
-  stats.xp += count * 10;
-
+  // Do not award XP for mastering words (0 XP)
   checkAndUpdateDailyGoal(stats, userContext);
   saveProgressStats(stats, userContext);
   return stats;
