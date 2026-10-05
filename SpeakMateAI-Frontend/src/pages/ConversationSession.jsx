@@ -192,8 +192,8 @@ export function ConversationSession() {
 
   const coachingTimerRef = useRef(null);
 
-  const handleSpeakText = (text, onComplete = null) => {
-    if (isMuted || !text) {
+  const handleSpeakText = (text, onComplete = null, isAuto = false) => {
+    if (isMuted || !text || (isAuto && localStorage.getItem("speakmate_autoplay_audio") === "false")) {
       if (onComplete) onComplete();
       return;
     }
@@ -219,7 +219,7 @@ export function ConversationSession() {
     let active = true;
     const timerId = setTimeout(() => {
       if (active && initialGreeting) {
-        handleSpeakText(initialGreeting);
+        handleSpeakText(initialGreeting, null, true);
       }
     }, 350);
 
@@ -544,10 +544,10 @@ export function ConversationSession() {
         if (coachingTipSentence && !isMuted) {
           coachingTimerRef.current = setTimeout(() => {
             const coachingSpeech = `A better way to say that is: ${coachingTipSentence}`;
-            handleSpeakText(coachingSpeech);
+            handleSpeakText(coachingSpeech, null, true);
           }, 300); // 0.30 sec pause before coaching tip
         }
-      });
+      }, true);
     } catch (e) {
       setIsThinking(false);
     }

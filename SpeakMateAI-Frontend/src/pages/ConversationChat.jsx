@@ -164,8 +164,11 @@ export function ConversationChat() {
     return cleanDialogueText(text);
   };
 
-  const handleSpeakText = (text) => {
+  const handleSpeakText = (text, isAuto = false) => {
     if (isMuted || !text) return;
+    if (isAuto && localStorage.getItem("speakmate_autoplay_audio") === "false") {
+      return;
+    }
     speakGlobalText(text, speechSpeed, {
       onstart: () => {
         setIsAiSpeaking(true);
@@ -208,7 +211,7 @@ export function ConversationChat() {
             hasSpokenInitialRef.current = true;
             const lastAi = [...data.messages].reverse().find((m) => m.sender === "ai");
             if (lastAi) {
-              setTimeout(() => handleSpeakText(getSpeakableText(lastAi)), 500);
+              setTimeout(() => handleSpeakText(getSpeakableText(lastAi), true), 500);
             }
           }
         } else {
@@ -220,7 +223,7 @@ export function ConversationChat() {
           setMessages([initMsg]);
           if (!hasSpokenInitialRef.current) {
             hasSpokenInitialRef.current = true;
-            setTimeout(() => handleSpeakText(initMsg.message), 500);
+            setTimeout(() => handleSpeakText(initMsg.message, true), 500);
           }
         }
       })
@@ -233,7 +236,7 @@ export function ConversationChat() {
         setMessages([initMsg]);
         if (!hasSpokenInitialRef.current) {
           hasSpokenInitialRef.current = true;
-          setTimeout(() => handleSpeakText(initMsg.message), 500);
+          setTimeout(() => handleSpeakText(initMsg.message, true), 500);
         }
       });
   }, [sessionId, mode]);
@@ -516,7 +519,7 @@ export function ConversationChat() {
       toast.success("+5 XP Earned! 💬");
 
       const fullSpeakableText = getSpeakableText(response);
-      handleSpeakText(fullSpeakableText);
+      handleSpeakText(fullSpeakableText, true);
     } catch (e) {
       setEvaluating(false);
     }

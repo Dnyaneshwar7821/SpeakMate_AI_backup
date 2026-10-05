@@ -69,14 +69,13 @@ export function Settings() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
   const [langSearch, setLangSearch] = useState("");
   const [playingVoice, setPlayingVoice] = useState(null);
 
-  const [reminders, setReminders] = useState(true);
+  const [reminders, setReminders] = useState(() => localStorage.getItem("speakmate_daily_reminder") !== "false");
   const [streakAlerts, setStreakAlerts] = useState(true);
   const [soundEffects, setSoundEffects] = useState(() => localStorage.getItem("speakmate_sound_effects") !== "false");
-  const [autoPlayAudio, setAutoPlayAudio] = useState(() => localStorage.getItem("speakmate_autoplay_audio") === "true");
+  const [autoPlayAudio, setAutoPlayAudio] = useState(() => localStorage.getItem("speakmate_autoplay_audio") !== "false");
 
   const toggleVisualTheme = () => {
     const nextMode = isDark ? "light" : "dark";
@@ -249,6 +248,7 @@ export function Settings() {
   const handleToggleReminders = () => {
     const next = !reminders;
     setReminders(next);
+    localStorage.setItem("speakmate_daily_reminder", String(next));
     settingsService.update({ dailyReminder: next, notificationsEnabled: next }).catch(() => {});
     toast.success(next ? "Practice reminders enabled ✓" : "Practice reminders disabled");
   };
@@ -266,14 +266,8 @@ export function Settings() {
     setAutoPlayAudio(next);
     localStorage.setItem("speakmate_autoplay_audio", String(next));
     settingsService.update({ autoPlayAudio: next }).catch(() => {});
-    toast.success(next ? "Auto-play spoken audio enabled ✓" : "Auto-play audio disabled");
-  };
-
-  const handleClearCache = () => {
-    localStorage.removeItem("speakmate_cached_dashboard");
-    CurriculumCache.clear();
-    toast.success("Local learning cache cleared successfully! 🧹");
-    setShowResetModal(false);
+    window.dispatchEvent(new CustomEvent("speakmate_autoplay_changed", { detail: { autoPlayAudio: next } }));
+    toast.success(next ? "Auto-play spoken audio enabled ✓" : "Auto-play audio disabled (Replay buttons still work)");
   };
 
   const filteredLanguages = LANGUAGE_OPTIONS.filter((l) =>
@@ -324,25 +318,11 @@ export function Settings() {
 
       {/* SECTION 2: TARGET ACCENT & VOICE SELECTION */}
       <div className="glass-card p-6 sm:p-8 rounded-3xl border border-[var(--border-default)] shadow-xl space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-default)] pb-4">
-          <div>
-            <h2 className="text-lg font-black text-[var(--text-primary)]">Target English Accent Profile</h2>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">
-              Select your primary target accent region for AI speaking practice.
-            </p>
-          </div>
-
-          <select
-            value={accent}
-            onChange={(e) => handleSelectAccent(e.target.value)}
-            className="px-4 py-3 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] text-xs font-black text-[var(--text-primary)] focus:outline-none focus:border-[#6C63FF]"
-          >
-            {ACCENT_LIST.map((acc) => (
-              <option key={acc.code} value={acc.code}>
-                {acc.flag} {acc.label}
-              </option>
-            ))}
-          </select>
+        <div className="border-b border-[var(--border-default)] pb-4">
+          <h2 className="text-lg font-black text-[var(--text-primary)]">Target English Accent Profile</h2>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">
+            Select your primary target accent region for AI speaking practice.
+          </p>
         </div>
 
         {/* VOICE SELECTION CARD WITH POPUP TRIGGER */}
@@ -579,22 +559,7 @@ export function Settings() {
         </div>
       </div>
 
-      {/* SECTION 5: DATA MANAGEMENT */}
-      <div className="glass-card p-6 sm:p-8 rounded-3xl border border-[var(--border-default)] shadow-xl space-y-4">
-        <h2 className="text-base font-black text-[var(--text-primary)]">🧹 Data & Storage</h2>
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)]">
-          <div>
-            <p className="text-xs font-black text-[var(--text-primary)]">Clear Local Learning Cache</p>
-            <p className="text-[11px] text-[var(--text-secondary)] font-medium">Refresh cached dashboard and lesson data</p>
-          </div>
-          <button
-            onClick={() => setShowResetModal(true)}
-            className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-xs font-black transition-all"
-          >
-            Clear Cache
-          </button>
-        </div>
-      </div>
+
 
       {/* ── REGIONAL VOICE OPTIONS POPUP MODAL (PORTALED TO BODY TO PREVENT NAVBAR OVERLAP) ── */}
       {showVoiceModal && createPortal(
@@ -921,38 +886,7 @@ export function Settings() {
         document.body
       )}
 
-      {/* ── RESET CACHE CONFIRM MODAL (PORTALED TO BODY) ── */}
-      {showResetModal && createPortal(
-        <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setShowResetModal(false)}
-        >
-          <div
-            className="max-w-md w-full glass-card p-6 sm:p-8 rounded-3xl shadow-2xl border border-[var(--border-default)] space-y-4 bg-[var(--bg-surface)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-black text-lg text-[var(--text-primary)]">Clear Learning Cache? 🧹</h3>
-            <p className="text-xs text-[var(--text-secondary)] font-medium">
-              This will refresh all temporarily cached dashboard statistics and force fresh synchronization with the backend server.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setShowResetModal(false)}
-                className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] text-xs font-bold text-[var(--text-secondary)] hover:opacity-80 transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleClearCache}
-                className="px-5 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-black shadow-md transition-all cursor-pointer active:scale-95"
-              >
-                Clear Cache
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+
     </div>
   );
 }
