@@ -55,12 +55,12 @@ export const Navbar = memo(function Navbar() {
       },
       {
         id: "p-lessons",
-        title: "CEFR Lessons",
+        title: "Learning Lessons",
         subtitle: "Structured curriculum, vocabulary & phonics",
         route: ROUTES.LESSONS,
         icon: "📚",
         category: "Curriculum",
-        keywords: ["lesson", "lessons", "cefr", "cefr lessons", "curriculum", "course", "study", "units"],
+        keywords: ["learning lessons", "learning", "lesson", "lessons", "curriculum", "course", "study", "units", "cefr"],
       },
       {
         id: "p-grammar",
