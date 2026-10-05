@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { useTheme } from "../context/ThemeContext";
 import { speakGlobalText, VOICE_PROFILES, ACCENT_LIST } from "../utils/speechHelper";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { settingsService, onboardingService, profileService } from "../services/appServices";
@@ -50,7 +49,6 @@ const normalizeAgeGroup = (rawAge) => {
 
 export function Settings() {
   const toast = useToast();
-  const { isDark, setTheme } = useTheme();
   const { user, updateUser, completeOnboarding } = useAuth();
 
   const [accent, setAccent] = useState(() => localStorage.getItem("speakmate_voice_accent") || "US");
@@ -77,11 +75,7 @@ export function Settings() {
   const [soundEffects, setSoundEffects] = useState(() => localStorage.getItem("speakmate_sound_effects") !== "false");
   const [autoPlayAudio, setAutoPlayAudio] = useState(() => localStorage.getItem("speakmate_autoplay_audio") !== "false");
 
-  const toggleVisualTheme = () => {
-    const nextMode = isDark ? "light" : "dark";
-    setTheme(nextMode);
-    settingsService.update({ darkMode: nextMode === "dark" }).catch(() => {});
-  };
+
 
   const onboardingVoiceStyle =
     localStorage.getItem("speakmate_onboarding_voice") ||
@@ -283,36 +277,12 @@ export function Settings() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[var(--text-primary)]">Application Settings</h1>
           <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)] mt-0.5">
-            Customize target accents, AI tutor voice pitch profiles, themes, pace, and notifications.
+            Customize target accents, AI tutor voice pitch profiles, speaking pace, and practice goals.
           </p>
         </div>
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-black shrink-0 self-start sm:self-auto shadow-sm">
           <span>⚡</span>
           <span>Changes auto-save instantly</span>
-        </div>
-      </div>
-
-      {/* SECTION 1: THEME & DISPLAY PREFERENCES (REAL-TIME PREVIEW) */}
-      <div className="glass-card p-6 sm:p-8 rounded-3xl border border-[var(--border-default)] shadow-xl space-y-4">
-        <h2 className="text-base font-black text-[var(--text-primary)]">🎨 Display & Appearance</h2>
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)]">
-          <div className="space-y-0.5">
-            <p className="text-xs font-black text-[var(--text-primary)]">Night Theme Mode</p>
-            <p className="text-[11px] text-[var(--text-secondary)] font-medium">
-              Toggle dark mode visual layout (Previews immediately in real-time)
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={toggleVisualTheme}
-            className={`w-14 h-7 rounded-full transition-all relative flex items-center px-1 cursor-pointer ${
-              isDark ? "bg-[#6C63FF] justify-end" : "bg-gray-400 justify-start"
-            }`}
-          >
-            <span className="w-5 h-5 rounded-full bg-white shadow-md flex items-center justify-center text-[10px]">
-              {isDark ? "🌙" : "☀️"}
-            </span>
-          </button>
         </div>
       </div>
 

@@ -577,6 +577,19 @@ export const Navbar = memo(function Navbar() {
         <div className="flex items-center gap-2.5 sm:gap-4">
           {isAuthenticated ? (
             <div className="relative flex items-center gap-2.5 sm:gap-4">
+              {/* Dark Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="grid h-11 w-11 place-items-center rounded-2xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-default)] transition-all shadow-sm active:scale-95 cursor-pointer"
+                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              </button>
+
               {/* Notifications Button */}
               <Link
                 to={ROUTES.NOTIFICATIONS}
@@ -722,6 +735,18 @@ export const Navbar = memo(function Navbar() {
             </div>
           ) : (
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              {/* Dark Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-2xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-default)] transition-all shadow-sm active:scale-95 cursor-pointer"
+                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              </button>
               <button
                 type="button"
                 id="navbar-admin-login-btn"
