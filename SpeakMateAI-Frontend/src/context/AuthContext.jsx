@@ -100,6 +100,37 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const logout = useCallback(() => {
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("speakmate_")) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+      // Clear all speakmate cache and assistant chat history in sessionStorage
+      const sessionKeysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith("speakmate_")) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      sessionKeysToRemove.forEach((k) => sessionStorage.removeItem(k));
+    } catch (e) { }
+
+    setToken(null);
+    setUser(null);
+    setOnboardingCompleted(false);
+  }, []);
+
+  useEffect(() => {
+    setLogoutCallback(logout);
+  }, [logout]);
+
   const restoreSession = useCallback(async () => {
     try {
       setLoading(true);
@@ -188,7 +219,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [logout]);
 
   const refreshUserProfile = useCallback(async () => {
     const currentToken = localStorage.getItem(STORAGE_KEYS.token);
@@ -268,37 +299,6 @@ export function AuthProvider({ children }) {
       window.removeEventListener("visibilitychange", handleSync);
     };
   }, [token, refreshUserProfile, logout]);
-
-  const logout = useCallback(() => {
-    try {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("speakmate_")) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
-
-      // Clear all speakmate cache and assistant chat history in sessionStorage
-      const sessionKeysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && key.startsWith("speakmate_")) {
-          sessionKeysToRemove.push(key);
-        }
-      }
-      sessionKeysToRemove.forEach((k) => sessionStorage.removeItem(k));
-    } catch (e) { }
-
-    setToken(null);
-    setUser(null);
-    setOnboardingCompleted(false);
-  }, []);
-
-  useEffect(() => {
-    setLogoutCallback(logout);
-  }, [logout]);
 
   const login = async (credentials) => {
     try {
