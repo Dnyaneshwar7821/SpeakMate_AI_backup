@@ -203,13 +203,15 @@ public class UserSubscriptionServiceImpl implements UserSubscriptionService {
 		LocalDateTime endDate = "YEARLY_PRO".equalsIgnoreCase(planType) ? now.plusDays(365) : now.plusDays(30);
 
 		// Find existing pending subscription or create new
+		BigDecimal planAmount = "YEARLY_PRO".equalsIgnoreCase(planType) ? new BigDecimal("1199.00") : new BigDecimal("149.00");
 		Optional<UserSubscription> subOpt = userSubscriptionRepository.findByRazorpayOrderId(orderId);
 		UserSubscription subscription = subOpt.orElseGet(() -> UserSubscription.builder()
 				.user(user)
-				.amount("YEARLY_PRO".equalsIgnoreCase(planType) ? new BigDecimal("1199.00") : new BigDecimal("1.00"))
+				.amount(planAmount)
 				.currency("INR")
 				.razorpayOrderId(orderId)
 				.build());
+		subscription.setAmount(planAmount);
 
 		if (subscription.getSubscriptionPlan() == null) {
 			SubscriptionPlan plan = resolveSubscriptionPlan(planType);

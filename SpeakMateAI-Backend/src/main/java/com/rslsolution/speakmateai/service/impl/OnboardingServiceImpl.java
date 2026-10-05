@@ -41,7 +41,6 @@ public class OnboardingServiceImpl implements OnboardingService {
 
 		Onboarding onboarding = Onboarding.builder().user(user)
 				.englishLevel(resolvedLevel)
-				.englishLevel(resolvedLevel)
 				.learningGoal(request.getLearningGoal() != null ? request.getLearningGoal()
 						: "Improve English speaking skills")
 				.dailyGoalMinutes(request.getDailyGoalMinutes() != null ? request.getDailyGoalMinutes() : 15)

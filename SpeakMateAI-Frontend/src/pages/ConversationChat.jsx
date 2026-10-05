@@ -73,7 +73,7 @@ export function ConversationChat() {
   const mode = searchParams.get("mode") || "General English";
   const title = searchParams.get("title") || `${mode} Session`;
 
-  const [sessionId] = useState(sessionIdParam || Date.now().toString());
+  const [sessionId, setSessionId] = useState(sessionIdParam || null);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [evaluating, setEvaluating] = useState(false);
@@ -183,6 +183,22 @@ export function ConversationChat() {
 
   // Load initial messages from backend chatService
   useEffect(() => {
+    if (!sessionId) {
+      chatService
+        .start(mode)
+        .then((res) => {
+          if (res?.id) {
+            setSessionId(res.id);
+          } else {
+            setSessionId(Date.now().toString());
+          }
+        })
+        .catch(() => {
+          setSessionId(Date.now().toString());
+        });
+      return;
+    }
+
     chatService
       .detail(sessionId)
       .then((data) => {

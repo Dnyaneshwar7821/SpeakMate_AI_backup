@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { authService } from "../services/authService";
 import { subscriptionService } from "../services/appServices";
 import { setLogoutCallback } from "../services/api";
+import { syncBackendProgress } from "../utils/progressTracker";
 
 const AuthContext = createContext(null);
 
@@ -105,7 +106,7 @@ export function AuthProvider({ children }) {
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith("speakmate_")) {
+        if (key && key.startsWith("speakmate_") && key !== "speakmate_admin_session") {
           keysToRemove.push(key);
         }
       }
@@ -115,7 +116,7 @@ export function AuthProvider({ children }) {
       const sessionKeysToRemove = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
-        if (key && key.startsWith("speakmate_")) {
+        if (key && key.startsWith("speakmate_") && !key.startsWith("speakmate_assistant_")) {
           sessionKeysToRemove.push(key);
         }
       }
@@ -204,6 +205,7 @@ export function AuthProvider({ children }) {
           setUser(enrichedUser);
           syncUserProfile(enrichedUser);
           localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(enrichedUser));
+          syncBackendProgress(enrichedUser).catch(() => {});
         }
 
         setOnboardingCompleted(isCompleted);
@@ -315,6 +317,7 @@ export function AuthProvider({ children }) {
           syncUserProfile(response.user);
           localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(response.user));
           setUser(response.user);
+          syncBackendProgress(response.user).catch(() => {});
 
           const userEmail = (response.user?.email || credentials.email || "").toLowerCase();
           const isDone = Boolean(response.user?.onboardingCompleted);

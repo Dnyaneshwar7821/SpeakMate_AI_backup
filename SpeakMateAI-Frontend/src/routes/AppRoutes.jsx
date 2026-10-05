@@ -7,48 +7,54 @@ import AuthLayout from "../components/layout/AuthLayout";
 
 import ROUTES from "../constants/routes";
 
-import AdminLogin from "@/Admin_panel/pages/AdminLogin";
-import AdminForgotPassword from "@/Admin_panel/pages/AdminForgotPassword";
-import AdminOtpVerification from "@/Admin_panel/pages/AdminOtpVerification";
-import AdminResetPassword from "@/Admin_panel/pages/AdminResetPassword";
-import SchoolAdminLogin from "@/Admin_panel/pages/SchoolAdminLogin";
-import SchoolAdminForgotPassword from "@/Admin_panel/pages/SchoolAdminForgotPassword";
-import SchoolAdminSetPassword from "@/Admin_panel/pages/SchoolAdminSetPassword";
-import SchoolAdminOtpVerification from "@/Admin_panel/pages/SchoolAdminOtpVerification";
-import SchoolAdminResetPassword from "@/Admin_panel/pages/SchoolAdminResetPassword";
-import TeacherLogin from "@/Admin_panel/pages/TeacherLogin";
-import TeacherForgotPassword from "@/Admin_panel/pages/TeacherForgotPassword";
-import TeacherOtpVerification from "@/Admin_panel/pages/TeacherOtpVerification";
-import TeacherResetPassword from "@/Admin_panel/pages/TeacherResetPassword";
-import TeacherDashboardHome from "@/Admin_panel/pages/TeacherDashboardHome";
-import TeacherStudents from "@/Admin_panel/pages/TeacherStudents";
-import TeacherStudentDetails from "@/Admin_panel/pages/TeacherStudentDetails";
-import TeacherAnalytics from "@/Admin_panel/pages/TeacherAnalytics";
-import TeacherReports from "@/Admin_panel/pages/TeacherReports";
-import TeacherProfile from "@/Admin_panel/pages/TeacherProfile";
-import TeacherSettings from "@/Admin_panel/pages/TeacherSettings";
-import VerifyEmail from "@/Admin_panel/pages/VerifyEmail";
-import AdminDashboard from "@admin/pages/AdminDashboard";
-import AdminInsights from "@admin/pages/AdminInsights";
-import AllUsers from "@admin/pages/AllUsers";
-import SchoolUsers from "@admin/pages/SchoolUsers";
-import AddSchool from "@admin/pages/AddSchool";
-import Teachers from "@admin/pages/Teachers";
-import SubscriptionBilling from "@admin/pages/SubscriptionBilling";
-import AdminProfile from "@admin/pages/Profile";
-import AdminSettings from "@admin/pages/Settings";
-import NotificationsPage from "@admin/pages/NotificationsPage";
-import SchoolDashboard from "@school-admin/pages/Dashboard";
-import SchoolStudents from "@school-admin/pages/Students";
-import SchoolTeachers from "@school-admin/pages/Teachers";
-import SchoolResults from "@school-admin/pages/Results";
-import SchoolInsights from "@school-admin/pages/Insights";
-import AddTeacher from "@school-admin/pages/AddTeacher";
-import SchoolAdminProfile from "@school-admin/pages/Profile";
-import SchoolAdminSettings from "@school-admin/pages/Settings";
-import AdminLayout from "@admin/layout/AdminLayout";
-import SchoolLayout from "@school-admin/layout/SchoolLayout";
-import TeacherDashboardLayout from "@/Admin_panel/components/teacher/layout/TeacherDashboardLayout";
+// Lazy-loaded administrative and teacher portal modules (Bundle isolation)
+const AdminLogin = lazy(() => import("@/Admin_panel/pages/AdminLogin"));
+const AdminForgotPassword = lazy(() => import("@/Admin_panel/pages/AdminForgotPassword"));
+const AdminOtpVerification = lazy(() => import("@/Admin_panel/pages/AdminOtpVerification"));
+const AdminResetPassword = lazy(() => import("@/Admin_panel/pages/AdminResetPassword"));
+const SchoolAdminLogin = lazy(() => import("@/Admin_panel/pages/SchoolAdminLogin"));
+const SchoolAdminForgotPassword = lazy(() => import("@/Admin_panel/pages/SchoolAdminForgotPassword"));
+const SchoolAdminSetPassword = lazy(() => import("@/Admin_panel/pages/SchoolAdminSetPassword"));
+const SchoolAdminOtpVerification = lazy(() => import("@/Admin_panel/pages/SchoolAdminOtpVerification"));
+const SchoolAdminResetPassword = lazy(() => import("@/Admin_panel/pages/SchoolAdminResetPassword"));
+const TeacherLogin = lazy(() => import("@/Admin_panel/pages/TeacherLogin"));
+const TeacherForgotPassword = lazy(() => import("@/Admin_panel/pages/TeacherForgotPassword"));
+const TeacherOtpVerification = lazy(() => import("@/Admin_panel/pages/TeacherOtpVerification"));
+const TeacherResetPassword = lazy(() => import("@/Admin_panel/pages/TeacherResetPassword"));
+const VerifyEmail = lazy(() => import("@/Admin_panel/pages/VerifyEmail"));
+
+const TeacherDashboardHome = lazy(() => import("@/Admin_panel/pages/TeacherDashboardHome"));
+const TeacherStudents = lazy(() => import("@/Admin_panel/pages/TeacherStudents"));
+const TeacherStudentDetails = lazy(() => import("@/Admin_panel/pages/TeacherStudentDetails"));
+const TeacherAnalytics = lazy(() => import("@/Admin_panel/pages/TeacherAnalytics"));
+const TeacherReports = lazy(() => import("@/Admin_panel/pages/TeacherReports"));
+const TeacherProfile = lazy(() => import("@/Admin_panel/pages/TeacherProfile"));
+const TeacherSettings = lazy(() => import("@/Admin_panel/pages/TeacherSettings"));
+
+const AdminDashboard = lazy(() => import("@admin/pages/AdminDashboard"));
+const AdminInsights = lazy(() => import("@admin/pages/AdminInsights"));
+const AllUsers = lazy(() => import("@admin/pages/AllUsers"));
+const SchoolUsers = lazy(() => import("@admin/pages/SchoolUsers"));
+const AddSchool = lazy(() => import("@admin/pages/AddSchool"));
+const Teachers = lazy(() => import("@admin/pages/Teachers"));
+const SubscriptionBilling = lazy(() => import("@admin/pages/SubscriptionBilling"));
+const AdminProfile = lazy(() => import("@admin/pages/Profile"));
+const AdminSettings = lazy(() => import("@admin/pages/Settings"));
+const NotificationsPage = lazy(() => import("@admin/pages/NotificationsPage"));
+
+const SchoolDashboard = lazy(() => import("@school-admin/pages/Dashboard"));
+const SchoolStudents = lazy(() => import("@school-admin/pages/Students"));
+const SchoolTeachers = lazy(() => import("@school-admin/pages/Teachers"));
+const SchoolResults = lazy(() => import("@school-admin/pages/Results"));
+const SchoolInsights = lazy(() => import("@school-admin/pages/Insights"));
+const AddTeacher = lazy(() => import("@school-admin/pages/AddTeacher"));
+const SchoolAdminProfile = lazy(() => import("@school-admin/pages/Profile"));
+const SchoolAdminSettings = lazy(() => import("@school-admin/pages/Settings"));
+
+const AdminLayout = lazy(() => import("@admin/layout/AdminLayout"));
+const SchoolLayout = lazy(() => import("@school-admin/layout/SchoolLayout"));
+const TeacherDashboardLayout = lazy(() => import("@/Admin_panel/components/teacher/layout/TeacherDashboardLayout"));
+
 import AdminProtectedRoute from "@/Admin_panel/routes/AdminProtectedRoute";
 import { ADMIN_ROLES } from "@/Admin_panel/constants/adminRoles";
 import { AuthProvider as AdminAuthProvider } from "@/Admin_panel/context/AuthContext";
@@ -460,7 +466,9 @@ export function AppRoutes() {
           {/* Super Admin Protected Pages */}
           <Route element={
             <AdminProtectedRoute allowedRoles={ADMIN_ROLES.SUPER_ADMIN}>
-              <AdminLayout />
+              <Suspense fallback={<RouteFallback />}>
+                <AdminLayout />
+              </Suspense>
             </AdminProtectedRoute>
           }>
             <Route path={ROUTES.ADMIN_DASHBOARD} element={<PageTransition><AdminDashboard /></PageTransition>} />
@@ -479,7 +487,9 @@ export function AppRoutes() {
           {/* School Admin Protected Pages */}
           <Route element={
             <AdminProtectedRoute allowedRoles={ADMIN_ROLES.SCHOOL_ADMIN}>
-              <SchoolLayout />
+              <Suspense fallback={<RouteFallback />}>
+                <SchoolLayout />
+              </Suspense>
             </AdminProtectedRoute>
           }>
             <Route path={ROUTES.SCHOOL_ADMIN_DASHBOARD} element={<PageTransition><SchoolDashboard /></PageTransition>} />
@@ -496,9 +506,11 @@ export function AppRoutes() {
           {/* Teacher Protected Pages */}
           <Route element={
             <AdminProtectedRoute allowedRoles={ADMIN_ROLES.TEACHER}>
-              <TeacherDashboardLayout>
-                <Outlet />
-              </TeacherDashboardLayout>
+              <Suspense fallback={<RouteFallback />}>
+                <TeacherDashboardLayout>
+                  <Outlet />
+                </TeacherDashboardLayout>
+              </Suspense>
             </AdminProtectedRoute>
           }>
             <Route path={ROUTES.TEACHER_DASHBOARD} element={<PageTransition><TeacherDashboardHome /></PageTransition>} />

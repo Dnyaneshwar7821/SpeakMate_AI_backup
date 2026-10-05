@@ -74,12 +74,17 @@ export function AiChat() {
     };
   }, []);
 
-  const handleStartSession = (modeKey) => {
-    const sessionId = Date.now().toString();
-    const title = `${modeKey} Session`;
-    navigate(`${ROUTES.CONVERSATION_CHAT}?sessionId=${sessionId}&mode=${encodeURIComponent(modeKey)}&title=${encodeURIComponent(title)}`);
-
-    chatService.start(modeKey).catch(() => {});
+  const handleStartSession = async (modeKey) => {
+    try {
+      const res = await chatService.start(modeKey);
+      const sessionId = res?.id || Date.now().toString();
+      const title = res?.title || `${modeKey} Session`;
+      navigate(`${ROUTES.CONVERSATION_CHAT}?sessionId=${sessionId}&mode=${encodeURIComponent(modeKey)}&title=${encodeURIComponent(title)}`);
+    } catch {
+      const sessionId = Date.now().toString();
+      const title = `${modeKey} Session`;
+      navigate(`${ROUTES.CONVERSATION_CHAT}?sessionId=${sessionId}&mode=${encodeURIComponent(modeKey)}&title=${encodeURIComponent(title)}`);
+    }
   };
 
   const handleResumeSession = (session) => {

@@ -8,7 +8,7 @@ import ROUTES from "../constants/routes";
 
 export function Pricing() {
   const navigate = useNavigate();
-  const { user, login } = useAuth();
+  const { user, updateUser } = useAuth();
   const toast = useToast();
 
   const [billingCycle, setBillingCycle] = useState("YEARLY"); // 'MONTHLY' | 'YEARLY'
@@ -92,6 +92,10 @@ export function Pricing() {
           try {
             setLoading(true);
             let verifyRes;
+            const isDevOrder =
+              paymentResponse.razorpay_order_id?.startsWith("order_dev_") ||
+              paymentResponse.razorpay_order_id?.startsWith("order_mock_");
+
             try {
               verifyRes = await subscriptionService.verifyPayment({
                 razorpayOrderId: paymentResponse.razorpay_order_id,
@@ -99,13 +103,17 @@ export function Pricing() {
                 razorpaySignature: paymentResponse.razorpay_signature,
                 planType: paymentResponse.planType || planType,
               });
-            } catch {
-              verifyRes = {
-                isPro: true,
-                planType: planType,
-                status: "ACTIVE",
-                amount: planType === "YEARLY_PRO" ? "1,199" : "1",
-              };
+            } catch (verifyErr) {
+              if (isDevOrder) {
+                verifyRes = {
+                  isPro: true,
+                  planType: planType,
+                  status: "ACTIVE",
+                  amount: planType === "YEARLY_PRO" ? "1,199" : "149",
+                };
+              } else {
+                throw verifyErr;
+              }
             }
 
             // Update local state and auth
@@ -114,10 +122,9 @@ export function Pricing() {
             setShowSuccessModal(true);
             toast.success("🎉 Payment verified! Welcome to SpeakMate Pro VIP!");
 
-            // Update user in local storage if possible
-            if (user) {
-              const updatedUser = { ...user, isPro: true, subscriptionPlan: planType };
-              if (login) login(updatedUser, localStorage.getItem("token"));
+            // Update user in local storage and auth context
+            if (user && updateUser) {
+              updateUser({ isPro: true, subscriptionPlan: planType });
             }
           } catch (err) {
             const msg = err.response?.data?.message || err.message || "Payment verification failed.";
