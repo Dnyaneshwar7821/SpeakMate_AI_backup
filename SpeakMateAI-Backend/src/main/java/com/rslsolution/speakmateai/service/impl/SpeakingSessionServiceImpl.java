@@ -181,11 +181,15 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 			return "{}";
 		String trimmed = response.replaceAll("(?s)<think>.*?</think>", "").trim();
 
-		// Find first '{' and last '}' to extract JSON block cleanly
-		int start = trimmed.indexOf('{');
-		int end = trimmed.lastIndexOf('}');
-		if (start != -1 && end != -1 && end >= start) {
-			trimmed = trimmed.substring(start, end + 1);
+		int startObj = trimmed.indexOf('{');
+		int endObj = trimmed.lastIndexOf('}');
+		int startArr = trimmed.indexOf('[');
+		int endArr = trimmed.lastIndexOf(']');
+
+		if (startArr != -1 && endArr != -1 && (startObj == -1 || startArr < startObj) && endArr > startArr) {
+			trimmed = trimmed.substring(startArr, endArr + 1);
+		} else if (startObj != -1 && endObj != -1 && endObj >= startObj) {
+			trimmed = trimmed.substring(startObj, endObj + 1);
 		} else {
 			if (trimmed.startsWith("```json")) {
 				trimmed = trimmed.substring(7);
@@ -578,73 +582,104 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	}
 
 	private List<String> getDefaultScenarioHints(String scenario) {
+		return getDefaultScenarioHints(scenario, 0);
+	}
+
+	private List<String> getDefaultScenarioHints(String scenario, int turn) {
+		int idx = Math.abs(turn);
 		if (scenario == null) {
-			return List.of(
-					"Could you please tell me more about that?",
-					"That sounds great, what should we do next?",
-					"What do you recommend in this case?");
+			List<List<String>> generalSets = List.of(
+					List.of("Could you please tell me more about that?", "That sounds great, what should we do next?", "What do you recommend in this case?"),
+					List.of("I completely agree with that perspective.", "How would you suggest we approach this?", "Could you give me a real-world example?"),
+					List.of("That makes total sense to me.", "What is the most important factor here?", "Let me explain my thoughts on that.")
+			);
+			return generalSets.get(idx % generalSets.size());
 		}
 		String s = scenario.toLowerCase();
 		if (s.contains("daily conversation") || s.contains("small talk") || s.contains("routine")) {
-			return List.of(
-					"I've had a busy but great day!",
-					"How has your day been going so far?",
-					"I'm planning to relax and listen to music later.");
+			List<List<String>> dailySets = List.of(
+					List.of("I've had a busy but great day!", "How has your day been going so far?", "I'm planning to relax and listen to music later."),
+					List.of("I really enjoy trying new activities on weekends.", "What kind of hobbies do you enjoy most?", "That reminds me of something interesting recently."),
+					List.of("Speaking regularly is boosting my confidence.", "What do you think is the best way to practice daily?", "I'm excited to learn more conversational phrases.")
+			);
+			return dailySets.get(idx % dailySets.size());
 		} else if (s.contains("restaurant") || s.contains("dining") || s.contains("food") || s.contains("burger")) {
-			return List.of(
-					"Could I please see the dinner menu?",
-					"What do you recommend as today's special?",
-					"Could we get the check, please?");
+			List<List<String>> diningSets = List.of(
+					List.of("Could I please see the dinner menu?", "What do you recommend as today's special?", "Could we get a table by the window?"),
+					List.of("I'd like to order a fresh pasta and sparkling water, please.", "Could you make this without extra dairy or spices?", "How long does this dish usually take to prepare?"),
+					List.of("Everything tasted wonderful, thank you!", "Could we get the check whenever you're ready, please?", "Do you accept card or contactless payment?")
+			);
+			return diningSets.get(idx % diningSets.size());
 		} else if (s.contains("coffee") || s.contains("cafe")) {
-			return List.of(
-					"I'd like a medium iced latte with oat milk, please.",
-					"Do you have any fresh pastries today?",
-					"Can I get this to go, please?");
+			List<List<String>> cafeSets = List.of(
+					List.of("I'd like a medium iced latte with oat milk, please.", "Do you have any fresh pastries today?", "Can I get this to go, please?"),
+					List.of("What kind of coffee beans do you recommend?", "Could you add a little vanilla syrup, please?", "Is there free Wi-Fi here for customers?"),
+					List.of("This coffee is fantastic, thank you!", "Could I also get a glass of water, please?", "Do you stamp loyalty cards here?")
+			);
+			return cafeSets.get(idx % cafeSets.size());
 		} else if (s.contains("hotel") || s.contains("check-in")) {
-			return List.of(
-					"Hi, I have a reservation under my name.",
-					"What time is breakfast served in the morning?",
-					"Could you tell me the Wi-Fi password?");
+			List<List<String>> hotelSets = List.of(
+					List.of("Hi, I have a reservation under my name.", "What time is breakfast served in the morning?", "Could you tell me the Wi-Fi password?"),
+					List.of("Could I request a room on a higher floor?", "Is there an airport shuttle service available?", "Where are the gym and pool located?"),
+					List.of("Could you arrange a taxi for early tomorrow morning?", "Is it possible to request a late check-out?", "Thank you for the wonderful stay!")
+			);
+			return hotelSets.get(idx % hotelSets.size());
 		} else if (s.contains("airport") || s.contains("flight") || s.contains("travel")) {
-			return List.of(
-					"Here are my passport and boarding pass.",
-					"I am traveling for a short vacation.",
-					"Which gate does my flight depart from?");
+			List<List<String>> travelSets = List.of(
+					List.of("Here are my passport and boarding pass.", "I am traveling for a short vacation.", "Which gate does my flight depart from?"),
+					List.of("Is my connecting flight on schedule?", "Could you please direct me to baggage claim?", "Where can I find currency exchange?"),
+					List.of("What is the quickest way to reach the city center?", "Are there any luggage storage facilities here?", "Thank you for guiding me!")
+			);
+			return travelSets.get(idx % travelSets.size());
 		} else if (s.contains("interview") || s.contains("job") || s.contains("career")) {
-			return List.of(
-					"I have hands-on experience in problem solving.",
-					"My greatest strength is communicating under pressure.",
-					"I am excited about this role and your team culture.");
+			List<List<String>> jobSets = List.of(
+					List.of("I have hands-on experience in problem solving.", "My greatest strength is communicating under pressure.", "I am excited about this role and your team culture."),
+					List.of("When faced with tight deadlines, I prioritize impact.", "I actively seek feedback to continually refine my skills.", "What are the biggest goals for this team in the coming year?"),
+					List.of("I believe clear communication prevents misunderstandings.", "I am eager to contribute to your company's mission.", "How is success measured during the first ninety days?")
+			);
+			return jobSets.get(idx % jobSets.size());
 		} else if (s.contains("shopping") || s.contains("store") || s.contains("clothes")) {
-			return List.of(
-					"Excuse me, do you have this in a medium size?",
-					"Where are the fitting rooms located?",
-					"Is this item currently on discount?");
+			List<List<String>> shopSets = List.of(
+					List.of("Excuse me, do you have this in a medium size?", "Where are the fitting rooms located?", "Is this item currently on discount?"),
+					List.of("Do you have this available in another color?", "I'm just browsing for now, thank you!", "What is your return policy?"),
+					List.of("I'll take this one, please.", "Can I pay with credit card?", "Could I have a gift receipt with this?")
+			);
+			return shopSets.get(idx % shopSets.size());
 		} else if (s.contains("doctor") || s.contains("health") || s.contains("hospital")) {
-			return List.of(
-					"I've been having a mild headache since yesterday.",
-					"How often should I take this medication?",
-					"Thank you for the helpful advice, doctor.");
+			List<List<String>> healthSets = List.of(
+					List.of("I've been having a mild headache since yesterday.", "How often should I take this medication?", "Thank you for the helpful advice, doctor."),
+					List.of("Are there any side effects I should watch out for?", "Should I schedule a follow-up appointment?", "Do I need to take this medicine with food?"),
+					List.of("The symptoms started about three days ago.", "Is there anything specific I should avoid eating?", "I feel much better today, thank you.")
+			);
+			return healthSets.get(idx % healthSets.size());
 		} else if (s.contains("zoo") || s.contains("animal")) {
-			return List.of(
-					"Where can we find the elephant exhibit?",
-					"What time is the animal feeding show?",
-					"My favorite animals are the giant pandas!");
+			List<List<String>> zooSets = List.of(
+					List.of("Where can we find the elephant exhibit?", "What time is the animal feeding show?", "My favorite animals are the giant pandas!"),
+					List.of("Are there guided tours available today?", "Which area has the marine animals?", "The birds in this aviary are beautiful!"),
+					List.of("Can visitors take photos here without flash?", "How big is this wildlife sanctuary?", "That was such an exciting visit!")
+			);
+			return zooSets.get(idx % zooSets.size());
 		} else if (s.contains("school") || s.contains("class") || s.contains("grade") || s.contains("std")) {
-			return List.of(
-					"Good morning! I finished my homework assignment.",
-					"Could you please explain that question again?",
-					"My favorite subjects are science and English.");
+			List<List<String>> schoolSets = List.of(
+					List.of("Good morning! I finished my homework assignment.", "Could you please explain that question again?", "My favorite subjects are science and English."),
+					List.of("Can I work on this project with a partner?", "When is the project submission deadline?", "I really enjoyed today's lesson, teacher!"),
+					List.of("Could you review my essay draft?", "What chapters will be on the upcoming test?", "Thank you for explaining it so clearly.")
+			);
+			return schoolSets.get(idx % schoolSets.size());
 		} else if (s.contains("meeting") || s.contains("business") || s.contains("presentation")) {
-			return List.of(
-					"Let's review the main milestones on our agenda.",
-					"I agree with that strategy and propose next steps.",
-					"Does anyone have any questions on this slide?");
+			List<List<String>> businessSets = List.of(
+					List.of("Let's review the main milestones on our agenda.", "I agree with that strategy and propose next steps.", "Does anyone have any questions on this slide?"),
+					List.of("I'd like to share an update on our current timeline.", "How will this affect our quarterly deliverables?", "Let's follow up on this in our next sync."),
+					List.of("I completely agree with the proposed action items.", "Could we allocate more resources to that phase?", "Thank you everyone for the productive discussion.")
+			);
+			return businessSets.get(idx % businessSets.size());
 		}
-		return List.of(
-				"Could you tell me a bit more about that?",
-				"That sounds interesting, what should we do next?",
-				"Could you give me an example of that?");
+		List<List<String>> fallbackSets = List.of(
+				List.of("Could you tell me a bit more about that?", "That sounds interesting, what should we do next?", "Could you give me an example of that?"),
+				List.of("I see what you mean, that makes total sense.", "How do native speakers usually express this?", "What would you recommend in this situation?"),
+				List.of("That's a very interesting perspective!", "I'd like to share my thoughts on that as well.", "What other details should we consider?")
+		);
+		return fallbackSets.get(idx % fallbackSets.size());
 	}
 
 	@Override
@@ -864,7 +899,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 			}
 		}
 		if (cleanSuggested.size() < 2) {
-			List<String> fallbacks = getDefaultScenarioHints(session.getScenario());
+			List<String> fallbacks = getDefaultScenarioHints(session.getScenario(), history.size());
 			for (String fb : fallbacks) {
 				if (!cleanSuggested.contains(fb)) {
 					cleanSuggested.add(fb);
@@ -1347,27 +1382,59 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 			String rawReply = callGroqChat(groqMessages);
 			String cleanJson = cleanJsonResponse(rawReply);
 			com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(cleanJson);
+			List<String> rawHints = null;
 			if (node.has("hints")) {
-				List<String> rawHints = objectMapper.convertValue(node.get("hints"),
+				rawHints = objectMapper.convertValue(node.get("hints"),
 						new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
 						});
-				if (rawHints != null && !rawHints.isEmpty()) {
-					List<String> cleanList = new ArrayList<>();
-					for (String h : rawHints) {
-						String c = cleanAndSanitizeHint(h);
-						if (c != null && !c.isEmpty() && !cleanList.contains(c)) {
-							cleanList.add(c);
-						}
+			} else if (node.has("suggestions")) {
+				rawHints = objectMapper.convertValue(node.get("suggestions"),
+						new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+						});
+			} else if (node.has("options")) {
+				rawHints = objectMapper.convertValue(node.get("options"),
+						new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+						});
+			} else if (node.has("responses")) {
+				rawHints = objectMapper.convertValue(node.get("responses"),
+						new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+						});
+			} else if (node.isArray()) {
+				rawHints = objectMapper.convertValue(node,
+						new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+						});
+			}
+
+			if (rawHints != null && !rawHints.isEmpty()) {
+				List<String> cleanList = new ArrayList<>();
+				for (String h : rawHints) {
+					String c = cleanAndSanitizeHint(h);
+					if (c != null && !c.isEmpty() && !cleanList.contains(c)) {
+						cleanList.add(c);
 					}
-					if (cleanList.size() >= 2)
-						return cleanList;
+				}
+				if (cleanList.size() >= 2)
+					return cleanList;
+			}
+
+			// If JSON structure didn't contain an array, try extracting lines from raw reply
+			if (rawReply != null) {
+				List<String> lineList = new ArrayList<>();
+				for (String line : rawReply.split("\n")) {
+					String c = cleanAndSanitizeHint(line);
+					if (c != null && c.length() > 3 && !c.startsWith("{") && !c.startsWith("[") && !lineList.contains(c)) {
+						lineList.add(c);
+					}
+				}
+				if (lineList.size() >= 2) {
+					return lineList.subList(0, Math.min(3, lineList.size()));
 				}
 			}
 		} catch (Exception e) {
 			// ignore and fallback
 		}
 
-		return getDefaultScenarioHints(session.getScenario());
+		return getDefaultScenarioHints(session.getScenario(), history.size());
 	}
 
 	private String buildUserContextInstruction(User user, String scenarioName) {

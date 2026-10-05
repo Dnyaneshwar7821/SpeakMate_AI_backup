@@ -145,3 +145,223 @@ export function generateDynamicCoachingResponse(userText, scenario = "Daily Conv
     fluencyScore: 88 + (count % 8),
   };
 }
+
+/**
+ * Rich dynamic contextual suggestions for what the student could say next.
+ * Resilient offline fallback that incorporates turn index and salt so hints
+ * rotate dynamically and never repeat identical suggestions.
+ */
+export function getDynamicContextualHints(scenario = "", lastAiText = "", turnIndex = 0, salt = 0) {
+  const s = String(scenario || "").toLowerCase();
+  const text = String(lastAiText || "").toLowerCase();
+  const idx = Math.abs(turnIndex + salt);
+
+  // 1. Detect choice / preference questions ("would you like", "do you prefer", "which do you", etc.)
+  if (
+    text.includes("would you like") ||
+    text.includes("do you want") ||
+    text.includes("do you prefer") ||
+    text.includes("which one") ||
+    text.includes("would you rather")
+  ) {
+    const choicePools = [
+      [
+        "Yes, I'd really like that, please.",
+        "Actually, could I consider another option?",
+        "Which one would you recommend most?",
+      ],
+      [
+        "That sounds like a great choice to me.",
+        "I usually lean toward the second option.",
+        "Could you tell me a bit more about both?",
+      ],
+      [
+        "I'm happy with whatever you recommend.",
+        "Let's go with that one, thank you!",
+        "What do most people usually choose?",
+      ],
+    ];
+    return choicePools[idx % choicePools.length];
+  }
+
+  // 2. Detect explanatory / opinion questions ("how do you", "why do you", "what do you think", "can you tell me")
+  if (
+    text.includes("how do you") ||
+    text.includes("why do you") ||
+    text.includes("what do you think") ||
+    text.includes("how was your") ||
+    text.includes("tell me about") ||
+    text.includes("describe")
+  ) {
+    const explainPools = [
+      [
+        "In my experience, practice and patience make a big difference.",
+        "I really enjoy it because it helps me learn new things.",
+        "How would you personally approach a situation like this?",
+      ],
+      [
+        "I feel very positive about it overall.",
+        "There are both advantages and challenges to consider.",
+        "What is the most effective way to handle this?",
+      ],
+      [
+        "It was quite busy, but very productive!",
+        "I found it really interesting and learned a lot.",
+        "Can you share what native speakers typically do?",
+      ],
+    ];
+    return explainPools[idx % explainPools.length];
+  }
+
+  // 3. Opening greetings & introductions
+  if (
+    turnIndex === 0 ||
+    text.includes("name") ||
+    text.includes("introduce") ||
+    text.includes("welcome") ||
+    text.includes("hello") ||
+    text.includes("meet you")
+  ) {
+    const greetingPools = [
+      [
+        "Hi! I'm happy to practice English with you today.",
+        "Hello Coach! I'm ready to improve my conversational fluency.",
+        "Let's get started with today's speaking scenario!",
+      ],
+      [
+        "Good day! It's great to connect and practice.",
+        "I'm looking forward to working on my natural phrasing.",
+        "How has your day been going so far?",
+      ],
+      [
+        "Hello! I'm excited to dive into this scenario.",
+        "I'm eager to speak as naturally as possible.",
+        "What should our main conversational goal be today?",
+      ],
+    ];
+    return greetingPools[idx % greetingPools.length];
+  }
+
+  // 4. Restaurant / Cafe / Dining / Food
+  if (
+    s.includes("restaurant") ||
+    s.includes("cafe") ||
+    s.includes("food") ||
+    s.includes("order") ||
+    s.includes("dining") ||
+    s.includes("burger")
+  ) {
+    const diningPools = [
+      [
+        "I'd like to order a fresh cappuccino and a croissant, please.",
+        "Could you tell me what the chef's special dish is today?",
+        "Do you have any vegetarian or lighter options available?",
+      ],
+      [
+        "Could I please see the dessert or beverage menu?",
+        "Could you make this without extra dairy or spices?",
+        "How long does this dish usually take to prepare?",
+      ],
+      [
+        "Everything was delicious, thank you so much!",
+        "Could we have the check whenever you're ready, please?",
+        "Do you accept digital wallet or card payments?",
+      ],
+    ];
+    return diningPools[idx % diningPools.length];
+  }
+
+  // 5. Job Interview / Professional / Business
+  if (
+    s.includes("interview") ||
+    s.includes("job") ||
+    s.includes("career") ||
+    s.includes("experience") ||
+    s.includes("business") ||
+    s.includes("meeting")
+  ) {
+    const interviewPools = [
+      [
+        "I have worked on several collaborative projects where communication was key.",
+        "My main strengths are adaptability, quick learning, and team leadership.",
+        "Could you tell me more about the day-to-day responsibilities of this role?",
+      ],
+      [
+        "When faced with tight deadlines, I prioritize high-impact deliverables first.",
+        "I actively seek constructive feedback to continuously improve my output.",
+        "What are the biggest challenges currently facing the team?",
+      ],
+      [
+        "I believe clear communication prevents misunderstandings and boosts morale.",
+        "I am very excited about how my skills align with your organization's mission.",
+        "How is performance evaluated during the initial ninety days?",
+      ],
+    ];
+    return interviewPools[idx % interviewPools.length];
+  }
+
+  // 6. Travel / Hotel / Airport / Flight
+  if (
+    s.includes("travel") ||
+    s.includes("hotel") ||
+    s.includes("airport") ||
+    s.includes("flight") ||
+    s.includes("trip")
+  ) {
+    const travelPools = [
+      [
+        "Hi, I have a reservation under my name and would like to check in.",
+        "Could you please guide me toward the departure gate?",
+        "What are the best local attractions to explore nearby?",
+      ],
+      [
+        "Is breakfast included with my reservation?",
+        "Could you help me with the Wi-Fi connection in the lobby?",
+        "What is the most convenient way to reach the city center?",
+      ],
+      [
+        "Could you help arrange transportation for tomorrow morning?",
+        "Is it possible to request a late check-out?",
+        "Thank you so much for the helpful assistance!",
+      ],
+    ];
+    return travelPools[idx % travelPools.length];
+  }
+
+  // 7. Shopping / Store
+  if (s.includes("shop") || s.includes("store") || s.includes("market") || s.includes("clothes")) {
+    const shoppingPools = [
+      [
+        "Excuse me, do you have this in a medium size?",
+        "Where are the fitting rooms located?",
+        "Is this item currently eligible for a discount?",
+      ],
+      [
+        "Do you carry this in other colors as well?",
+        "I'm just browsing for now, thank you!",
+        "What is your return policy if it doesn't fit?",
+      ],
+    ];
+    return shoppingPools[idx % shoppingPools.length];
+  }
+
+  // 8. General Conversation / Default
+  const generalPools = [
+    [
+      "That is very interesting! Could you tell me more about that?",
+      "How would a native speaker express this thought naturally?",
+      "I agree with that perspective. Let me explain my thoughts.",
+    ],
+    [
+      "I definitely see your point, and I'd like to add another detail.",
+      "That makes total sense to me. What should we explore next?",
+      "Could you give me a practical real-world example of that?",
+    ],
+    [
+      "That's a fresh way to look at it. I hadn't thought of that before.",
+      "I feel like consistent speaking practice makes this much easier.",
+      "What other aspects of this topic would you like to discuss?",
+    ],
+  ];
+  return generalPools[idx % generalPools.length];
+}
