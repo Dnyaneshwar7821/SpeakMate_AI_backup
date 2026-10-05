@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { notificationService, announcementService } from "../services/appServices";
+import { notificationService } from "../services/appServices";
 import {
   Bell,
   CheckCheck,
@@ -11,8 +11,6 @@ import {
   Mic,
   Lightbulb,
   Check,
-  AlertCircle,
-  Megaphone,
   RefreshCw,
   Trophy,
 } from "lucide-react";
@@ -20,36 +18,21 @@ import {
 export function Notifications() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("ALL"); // 'ALL' | 'UNREAD'
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const isStudentUser = Boolean(
-    user?.isSchoolStudent ||
-    user?.schoolId ||
-    user?.schoolCode ||
-    user?.role === "STUDENT" ||
-    user?.accountType === "STUDENT" ||
-    (user?.schoolGrade && user?.schoolGrade.includes("Std"))
-  );
-
   const loadData = useCallback(async () => {
-    setLoading(true);
     try {
-      const [notifs, schoolAncs] = await Promise.all([
-        notificationService.all().catch(() => []),
-        isStudentUser ? announcementService.list().catch(() => []) : Promise.resolve([]),
-      ]);
+      const notifs = await notificationService.all().catch(() => []);
       setNotifications(Array.isArray(notifs) ? notifs : []);
-      setAnnouncements(Array.isArray(schoolAncs) ? schoolAncs : []);
       window.dispatchEvent(new CustomEvent("speakmate_notifications_updated"));
     } catch (e) {
       console.error("Failed to load notifications:", e);
     } finally {
       setLoading(false);
     }
-  }, [isStudentUser]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -256,64 +239,7 @@ export function Notifications() {
         </div>
       </div>
 
-      {/* ── Section 1: School & Class Announcements (Enrolled Students Only) ── */}
-      {isStudentUser && announcements.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Megaphone className="w-4 h-4 text-[#6C63FF]" />
-            <h2 className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)]">
-              School & Class Announcements
-            </h2>
-          </div>
-
-          <div className="space-y-3">
-            {announcements.map((anc) => (
-              <div
-                key={anc.id}
-                className={`p-5 rounded-2xl border transition-all relative overflow-hidden flex items-start gap-4 ${
-                  anc.isUrgent
-                    ? "bg-rose-500/10 border-rose-500/30 ring-1 ring-rose-500/20"
-                    : "bg-[var(--bg-surface)] border-[var(--border-default)]"
-                }`}
-              >
-                <div
-                  className={`p-3 rounded-2xl shrink-0 border ${
-                    anc.isUrgent
-                      ? "bg-rose-500/20 text-rose-500 border-rose-500/30"
-                      : "bg-indigo-500/15 text-indigo-500 border-indigo-500/30"
-                  }`}
-                >
-                  {anc.isUrgent ? <AlertCircle className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
-                </div>
-
-                <div className="flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                        anc.isUrgent
-                          ? "bg-rose-500/20 text-rose-500 border-rose-500/30"
-                          : "bg-indigo-500/15 text-indigo-500 border-indigo-500/30"
-                      }`}
-                    >
-                      {anc.sender} • {anc.targetClass}
-                    </span>
-                    <span className="text-[11px] text-[var(--text-muted)] font-medium">
-                      {anc.timestamp}
-                    </span>
-                  </div>
-
-                  <h3 className="text-sm font-black text-[var(--text-primary)]">{anc.title}</h3>
-                  <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">
-                    {anc.content}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Section 2: General System Notifications ── */}
+      {/* ── General System Notifications ── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Bell className="w-4 h-4 text-[#6C63FF]" />
@@ -322,23 +248,7 @@ export function Notifications() {
           </h2>
         </div>
 
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="p-5 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] animate-pulse flex items-start gap-4"
-              >
-                <div className="w-11 h-11 rounded-2xl bg-white/10" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-48 bg-white/10 rounded" />
-                  <div className="h-3 w-full bg-white/10 rounded" />
-                  <div className="h-2 w-24 bg-white/10 rounded" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredNotifications.length === 0 ? (
+        {filteredNotifications.length === 0 ? (
           <div className="p-12 text-center rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-secondary)] space-y-3">
             <div className="w-16 h-16 rounded-full bg-[#6C63FF]/15 text-[#6C63FF] grid place-items-center mx-auto text-2xl">
               🔔

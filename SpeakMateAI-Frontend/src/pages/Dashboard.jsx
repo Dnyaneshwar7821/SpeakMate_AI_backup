@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import ROUTES from "../constants/routes";
-import { dashboardService, achievementService, assignmentService, announcementService } from "../services/appServices";
+import { dashboardService, achievementService } from "../services/appServices";
 import { speakGlobalText } from "../utils/speechHelper";
 import { getEnglishLevelLabel } from "../utils/formatters";
 
@@ -321,22 +321,6 @@ export function Dashboard() {
         setIsLoading(false);
       });
   }, [user]);
-
-  const [studentAssignments, setStudentAssignments] = useState([]);
-  const [schoolAnnouncements, setSchoolAnnouncements] = useState([]);
-
-  useEffect(() => {
-    if (isStudent) {
-      assignmentService
-        .myAssignments()
-        .then((res) => setStudentAssignments(Array.isArray(res) ? res : []))
-        .catch(() => setStudentAssignments([]));
-      announcementService
-        .list()
-        .then((res) => setSchoolAnnouncements(Array.isArray(res) ? res : []))
-        .catch(() => setSchoolAnnouncements([]));
-    }
-  }, [isStudent]);
 
   useEffect(() => {
     refreshStats();
@@ -927,109 +911,6 @@ export function Dashboard() {
           </button>
         </div>
       </motion.div>
-
-      {/* ── SECTION 2.5: SCHOOL ANNOUNCEMENTS & HOMEWORK (STUDENTS ONLY) ── */}
-      {isStudent && (
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-        >
-          {/* School Announcements Card */}
-          <div className="glass-card p-6 sm:p-8 rounded-3xl border border-indigo-500/30 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🔔</span>
-                <h2 className="text-lg font-black text-[var(--text-primary)]">School Announcements</h2>
-              </div>
-              <span className="text-xs font-black px-3 py-1 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                {schoolAnnouncements.length} {schoolAnnouncements.length === 1 ? "Notice" : "Notices"}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {schoolAnnouncements.length > 0 ? (
-                schoolAnnouncements.map((ann) => (
-                  <div key={ann.id} className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 space-y-1">
-                    <div className="flex items-center justify-between text-xs font-black text-indigo-400">
-                      <span>{ann.sender || "SCHOOL ADMIN"}</span>
-                      <span className="text-[10px] opacity-75">{ann.timestamp || "Recent"}</span>
-                    </div>
-                    <h3 className="font-extrabold text-sm text-[var(--text-primary)]">{ann.title}</h3>
-                    <p className="text-xs text-[var(--text-secondary)] font-medium">{ann.content}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="p-6 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-center space-y-1.5">
-                  <p className="text-2xl">📢</p>
-                  <p className="text-xs font-black text-[var(--text-primary)]">No New Announcements</p>
-                  <p className="text-[11px] text-[var(--text-secondary)]">You're all caught up on official school notices.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* My Assignments Homework Card */}
-          <div className="glass-card p-6 sm:p-8 rounded-3xl border border-emerald-500/30 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">📝</span>
-                <h2 className="text-lg font-black text-[var(--text-primary)]">Homework Assignments</h2>
-              </div>
-              <span className={`text-xs font-black px-3 py-1 rounded-full ${studentAssignments.length > 0 ? "bg-amber-500/15 text-amber-500 border border-amber-500/30" : "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"}`}>
-                {studentAssignments.length} Pending
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {studentAssignments.length > 0 ? (
-                studentAssignments.map((asg) => (
-                  <div key={asg.id} className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] space-y-3">
-                    <div className="flex items-center justify-between text-xs font-black">
-                      <span className="px-2.5 py-1 rounded-lg bg-amber-400/20 text-amber-500 border border-amber-400/30">
-                        DUE: {asg.dueDate || "UPCOMING"}
-                      </span>
-                      <span className="text-[var(--text-secondary)] font-bold">{asg.className || `Standard: ${activeGrade}`}</span>
-                    </div>
-
-                    <div>
-                      <h3 className="font-black text-base text-[var(--text-primary)]">{asg.title}</h3>
-                      <p className="text-xs text-[var(--text-secondary)] font-medium mt-1">{asg.description}</p>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs font-black text-[var(--text-primary)] pt-1">
-                      {asg.targetMinutes && <span className="flex items-center gap-1 text-[#6C63FF]">⏱️ Target: {asg.targetMinutes} Mins</span>}
-                      {asg.minimumScore && <span className="flex items-center gap-1 text-amber-500">🏆 Min Score: {asg.minimumScore}%</span>}
-                    </div>
-
-                    <button
-                      onClick={() => navigate(`${ROUTES.CONVERSATION_SESSION}?scenario=free-speak&assignmentId=${asg.id}`)}
-                      className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] text-white text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <span>Start Homework Assignment ➔</span>
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="p-6 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-center space-y-3">
-                  <p className="text-2xl">✨</p>
-                  <div>
-                    <p className="text-xs font-black text-[var(--text-primary)]">No Pending Homework</p>
-                    <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">Great job! You have no outstanding homework assignments.</p>
-                  </div>
-                  <button
-                    onClick={() => navigate(ROUTES.SPEAKING)}
-                    className="px-5 py-2.5 rounded-2xl bg-[#6C63FF]/15 hover:bg-[#6C63FF]/25 text-[#6C63FF] text-xs font-black transition-all cursor-pointer"
-                  >
-                    Practice Free Speaking ➔
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* ── SECTION 3: CONTINUE LEARNING CARD (Matching Mobile App ContinueLearningCard) ── */}
       <motion.div
