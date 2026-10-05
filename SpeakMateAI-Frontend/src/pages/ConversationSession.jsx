@@ -90,8 +90,19 @@ No other text, markdown blocks, code fencing, or explanation.`;
   return getDynamicContextualHints(scenario, lastAiText, turnCount, turnSalt);
 };
 
-// Real-Time "How to Say It" Coach Card (Desktop-First Web Design)
+// Clean vocabulary splitter
+const cleanVocabList = (text) => {
+  if (!text || typeof text !== "string") return [];
+  return text
+    .split(/[,;\n]+/)
+    .map((w) => w.trim().replace(/^["']|["']$/g, ""))
+    .filter((w) => w.length > 0 && !w.toLowerCase().includes("none") && !w.toLowerCase().includes("null"));
+};
+
+// Sleek Unified Web Coach Card (Modern Desktop Web Design)
 function CoachCard({ feedback, isDark, onSpeakText }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
   if (!feedback) return null;
   const { grammarCorrection, betterSentence, fluencyTip, followUpQuestion, vocabularySuggestions } = feedback;
 
@@ -119,12 +130,8 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
     followUpQuestion.toLowerCase() !== "none" &&
     followUpQuestion.toLowerCase() !== "null"
   );
-  const hasVocab = Boolean(
-    vocabularySuggestions &&
-    vocabularySuggestions.trim() &&
-    vocabularySuggestions.toLowerCase() !== "none" &&
-    vocabularySuggestions.toLowerCase() !== "null"
-  );
+  const vocabList = cleanVocabList(vocabularySuggestions);
+  const hasVocab = vocabList.length > 0;
 
   if (!hasBetter && !hasGrammar && !hasFluency && !hasFollowup && !hasVocab) return null;
 
@@ -137,151 +144,193 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
 
   return (
     <div
-      className="mt-3 pt-3 border-t border-slate-100 dark:border-white/10 space-y-2.5 w-full animate-in fade-in duration-200"
+      className={`mt-3 rounded-2xl border transition-all overflow-hidden w-full shadow-xs ${
+        isDark
+          ? "bg-slate-900/60 border-indigo-500/20 shadow-black/20"
+          : "bg-slate-50/90 border-slate-200/80"
+      }`}
     >
-      {/* Header Bar */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="flex h-2 w-2 rounded-full bg-[#6c63ff]" />
-          <span className="text-[11px] font-bold tracking-wide text-[#6c63ff] dark:text-[#A5B4FC]">
-            Live Coach Evaluation
+      {/* Sleek Header Bar with Status & Collapse Toggle */}
+      <div
+        className={`px-3.5 py-2.5 flex items-center justify-between gap-2.5 transition-colors ${
+          isDark ? "bg-slate-800/40 border-b border-white/5" : "bg-white/80 border-b border-slate-200/60"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-5 h-5 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] dark:text-[#A5B4FC] flex items-center justify-center text-xs shrink-0 font-bold">
+            ✨
+          </div>
+          <span
+            className={`text-[11px] font-bold tracking-wider uppercase truncate ${
+              isDark ? "text-slate-200" : "text-slate-800"
+            }`}
+          >
+            Coach Insights
+          </span>
+          <span className="hidden sm:inline text-[10px] text-slate-400 font-normal">
+            · live speech analysis
           </span>
         </div>
-        {hasGrammar && (
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-            isGrammarOk
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-              : "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
-          }`}>
-            {isGrammarOk ? "Grammar Accurate" : "Refinement Needed"}
-          </span>
-        )}
-      </div>
 
-      {/* 2-Column Responsive Web Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-        {/* Left Column: Phrasing & Follow-up */}
-        <div className="space-y-2.5">
-          {/* 🚀 Better Natural Sentence */}
-          {hasBetter && (
-            <div
-              className={`p-3 rounded-xl border transition-all ${
-                isDark
-                  ? "bg-indigo-950/25 border-indigo-500/20 text-indigo-100"
-                  : "bg-indigo-50/60 border-indigo-200/70 text-indigo-950"
+        <div className="flex items-center gap-2 shrink-0">
+          {hasGrammar && (
+            <span
+              className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                isGrammarOk
+                  ? isDark
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : isDark
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
               }`}
             >
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-[10px] font-bold tracking-wide text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                  🚀 Native Phrasing
+              <span className={`w-1.5 h-1.5 rounded-full ${isGrammarOk ? "bg-emerald-500" : "bg-amber-500"}`} />
+              <span>{isGrammarOk ? "Grammar Accurate" : "Refinement Needed"}</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`p-1 px-1.5 rounded-md text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+              isDark
+                ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+            }`}
+            title={isExpanded ? "Collapse evaluation" : "Expand evaluation"}
+          >
+            <span>{isExpanded ? "Hide" : "Details"}</span>
+            <span className="text-[9px]">{isExpanded ? "▲" : "▼"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Unified Body */}
+      {isExpanded && (
+        <div className="divide-y divide-slate-100 dark:divide-white/5 animate-in fade-in duration-150">
+          {/* Hero Callout: Native Natural Phrasing */}
+          {hasBetter && (
+            <div
+              className={`p-3.5 sm:p-4 transition-colors ${
+                isDark ? "bg-indigo-950/20" : "bg-indigo-50/40"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6c63ff] dark:text-[#A5B4FC] flex items-center gap-1.5">
+                  <span>🚀</span>
+                  <span>Better Natural Phrasing</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => onSpeakText(betterSentence)}
-                  className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer bg-[#6c63ff] hover:bg-[#5a52e0] text-white shadow-xs active:scale-95 shrink-0"
                   title="Listen to native pronunciation"
                 >
                   <span>🔊</span>
                   <span>Listen</span>
                 </button>
               </div>
-              <p className="font-semibold text-xs leading-relaxed">
+              <p
+                className={`text-xs sm:text-[13px] font-medium leading-relaxed italic ${
+                  isDark ? "text-indigo-100" : "text-slate-800"
+                }`}
+              >
                 "{betterSentence}"
               </p>
             </div>
           )}
 
-          {/* ❓ Follow-up Question */}
-          {hasFollowup && (
-            <div
-              className={`p-3 rounded-xl border transition-all ${
-                isDark
-                  ? "bg-purple-950/25 border-purple-500/20 text-purple-200"
-                  : "bg-purple-50/60 border-purple-200/70 text-purple-950"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-[10px] font-bold tracking-wide text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                  ❓ Follow-up Question
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onSpeakText(followUpQuestion)}
-                  className="px-2 py-0.5 rounded-md bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
-                  title="Listen to follow-up question"
-                >
-                  <span>🔊</span>
-                  <span>Listen</span>
-                </button>
+          {/* Grammar Correction (Displayed when refinement is needed) */}
+          {hasGrammar && !isGrammarOk && (
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-amber-500 font-bold shrink-0 mt-0.5 text-xs">✍️</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-0.5">
+                  Grammar Suggestion
+                </div>
+                <p className={`text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  👉 {grammarCorrection.replace(/^👉\s*/, "")}
+                </p>
               </div>
-              <p className="font-medium text-xs leading-relaxed">
-                "{followUpQuestion}"
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: Grammar & Fluency Tips */}
-        <div className="space-y-2.5">
-          {/* ✍️ Grammar Accuracy */}
-          {hasGrammar && (
-            <div
-              className={`p-3 rounded-xl border text-xs space-y-1 transition-all ${
-                isGrammarOk
-                  ? isDark
-                    ? "bg-emerald-950/25 border-emerald-500/20 text-emerald-300"
-                    : "bg-emerald-50/60 border-emerald-200/70 text-emerald-800"
-                  : isDark
-                    ? "bg-amber-950/25 border-amber-500/20 text-amber-200"
-                    : "bg-amber-50/60 border-amber-200/70 text-amber-800"
-              }`}
-            >
-              <span className="text-[10px] font-bold tracking-wide flex items-center gap-1">
-                ✍️ Grammar Check
-              </span>
-              <p className="font-medium text-xs leading-relaxed">
-                {isGrammarOk ? `✅ ${grammarCorrection.replace(/^✅\s*/, "")}` : `👉 ${grammarCorrection}`}
-              </p>
             </div>
           )}
 
-          {/* 💡 Fluency & Pronunciation Tip */}
+          {/* Fluency & Pronunciation Tip */}
           {hasFluency && (
-            <div
-              className={`p-3 rounded-xl border text-xs space-y-1 transition-all ${
-                isDark
-                  ? "bg-sky-950/25 border-sky-500/20 text-sky-200"
-                  : "bg-sky-50/60 border-sky-200/70 text-sky-900"
-              }`}
-            >
-              <span className="text-[10px] font-bold tracking-wide text-sky-600 dark:text-sky-400 flex items-center gap-1">
-                💡 Fluency & Pronunciation Tip
-              </span>
-              <p className="font-normal text-xs leading-relaxed">
-                {fluencyTip}
-              </p>
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-sky-500 font-bold shrink-0 mt-0.5 text-xs">💡</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-0.5">
+                  Fluency & Pronunciation
+                </div>
+                <p className={`text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  {fluencyTip}
+                </p>
+              </div>
             </div>
           )}
 
-          {/* ✨ Vocabulary Upgrade */}
+          {/* Vocabulary Upgrades as sleek interactive pills */}
           {hasVocab && (
-            <div
-              className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
-                isDark
-                  ? "bg-slate-800/60 border-white/10 text-slate-300"
-                  : "bg-slate-50/80 border-slate-200/70 text-slate-700"
-              }`}
-            >
-              <span className="text-[10px] font-bold tracking-wide text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                ✨ Vocabulary Upgrade
-              </span>
-              <p className="font-normal text-xs">
-                {vocabularySuggestions}
-              </p>
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-amber-500 font-bold shrink-0 mt-0.5 text-xs">✨</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
+                  Vocabulary Upgrade
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {vocabList.map((word, wIdx) => (
+                    <button
+                      key={wIdx}
+                      type="button"
+                      onClick={() => onSpeakText(word)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border cursor-pointer active:scale-95 flex items-center gap-1.5 ${
+                        isDark
+                          ? "bg-slate-800/90 text-amber-300 border-amber-500/20 hover:border-amber-400 hover:bg-slate-800"
+                          : "bg-amber-50/80 text-amber-900 border-amber-200/80 hover:border-amber-400 hover:bg-amber-100"
+                      }`}
+                      title={`Listen to pronunciation of "${word}"`}
+                    >
+                      <span>{word}</span>
+                      <span className="text-[9px] opacity-70">🔊</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Follow-up Question Inquiry */}
+          {hasFollowup && (
+            <div className="p-3.5 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 flex items-start gap-2.5">
+                <span className="text-purple-500 font-bold shrink-0 mt-0.5 text-xs">❓</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-0.5">
+                    Suggested Follow-up
+                  </div>
+                  <p className={`text-xs font-medium italic ${isDark ? "text-purple-200" : "text-slate-800"}`}>
+                    "{followUpQuestion}"
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onSpeakText(followUpQuestion)}
+                className={`p-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
+                  isDark
+                    ? "bg-white/10 hover:bg-white/20 text-purple-300"
+                    : "bg-purple-100/70 hover:bg-purple-200 text-purple-700"
+                }`}
+                title="Listen to follow-up question"
+              >
+                <span className="text-xs">🔊</span>
+              </button>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
