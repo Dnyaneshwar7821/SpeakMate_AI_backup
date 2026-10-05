@@ -56,7 +56,7 @@ const getScenarioHints = (scenario, lastAiMsg) => {
   ];
 };
 
-// Real-Time "How to Say It" Coach Card matching Mobile App pedagogical architecture
+// Real-Time "How to Say It" Coach Card (Desktop-First Web Design)
 function CoachCard({ feedback, isDark, onSpeakText }) {
   if (!feedback) return null;
   const { grammarCorrection, betterSentence, fluencyTip, followUpQuestion, vocabularySuggestions } = feedback;
@@ -103,125 +103,151 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
 
   return (
     <div
-      className={`mt-3 p-3 sm:p-3.5 rounded-2xl border backdrop-blur-md space-y-2.5 shadow-md w-full animate-in fade-in duration-300 ${
-        isDark ? "bg-slate-900/90 border-white/10 text-slate-100" : "bg-white/95 border-indigo-100/90 text-slate-800 shadow-indigo-100/50"
-      }`}
+      className="mt-3 pt-3 border-t border-slate-100 dark:border-white/10 space-y-2.5 w-full animate-in fade-in duration-200"
     >
-      {/* Header */}
-      <div className={`flex items-center justify-between pb-2 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
+      {/* Header Bar */}
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-sm">✨</span>
-          <span className="text-[11px] font-black uppercase tracking-wider text-[#6c63ff]">
-            "How to Say It" Coach Card
+          <span className="flex h-2 w-2 rounded-full bg-[#6c63ff]" />
+          <span className="text-[11px] font-bold tracking-wide text-[#6c63ff] dark:text-[#A5B4FC]">
+            Live Coach Evaluation
           </span>
         </div>
+        {hasGrammar && (
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+            isGrammarOk
+              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+              : "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+          }`}>
+            {isGrammarOk ? "Grammar Accurate" : "Refinement Needed"}
+          </span>
+        )}
       </div>
 
-      {/* 🚀 Better Natural Sentence */}
-      {hasBetter && (
-        <div
-          className={`p-3 rounded-xl border space-y-1.5 ${
-            isDark ? "bg-[#6c63ff]/15 border-[#6c63ff]/30 text-indigo-100" : "bg-indigo-50/80 border-indigo-200/80 text-indigo-950"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#6c63ff] flex items-center gap-1">
-              🚀 Better Natural Sentence
-            </span>
-            <button
-              type="button"
-              onClick={() => onSpeakText(betterSentence)}
-              className="px-2.5 py-1 rounded-lg bg-[#6c63ff] text-white text-[10px] font-bold hover:bg-[#8b85ff] active:scale-95 transition-all flex items-center gap-1 shadow-sm cursor-pointer"
-              title="Listen to native pronunciation"
+      {/* 2-Column Responsive Web Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        {/* Left Column: Phrasing & Follow-up */}
+        <div className="space-y-2.5">
+          {/* 🚀 Better Natural Sentence */}
+          {hasBetter && (
+            <div
+              className={`p-3 rounded-xl border transition-all ${
+                isDark
+                  ? "bg-indigo-950/25 border-indigo-500/20 text-indigo-100"
+                  : "bg-indigo-50/60 border-indigo-200/70 text-indigo-950"
+              }`}
             >
-              <span>🔊 Listen</span>
-            </button>
-          </div>
-          <p className="font-semibold text-xs leading-relaxed">
-            "{betterSentence}"
-          </p>
-        </div>
-      )}
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-[10px] font-bold tracking-wide text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                  🚀 Native Phrasing
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSpeakText(betterSentence)}
+                  className="px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                  title="Listen to native pronunciation"
+                >
+                  <span>🔊</span>
+                  <span>Listen</span>
+                </button>
+              </div>
+              <p className="font-semibold text-xs leading-relaxed">
+                "{betterSentence}"
+              </p>
+            </div>
+          )}
 
-      {/* ✍️ Grammar Accuracy */}
-      {hasGrammar && (
-        <div
-          className={`p-3 rounded-xl border text-xs space-y-1 ${
-            isGrammarOk
-              ? isDark
-                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                : "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : isDark
-                ? "bg-amber-500/15 border-amber-500/30 text-amber-200"
-                : "bg-amber-50 border-amber-200 text-amber-800"
-          }`}
-        >
-          <span className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-            ✍️ Grammar Accuracy
-          </span>
-          <p className="font-semibold text-xs leading-relaxed">
-            {isGrammarOk ? `✅ ${grammarCorrection.replace(/^✅\s*/, "")}` : `👉 ${grammarCorrection}`}
-          </p>
-        </div>
-      )}
-
-      {/* 💡 Fluency & Pronunciation Tip */}
-      {hasFluency && (
-        <div
-          className={`p-3 rounded-xl border text-xs space-y-1 ${
-            isDark ? "bg-sky-500/15 border-sky-500/30 text-sky-200" : "bg-sky-50 border-sky-200 text-sky-900"
-          }`}
-        >
-          <span className="text-[10px] font-black uppercase tracking-wider text-sky-500 flex items-center gap-1">
-            💡 Fluency & Pronunciation Tip
-          </span>
-          <p className="font-medium text-xs leading-relaxed">
-            {fluencyTip}
-          </p>
-        </div>
-      )}
-
-      {/* ❓ Follow-up Question */}
-      {hasFollowup && (
-        <div
-          className={`p-3 rounded-xl border space-y-1.5 ${
-            isDark ? "bg-purple-500/15 border-purple-500/30 text-purple-200" : "bg-purple-50 border-purple-200 text-purple-950"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-500 flex items-center gap-1">
-              ❓ Follow-up Question
-            </span>
-            <button
-              type="button"
-              onClick={() => onSpeakText(followUpQuestion)}
-              className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-[10px] font-bold hover:bg-purple-500 active:scale-95 transition-all flex items-center gap-1 shadow-sm cursor-pointer"
-              title="Listen to follow-up question"
+          {/* ❓ Follow-up Question */}
+          {hasFollowup && (
+            <div
+              className={`p-3 rounded-xl border transition-all ${
+                isDark
+                  ? "bg-purple-950/25 border-purple-500/20 text-purple-200"
+                  : "bg-purple-50/60 border-purple-200/70 text-purple-950"
+              }`}
             >
-              <span>🔊 Listen</span>
-            </button>
-          </div>
-          <p className="font-semibold text-xs leading-relaxed">
-            "{followUpQuestion}"
-          </p>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-[10px] font-bold tracking-wide text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                  ❓ Follow-up Question
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSpeakText(followUpQuestion)}
+                  className="px-2 py-0.5 rounded-md bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                  title="Listen to follow-up question"
+                >
+                  <span>🔊</span>
+                  <span>Listen</span>
+                </button>
+              </div>
+              <p className="font-medium text-xs leading-relaxed">
+                "{followUpQuestion}"
+              </p>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* ✨ Vocabulary Upgrade */}
-      {hasVocab && (
-        <div
-          className={`p-2.5 rounded-xl border text-xs space-y-1 ${
-            isDark ? "bg-slate-800/80 border-white/10 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"
-          }`}
-        >
-          <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 flex items-center gap-1">
-            ✨ Vocabulary Upgrade
-          </span>
-          <p className="font-medium text-xs">
-            {vocabularySuggestions}
-          </p>
+        {/* Right Column: Grammar & Fluency Tips */}
+        <div className="space-y-2.5">
+          {/* ✍️ Grammar Accuracy */}
+          {hasGrammar && (
+            <div
+              className={`p-3 rounded-xl border text-xs space-y-1 transition-all ${
+                isGrammarOk
+                  ? isDark
+                    ? "bg-emerald-950/25 border-emerald-500/20 text-emerald-300"
+                    : "bg-emerald-50/60 border-emerald-200/70 text-emerald-800"
+                  : isDark
+                    ? "bg-amber-950/25 border-amber-500/20 text-amber-200"
+                    : "bg-amber-50/60 border-amber-200/70 text-amber-800"
+              }`}
+            >
+              <span className="text-[10px] font-bold tracking-wide flex items-center gap-1">
+                ✍️ Grammar Check
+              </span>
+              <p className="font-medium text-xs leading-relaxed">
+                {isGrammarOk ? `✅ ${grammarCorrection.replace(/^✅\s*/, "")}` : `👉 ${grammarCorrection}`}
+              </p>
+            </div>
+          )}
+
+          {/* 💡 Fluency & Pronunciation Tip */}
+          {hasFluency && (
+            <div
+              className={`p-3 rounded-xl border text-xs space-y-1 transition-all ${
+                isDark
+                  ? "bg-sky-950/25 border-sky-500/20 text-sky-200"
+                  : "bg-sky-50/60 border-sky-200/70 text-sky-900"
+              }`}
+            >
+              <span className="text-[10px] font-bold tracking-wide text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                💡 Fluency & Pronunciation Tip
+              </span>
+              <p className="font-normal text-xs leading-relaxed">
+                {fluencyTip}
+              </p>
+            </div>
+          )}
+
+          {/* ✨ Vocabulary Upgrade */}
+          {hasVocab && (
+            <div
+              className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
+                isDark
+                  ? "bg-slate-800/60 border-white/10 text-slate-300"
+                  : "bg-slate-50/80 border-slate-200/70 text-slate-700"
+              }`}
+            >
+              <span className="text-[10px] font-bold tracking-wide text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                ✨ Vocabulary Upgrade
+              </span>
+              <p className="font-normal text-xs">
+                {vocabularySuggestions}
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1103,41 +1129,28 @@ export function ConversationSession() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Floating AI Hint Button (Shown when drawer is closed — hints DO NOT come automatically) */}
-        {!showHints && (
-          <div className="flex justify-end px-4 py-2 shrink-0 border-t border-transparent pointer-events-auto">
-            <button
-              type="button"
-              onClick={handleToggleHints}
-              disabled={loadingHints}
-              className="px-4 py-2 rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 text-white text-xs font-black shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer border border-white/20"
-              title="Click to open AI response suggestions"
-            >
-              <span className="text-yellow-300 text-xs">💡</span>
-              <span>{loadingHints ? "Loading..." : "AI Hint ✨"}</span>
-            </button>
-          </div>
-        )}
-
-        {/* AI Hint Drawer: Quick suggested replies with scroll and audio preview */}
+        {/* AI Hint Drawer: Quick suggested replies with smooth scroll and audio preview */}
         {showHints && (
-          <div className={`p-3 sm:px-4 border-t transition-all shrink-0 ${
-            isDark ? "bg-slate-900/95 border-white/10" : "bg-indigo-50/80 border-indigo-200"
+          <div className={`p-3 sm:px-5 border-t transition-all shrink-0 animate-in fade-in duration-200 ${
+            isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200 shadow-sm"
           }`}>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-sm">✨</span>
-                <span className={`text-[11px] font-black uppercase tracking-wider truncate ${
-                  isDark ? "text-indigo-300" : "text-indigo-800"
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm">💡</span>
+                <span className={`text-xs font-bold tracking-wide truncate ${
+                  isDark ? "text-slate-200" : "text-slate-800"
                 }`}>
-                  Suggested Responses (Tap to speak or listen):
+                  Suggested Responses
+                </span>
+                <span className="hidden sm:inline text-[11px] text-slate-400 font-normal">
+                  — click a response to send, or 🔊 to listen
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowHints(false)}
                 className={`p-1 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
-                  isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-500 hover:text-slate-900 hover:bg-slate-200"
+                  isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-800 hover:bg-slate-100"
                 }`}
                 title="Close AI Hints"
               >
@@ -1155,10 +1168,10 @@ export function ConversationSession() {
                 {(hints.length > 0 ? hints : getScenarioHints(scenario, [...messages].reverse().find((m) => m.sender === "ai"))).map((hint, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-center rounded-xl border shadow-sm shrink-0 transition-all overflow-hidden ${
+                    className={`group flex items-center rounded-xl border shadow-xs shrink-0 transition-all overflow-hidden ${
                       isDark
-                        ? "bg-slate-800/90 border-white/10 hover:border-[#6c63ff]"
-                        : "bg-white border-slate-200 hover:border-[#6c63ff]"
+                        ? "bg-slate-800/80 border-white/10 hover:border-[#6c63ff]/60 hover:bg-slate-800"
+                        : "bg-slate-50/90 border-slate-200/90 hover:border-[#6c63ff]/60 hover:bg-white"
                     }`}
                   >
                     {/* Click to send text */}
@@ -1171,8 +1184,8 @@ export function ConversationSession() {
                         setViseme("REST");
                         sendUserText(hint);
                       }}
-                      className={`px-3 py-2 text-xs font-semibold text-left transition-colors whitespace-nowrap max-w-[280px] sm:max-w-md truncate cursor-pointer ${
-                        isDark ? "text-slate-200 hover:text-[#A5B4FC]" : "text-slate-700 hover:text-[#6c63ff]"
+                      className={`px-3.5 py-2 text-xs font-medium text-left transition-colors whitespace-nowrap max-w-[280px] sm:max-w-md truncate cursor-pointer ${
+                        isDark ? "text-slate-200 group-hover:text-[#A5B4FC]" : "text-slate-700 group-hover:text-[#6c63ff]"
                       }`}
                       title={`Send: "${hint}"`}
                     >
@@ -1188,8 +1201,8 @@ export function ConversationSession() {
                       }}
                       className={`px-2.5 py-2 border-l transition-colors flex items-center justify-center cursor-pointer ${
                         isDark
-                          ? "border-white/10 text-indigo-300 hover:bg-white/10 hover:text-white"
-                          : "border-slate-200 text-[#6c63ff] hover:bg-indigo-50 hover:text-indigo-900"
+                          ? "border-white/10 text-slate-400 hover:text-white hover:bg-white/10"
+                          : "border-slate-200 text-slate-400 hover:text-[#6c63ff] hover:bg-indigo-50/60"
                       }`}
                       title="Listen to native pronunciation preview before speaking"
                     >
