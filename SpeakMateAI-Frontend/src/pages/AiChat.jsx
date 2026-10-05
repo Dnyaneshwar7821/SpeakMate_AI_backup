@@ -25,8 +25,15 @@ export function AiChat() {
   const { user } = useAuth();
   const { showConfirm } = useModal();
   const toast = useToast();
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("speakmate_chat_history_cache");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [renameTargetSession, setRenameTargetSession] = useState(null);
   const [newTitle, setNewTitle] = useState("");
@@ -38,10 +45,13 @@ export function AiChat() {
   const [userGrade, setUserGrade] = useState(() => user?.schoolGrade || localStorage.getItem("speakmate_school_grade") || "1st Std");
 
   const fetchHistory = async () => {
-    setLoading(true);
     try {
       const data = await chatService.history().catch(() => []);
-      setHistory(data || []);
+      const historyList = Array.isArray(data) ? data : [];
+      setHistory(historyList);
+      try {
+        sessionStorage.setItem("speakmate_chat_history_cache", JSON.stringify(historyList));
+      } catch (_) {}
       const savedGrade = user?.schoolGrade || localStorage.getItem("speakmate_school_grade");
       const savedAge = user?.ageGroup || localStorage.getItem("speakmate_age_group");
       if (savedGrade) setUserGrade(savedGrade);
@@ -175,20 +185,7 @@ export function AiChat() {
       </div>
 
       {/* Recent Chat Conversations Row */}
-      {loading ? (
-        <div className="space-y-4">
-          <div className="h-6 w-48 bg-[var(--bg-elevated)] rounded-xl animate-pulse" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3].map((sk) => (
-              <div key={sk} className="glass-card p-6 rounded-3xl space-y-3.5 border border-[var(--border-default)] animate-pulse">
-                <div className="h-4 w-20 bg-[var(--bg-elevated)] rounded-full" />
-                <div className="h-5 w-40 bg-[var(--bg-elevated)] rounded-lg" />
-                <div className="h-3 w-56 bg-[var(--bg-elevated)] rounded" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : history.length > 0 ? (
+      {history.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black text-[var(--text-primary)]">Recent Chat Sessions</h2>
@@ -244,7 +241,7 @@ export function AiChat() {
             ))}
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Available AI Chat Modes Grid */}
       <div className="space-y-4">

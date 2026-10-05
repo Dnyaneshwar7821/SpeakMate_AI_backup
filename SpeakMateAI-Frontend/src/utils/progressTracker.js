@@ -8,8 +8,8 @@ const getStorageKey = (userContext = null) => {
       if (raw) user = JSON.parse(raw);
     } catch (e) { }
   }
-  const identifier = user?.id || user?.email || user?.username || "guest";
-  return `speakmate_user_progress_stats_${identifier}`;
+  const identifier = user?.id || user?.email || user?.username;
+  return identifier ? `speakmate_user_progress_stats_${identifier}` : "speakmate_user_progress_stats_anonymous";
 };
 
 export const persistProgressToBackend = async (stats) => {
@@ -299,7 +299,7 @@ export const syncBackendProgress = (backendData, userContext = null) => {
     : (current.backendAccuracy || null);
 
   const finalWords = rawBackendVocab !== undefined && rawBackendVocab !== null
-    ? Math.max(Number(current.wordsLearned || 0), Number(rawBackendVocab))
+    ? Number(rawBackendVocab)
     : Number(current.wordsLearned || 0);
 
   const finalSessions = rawBackendSessions !== undefined && rawBackendSessions !== null
@@ -311,11 +311,11 @@ export const syncBackendProgress = (backendData, userContext = null) => {
     : Number(current.distinctScenarios || 0);
 
   const finalGrammar = rawBackendGrammar !== undefined && rawBackendGrammar !== null
-    ? Math.max(Number(current.grammarChecks || 0), Number(rawBackendGrammar))
+    ? Number(rawBackendGrammar)
     : Number(current.grammarChecks || 0);
 
   const finalLessons = rawBackendLessons !== undefined && rawBackendLessons !== null
-    ? Math.max(Number(current.lessonsCompleted || 0), Number(rawBackendLessons))
+    ? Number(rawBackendLessons)
     : Number(current.lessonsCompleted || 0);
 
   const rawBackendFreezes = backendData.streakFreezes ?? backendData.progress?.streakFreezes ?? backendData.profile?.streakFreezes;

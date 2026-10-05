@@ -125,11 +125,15 @@ export function Login() {
         const userEmail = (res?.user?.email || form.email || "").toLowerCase().trim();
         const authenticatedUser = res?.user || {};
         const isStudentUser = Boolean(
-          loginType === "SCHOOL" ||
+          (loginType === "SCHOOL" ||
           authenticatedUser.accountType === "STUDENT" ||
           authenticatedUser.isSchoolStudent ||
-          authenticatedUser.schoolGrade ||
-          authenticatedUser.schoolId
+          authenticatedUser.role === "STUDENT") &&
+          authenticatedUser.role !== "USER" &&
+          authenticatedUser.role !== "TEACHER" &&
+          authenticatedUser.role !== "SCHOOL_ADMIN" &&
+          authenticatedUser.role !== "ADMIN" &&
+          authenticatedUser.role !== "SUPER_ADMIN"
         );
         const displayName = authenticatedUser.firstName || authenticatedUser.name || (userEmail ? userEmail.split("@")[0] : "Learner");
         const isProUser = Boolean((authenticatedUser.isPro || authenticatedUser.pro) && authenticatedUser.subscriptionPlan && authenticatedUser.subscriptionPlan !== "FREE");

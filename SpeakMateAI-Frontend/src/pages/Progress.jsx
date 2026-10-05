@@ -33,7 +33,7 @@ export function Progress() {
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState("overview"); // 'overview', 'fluency', 'roadmap', 'rhythm'
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [liveStats, setLiveStats] = useState(() => getLiveProgressStats());
   const [rhythmList, setRhythmList] = useState([]);
 
@@ -76,7 +76,6 @@ export function Progress() {
 
   const updateStats = async () => {
     try {
-      setLoading(true);
       const local = getLiveProgressStats();
       const backend = await progressService.get().catch(() => null);
       if (backend) {
@@ -100,8 +99,6 @@ export function Progress() {
       fetchRhythm();
     } catch (err) {
       console.warn("Failed to load progress stats", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -589,58 +586,41 @@ export function Progress() {
 
           {/* Quick Metrics Ribbon */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {loading ? (
-              [1, 2, 3, 4].map((sk) => (
-                <div
-                  key={sk}
-                  className={`p-5 rounded-2xl border shadow-sm space-y-2 animate-pulse ${
-                    isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-[var(--bg-elevated)]" />
-                  <div className="h-6 w-24 bg-[var(--bg-elevated)] rounded" />
-                  <div className="h-3 w-28 bg-[var(--bg-elevated)] rounded" />
-                </div>
-              ))
-            ) : (
-              <>
-                <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
-                  isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
-                }`}>
-                  <span className="text-2xl">🔥</span>
-                  <p className="text-xl font-black text-[#F97316]">{streak} Days</p>
-                  <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Current Streak</p>
-                  <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Best: {longestStreak} days</p>
-                </div>
+            <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
+              isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
+            }`}>
+              <span className="text-2xl">🔥</span>
+              <p className="text-xl font-black text-[#F97316]">{streak} Days</p>
+              <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Current Streak</p>
+              <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Best: {longestStreak} days</p>
+            </div>
 
-                <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
-                  isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
-                }`}>
-                  <span className="text-2xl">🛡️</span>
-                  <p className="text-xl font-black text-cyan-500">Shield Active</p>
-                  <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Streak Freeze</p>
-                  <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Protects your rhythm</p>
-                </div>
+            <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
+              isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
+            }`}>
+              <span className="text-2xl">🛡️</span>
+              <p className="text-xl font-black text-cyan-500">Shield Active</p>
+              <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Streak Freeze</p>
+              <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Protects your rhythm</p>
+            </div>
 
-                <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
-                  isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
-                }`}>
-                  <span className="text-2xl">⏱️</span>
-                  <p className="text-xl font-black text-indigo-500">{totalHours} Hours</p>
-                  <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Total Speaking Time</p>
-                  <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>{speakingSessions} sessions done</p>
-                </div>
+            <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
+              isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
+            }`}>
+              <span className="text-2xl">⏱️</span>
+              <p className="text-xl font-black text-indigo-500">{totalHours} Hours</p>
+              <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Total Speaking Time</p>
+              <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>{speakingSessions} sessions done</p>
+            </div>
 
-                <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
-                  isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
-                }`}>
-                  <span className="text-2xl">📚</span>
-                  <p className="text-xl font-black text-emerald-500">{wordsLearned} Words</p>
-                  <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Word Bank Lexicon</p>
-                  <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>{grammarExercises} grammar checks</p>
-                </div>
-              </>
-            )}
+            <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
+              isDark ? "bg-[#131B2B] border-white/10" : "bg-white border-slate-200"
+            }`}>
+              <span className="text-2xl">📚</span>
+              <p className="text-xl font-black text-emerald-500">{wordsLearned} Words</p>
+              <p className={`text-[11px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Word Bank Lexicon</p>
+              <p className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>{grammarExercises} grammar checks</p>
+            </div>
           </div>
 
           {/* 6-Dimensional Skill Breakdown Matrix */}

@@ -167,8 +167,8 @@ export function Vocabulary() {
     );
   };
 
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState(() => getInitialCurated(user));
+  const [loading, setLoading] = useState(false);
   const [wordInput, setWordInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -191,8 +191,7 @@ export function Vocabulary() {
   const [mistakesList, setMistakesList] = useState([]);
   const [showMistakes, setShowMistakes] = useState(false);
 
-  const loadVocabulary = async (showLoader = false) => {
-    if (showLoader) setLoading(true);
+  const loadVocabulary = async () => {
     try {
       const savedAccType = user?.accountType || localStorage.getItem("speakmate_account_type") || "INDIVIDUAL_USER";
       const savedGrade = user?.schoolGrade || localStorage.getItem("speakmate_school_grade") || "1st Std";
@@ -803,26 +802,7 @@ export function Vocabulary() {
           </div>
 
           {/* Word Cards Grid with Favorite Stars */}
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[1, 2, 3, 4, 5, 6].map((sk) => (
-                <div
-                  key={sk}
-                  className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-3xl p-5 shadow-sm animate-pulse space-y-4"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="h-6 w-32 bg-[var(--bg-elevated)] rounded-xl" />
-                    <div className="flex gap-2">
-                      <div className="h-8 w-8 bg-[var(--bg-elevated)] rounded-xl" />
-                      <div className="h-8 w-8 bg-[var(--bg-elevated)] rounded-xl" />
-                    </div>
-                  </div>
-                  <div className="h-4 w-4/5 bg-[var(--bg-elevated)] rounded-lg" />
-                  <div className="h-12 w-full bg-[var(--bg-elevated)] rounded-2xl" />
-                </div>
-              ))}
-            </div>
-          ) : filteredItems.length === 0 ? (
+          {filteredItems.length === 0 ? (
             <div className="text-center py-16 bg-[var(--bg-surface)] border border-dashed border-[var(--border-default)] rounded-3xl shadow-sm">
               <span className="text-4xl mb-3 block">📖</span>
               <h3 className="text-lg font-bold text-[var(--text-primary)]">No Words Found</h3>

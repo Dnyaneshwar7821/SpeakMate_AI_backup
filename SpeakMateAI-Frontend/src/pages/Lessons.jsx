@@ -109,10 +109,7 @@ export function Lessons() {
   });
 
   const continueRowRef = useRef(null);
-  const [loading, setLoading] = useState(() => {
-    const cached = CurriculumCache.getLessons(user?.id, profileKey);
-    return !cached || cached.length === 0;
-  });
+  const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState(urlSearchQuery);
   const [searchResults, setSearchResults] = useState(null);
   const [activeTab, setActiveTab] = useState("All");
@@ -266,7 +263,7 @@ export function Lessons() {
       setLessons(profileLessons);
     }
 
-    loadData(!cachedLessons || cachedLessons.length === 0);
+    loadData(false);
   }, [profileLessons, profileKey, user?.id]);
 
   useEffect(() => {
@@ -536,11 +533,6 @@ export function Lessons() {
               })}
             </div>
           </div>
-        ) : loading ? (
-          <div className="space-y-3">
-            <div className="h-7 w-44 bg-[var(--bg-elevated)] rounded-xl animate-pulse" />
-            <div className="w-full sm:w-[340px] h-[190px] rounded-3xl bg-[var(--bg-elevated)] animate-pulse border border-[var(--border-default)]" />
-          </div>
         ) : null
       )}
 
@@ -598,11 +590,7 @@ export function Lessons() {
           </span>
         </div>
 
-        {loading && filteredLessons.length === 0 ? (
-          <div className="py-12">
-            <SpeakMateLoader message="Loading your 20-lesson curriculum..." subMessage="Fetching progress and lesson modules" />
-          </div>
-        ) : filteredLessons.length === 0 ? (
+        {filteredLessons.length === 0 ? (
           <div className="p-12 text-center text-[var(--text-secondary)] space-y-2 glass-card rounded-3xl">
             <p className="text-4xl">📖</p>
             <p className="font-extrabold text-base text-[var(--text-primary)]">

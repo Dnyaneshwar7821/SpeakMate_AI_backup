@@ -240,7 +240,7 @@ const CATEGORIES = [
 ];
 
 export function Achievements() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [selectedFilter, setSelectedFilter] = useState("ALL"); // 'ALL' | 'UNLOCKED' | 'LOCKED'
   const [searchQuery, setSearchQuery] = useState("");
@@ -267,7 +267,7 @@ export function Achievements() {
   };
 
   useEffect(() => {
-    syncAchievements(true);
+    syncAchievements(false);
     const handleRefresh = () => syncAchievements(false);
     window.addEventListener("focus", handleRefresh);
     window.addEventListener("speakmate_progress_updated", handleRefresh);
@@ -367,14 +367,14 @@ export function Achievements() {
         <div className="space-y-2 pt-2">
           <div className="flex items-center justify-between text-xs font-black text-indigo-200">
             <span>
-              Showcase Mastery: {loading ? "Loading verified medals..." : `${totalUnlockedCount} of ${totalCount} Medals`}
+              Showcase Mastery: {`${totalUnlockedCount} of ${totalCount} Medals`}
             </span>
-            <span className="text-amber-300">{loading ? "..." : `${showcasePercentage}%`}</span>
+            <span className="text-amber-300">{`${showcasePercentage}%`}</span>
           </div>
           <div className="h-2.5 w-full bg-white/10 rounded-full overflow-hidden">
             <div
-              className={`h-full bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 rounded-full transition-all duration-500 ${loading ? "animate-pulse opacity-50" : ""}`}
-              style={{ width: loading ? "30%" : `${showcasePercentage}%` }}
+              className="h-full bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 rounded-full transition-all duration-500"
+              style={{ width: `${showcasePercentage}%` }}
             />
           </div>
         </div>
@@ -415,8 +415,8 @@ export function Achievements() {
         <div className="flex items-center gap-2">
           {[
             { id: "ALL", label: `All (${enrichedAchievements.length})` },
-            { id: "UNLOCKED", label: loading ? "Unlocked (...)" : `Unlocked (${totalUnlockedCount})` },
-            { id: "LOCKED", label: loading ? "In Progress (...)" : `In Progress (${totalCount - totalUnlockedCount})` },
+            { id: "UNLOCKED", label: `Unlocked (${totalUnlockedCount})` },
+            { id: "LOCKED", label: `In Progress (${totalCount - totalUnlockedCount})` },
           ].map((f) => (
             <button
               key={f.id}
@@ -435,27 +435,7 @@ export function Achievements() {
 
       {/* Achievement Grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? (
-          [1, 2, 3, 4, 5, 6].map((sk) => (
-            <div
-              key={sk}
-              className="p-5 rounded-3xl border border-[var(--border-default)] bg-[var(--bg-surface)] animate-pulse space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[var(--bg-elevated)]" />
-                  <div className="space-y-1.5">
-                    <div className="h-4 w-32 bg-[var(--bg-elevated)] rounded" />
-                    <div className="h-3 w-20 bg-[var(--bg-elevated)] rounded" />
-                  </div>
-                </div>
-                <div className="h-6 w-14 bg-[var(--bg-elevated)] rounded-full" />
-              </div>
-              <div className="h-10 w-full bg-[var(--bg-elevated)] rounded-xl" />
-              <div className="h-2 w-full bg-[var(--bg-elevated)] rounded-full" />
-            </div>
-          ))
-        ) : filteredItems.length === 0 ? (
+        {filteredItems.length === 0 ? (
           <div className="col-span-full p-16 rounded-3xl glass-card text-center space-y-2">
             <span className="text-4xl">🏅</span>
             <p className="text-sm font-black text-[var(--text-primary)]">No achievements match your filter</p>

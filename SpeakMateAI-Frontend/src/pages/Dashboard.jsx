@@ -15,8 +15,6 @@ import {
   buyStreakFreeze,
   repairBrokenStreak,
   syncBackendProgress,
-  claimDailyQuoteXP,
-  isDailyQuoteClaimedToday,
   getLocalDateStr,
 } from "../utils/progressTracker";
 import {
@@ -148,17 +146,15 @@ export function Dashboard() {
     () => safeString(user?.englishLevel || localStorage.getItem("speakmate_english_level"), "Beginner")
   );
 
-  // Aligned student detection matching Navbar and mobile app
+  // Aligned student detection matching condition 4 of user spec
   const isStudent = useMemo(() => {
     const effectiveAcc = user?.accountType || accountType;
-    if (effectiveAcc === "INDIVIDUAL_USER" || effectiveAcc === "USER") return false;
+    if (effectiveAcc === "INDIVIDUAL_USER" || effectiveAcc === "USER" || user?.role === "USER") return false;
+    if (user?.role === "TEACHER" || user?.role === "SCHOOL_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") return false;
     return Boolean(
-      effectiveAcc === "STUDENT" ||
       user?.role === "STUDENT" ||
-      Boolean(user?.isSchoolStudent) ||
-      Boolean(user?.schoolId) ||
-      (effectiveAcc !== "INDIVIDUAL_USER" && Boolean(user?.schoolGrade)) ||
-      (effectiveAcc !== "INDIVIDUAL_USER" && localStorage.getItem("speakmate_account_type") === "STUDENT")
+      effectiveAcc === "STUDENT" ||
+      Boolean(user?.isSchoolStudent)
     );
   }, [accountType, user]);
 
@@ -174,7 +170,6 @@ export function Dashboard() {
   }, [user?.accountType, user?.schoolGrade, user?.ageGroup, user?.englishLevel]);
 
   const [dashboardData, setDashboardData] = useState(() => getCachedDashboardData(user?.email));
-  const [isInitialLoading, setIsInitialLoading] = useState(() => !getCachedDashboardData(user?.email));
 
   // Initial stats with safe fallbacks and preloaded dashboard metrics
   const [stats, setStats] = useState(() => {
@@ -191,7 +186,7 @@ export function Dashboard() {
     const totalHoursVal = backendStats.totalStudyHours != null
       ? Number(backendStats.totalStudyHours)
       : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
-    const wordsVal = backendStats.vocabularyLearned ?? cached?.progress?.totalVocabularyWords ?? synced.wordsLearned;
+    const wordsVal = backendStats.vocabularyLearned ?? cached?.progress?.totalVocabularyWords ?? synced.wordsLearned ?? 0;
 
     return {
       ...live,
@@ -200,8 +195,8 @@ export function Dashboard() {
       accuracy: accuracyVal,
       totalHours: totalHoursVal,
       wordsLearned: wordsVal,
-      speakingSessions: backendStats.speakingSessions ?? synced.speakingSessions,
-      completedLessons: backendStats.completedLessons ?? synced.completedLessons,
+      speakingSessions: backendStats.speakingSessions ?? synced.speakingSessions ?? 0,
+      completedLessons: backendStats.completedLessons ?? synced.completedLessons ?? 0,
       streak: Number(synced.streak ?? cached?.streak ?? cached?.progress?.streak ?? live.streak ?? 0),
       xp: Number(synced.xp ?? cached?.progress?.xp ?? cached?.xp ?? live.xp ?? 0),
       streakFreezes: Number(synced.streakFreezes ?? live.streakFreezes ?? 0),
@@ -216,15 +211,6 @@ export function Dashboard() {
   const [leaderboardModalOpen, setLeaderboardModalOpen] = useState(false);
 
   const [dailyQuote, setDailyQuote] = useState(() => fetchOrGetDailyQuote(null));
-  const [challengeClaimed, setChallengeClaimed] = useState(() => isDailyQuoteClaimedToday(user));
-
-  // Snappy fallback safety timer: ensure loader never lingers more than 1.2s
-  useEffect(() => {
-    const safetyTimer = setTimeout(() => {
-      setIsInitialLoading(false);
-    }, 1200);
-    return () => clearTimeout(safetyTimer);
-  }, []);
 
   const calculatedRank = getRankTier(stats.xp || user?.xp || 0);
   const currentRankName = stats.rank || user?.rank || calculatedRank.name;
@@ -257,7 +243,8 @@ export function Dashboard() {
       todayMins: liveStats.todayMins ?? prev.todayMins ?? 0,
       completedMins: liveStats.todayMins ?? prev.todayMins ?? 0,
       dailyGoalMins: userGoal,
-      badgesUnlocked: Number(liveStats.badgesUnlocked ?? prev.badgesUnlocked ?? 0),
+      totalHours: Number(prev.totalHours ?? liveStats.totalHours ?? 0.0),
+      badgesUnlocked: Number(prev.badgesUnlocked ?? liveStats.badgesUnlocked ?? 0),
     }));
 
     Promise.all([
@@ -327,13 +314,11 @@ export function Dashboard() {
             dailyGoalMins: targetFromBackend || userGoal,
             badgesUnlocked: finalBadgesUnlocked,
           }));
-          setChallengeClaimed(isDailyQuoteClaimedToday(user));
         }
       })
       .catch(() => {})
       .finally(() => {
         setIsLoading(false);
-        setIsInitialLoading(false);
       });
   }, [user]);
 
@@ -383,10 +368,6 @@ export function Dashboard() {
 
     const handleProgressEvent = (e) => {
       const updated = e?.detail || getLiveProgressStats(user);
-      const today = getLocalDateStr();
-      if (updated?.lastQuoteClaimDate === today) {
-        setChallengeClaimed(true);
-      }
       setStats((prev) => ({
         ...prev,
         ...updated,
@@ -395,18 +376,13 @@ export function Dashboard() {
         streakFreezes: Number(updated.streakFreezes ?? prev.streakFreezes ?? 0),
         todayMins: updated.todayMins ?? prev.todayMins ?? 0,
         completedMins: updated.todayMins ?? prev.todayMins ?? 0,
+        totalHours: Number(prev.totalHours ?? updated.totalHours ?? 0.0),
+        badgesUnlocked: Number(prev.badgesUnlocked ?? updated.badgesUnlocked ?? 0),
       }));
-      setChallengeClaimed(isDailyQuoteClaimedToday(user));
     };
 
     const handleCurriculumEvent = () => {
       refreshStats();
-    };
-
-    const handleStorageEvent = (e) => {
-      if (e.key && e.key.includes("speakmate")) {
-        setChallengeClaimed(isDailyQuoteClaimedToday(user));
-      }
     };
 
     window.addEventListener("focus", refreshStats);
@@ -415,7 +391,6 @@ export function Dashboard() {
     window.addEventListener("speakmate_settings_updated", handleSettingsEvent);
     window.addEventListener("speakmate_age_group_changed", handleAgeEvent);
     window.addEventListener("storage", handleStorage);
-    window.addEventListener("storage", handleStorageEvent);
 
     return () => {
       window.removeEventListener("focus", refreshStats);
@@ -424,7 +399,6 @@ export function Dashboard() {
       window.removeEventListener("speakmate_settings_updated", handleSettingsEvent);
       window.removeEventListener("speakmate_age_group_changed", handleAgeEvent);
       window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("storage", handleStorageEvent);
     };
   }, [refreshStats, user]);
 
@@ -432,28 +406,7 @@ export function Dashboard() {
     speakGlobalText(text);
   };
 
-  const handleAcceptChallenge = () => {
-    if (isDailyQuoteClaimedToday(user)) {
-      setChallengeClaimed(true);
-      toast.info("You have already accepted today's quote goal!");
-      return;
-    }
-    const res = claimDailyQuoteXP(20, user);
-    if (res.success) {
-      setChallengeClaimed(true);
-      setStats((prev) => ({
-        ...prev,
-        ...res.stats,
-        xp: Number(res.stats.xp ?? prev.xp ?? 0),
-      }));
-      toast.success(res.message);
-    } else {
-      setChallengeClaimed(true);
-      toast.info(res.message);
-    }
-  };
-
-  // Daily practice goal metrics connected directly to user's onboarding choice
+  // Daily practice goal metrics connected directly to authoritative backend summary
   const dailyTargetMins = Number(
     dashboardData?.dailyGoal?.targetSpeakingMinutes ||
     dashboardData?.dailyGoal?.dailyGoalMinutes ||
@@ -467,15 +420,16 @@ export function Dashboard() {
   );
 
   const lessonsToday = Number(
-    dashboardData?.dailyGoal?.lessonsCompletedToday ?? stats.lessonsCompletedToday ?? (stats.lessonsCompleted > 0 ? 1 : 0)
+    dashboardData?.dailyGoal?.lessonsCompletedToday ?? stats.lessonsCompletedToday ?? 0
   );
 
   const vocabToday = Number(
-    dashboardData?.dailyGoal?.vocabularyCompleted ?? stats.wordsLearnedToday ?? Math.min(5, stats.wordsLearned || 0)
+    dashboardData?.dailyGoal?.vocabularyCompleted ?? stats.wordsLearnedToday ?? 0
   );
 
   const vocabTarget = Number(dashboardData?.dailyGoal?.vocabularyTarget || 5);
 
+  // Authoritative daily goal percentage: 0% default if no practice today; never fabricates 75%
   const goalPercentage = dashboardData?.dailyGoal?.percentage != null
     ? Math.round(dashboardData.dailyGoal.percentage)
     : Math.min(
@@ -487,8 +441,9 @@ export function Dashboard() {
 
   const isGoalCompleted = goalPercentage >= 100 || speakingMinsToday >= dailyTargetMins;
 
-  // Continue learning item from dashboard or active track fallback
-  const continueItem = dashboardData?.continueLearning || {
+  // Continue learning item from dashboard or active track fallback with safe numerical progress
+  const rawContinue = dashboardData?.continueLearning;
+  const continueItem = rawContinue || {
     title: isStudent ? `${activeGrade} English Speech Masterclass` : `${activeAgeGroup} Fluent Speaking Track`,
     module: "Speaking Session",
     description: isStudent
@@ -497,6 +452,10 @@ export function Dashboard() {
     progress: Math.min(85, Math.max(20, (stats.lessonsCompleted || 0) * 15)),
     targetRoute: ROUTES.SPEAKING,
   };
+
+  const continueProgress = Math.round(
+    rawContinue?.progressPercent ?? rawContinue?.progress ?? continueItem.progress ?? 0
+  );
 
   const formattedToday = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -692,40 +651,7 @@ export function Dashboard() {
     },
   ], [totalLessonsCount, actualCompletedLessons, backendStats, stats]);
 
-  if (isInitialLoading && !dashboardData) {
-    return (
-      <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[var(--bg-base)] transition-all duration-300">
-        <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
-          {/* Animated Dual-Ring Emblem Matching Admin Reference */}
-          <div className="relative flex h-24 w-24 items-center justify-center">
-            {/* Outer spinning ring */}
-            <div className="absolute inset-0 rounded-full border-[3px] border-[#6C63FF]/20 border-t-[#6C63FF] animate-spin" />
-            {/* Inner counter-spinning ring */}
-            <div className="absolute inset-2 rounded-full border-[3px] border-purple-500/20 border-b-purple-500 animate-[spin_1.5s_linear_infinite_reverse]" />
-            {/* Center glowing badge */}
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6C63FF] to-purple-600 text-white shadow-lg shadow-[#6C63FF]/30">
-              <Sparkles className="h-6 w-6" />
-            </div>
-          </div>
 
-          <h2 className="mt-6 text-xl font-extrabold tracking-tight text-[#6C63FF]">
-            SpeakMate AI
-          </h2>
-          <div className="mt-2 flex items-center gap-1 text-sm font-semibold tracking-wide text-[var(--text-secondary)]">
-            Loading dashboard
-            <span className="flex w-4">
-              <span className="animate-[ping_1.4s_infinite] text-xl leading-none">.</span>
-              <span className="animate-[ping_1.4s_0.2s_infinite] text-xl leading-none">.</span>
-              <span className="animate-[ping_1.4s_0.4s_infinite] text-xl leading-none">.</span>
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-[var(--text-muted)] font-medium">
-            Synchronizing your live fluency statistics and streaks
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 px-2 sm:px-4 lg:px-6 py-2">
@@ -1130,12 +1056,12 @@ export function Dashboard() {
             <div className="pt-2 max-w-md space-y-1">
               <div className="flex justify-between text-[11px] font-black text-[var(--text-secondary)]">
                 <span>Course Progress</span>
-                <span className="text-[#6C63FF]">{continueItem.progress}%</span>
+                <span className="text-[#6C63FF]">{continueProgress}%</span>
               </div>
               <div className="h-2 w-full rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6]"
-                  style={{ width: `${continueItem.progress}%` }}
+                  style={{ width: `${continueProgress}%` }}
                 />
               </div>
             </div>
@@ -1404,19 +1330,6 @@ export function Dashboard() {
             >
               <span>🔊 Listen Quote</span>
             </button>
-
-            {!challengeClaimed ? (
-              <button
-                onClick={handleAcceptChallenge}
-                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] text-white text-xs font-black shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
-              >
-                Accept (+20 XP)
-              </button>
-            ) : (
-              <span className="text-xs font-black text-emerald-500 bg-emerald-500/15 px-4 py-1.5 rounded-full border border-emerald-500/20">
-                ✓ Goal Accepted! (+20 XP)
-              </span>
-            )}
           </div>
         </div>
       </div>

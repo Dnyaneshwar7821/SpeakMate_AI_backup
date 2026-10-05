@@ -39,10 +39,14 @@ export function AuthProvider({ children }) {
     if (!userData) return;
     try {
       const isStudentUser = Boolean(
-        userData.accountType === "STUDENT" ||
+        (userData.accountType === "STUDENT" ||
         userData.isSchoolStudent ||
-        userData.role === "STUDENT" ||
-        userData.schoolId
+        userData.role === "STUDENT") &&
+        userData.role !== "USER" &&
+        userData.role !== "TEACHER" &&
+        userData.role !== "SCHOOL_ADMIN" &&
+        userData.role !== "ADMIN" &&
+        userData.role !== "SUPER_ADMIN"
       );
 
       const effectiveAccountType = isStudentUser ? "STUDENT" : (userData.accountType || "INDIVIDUAL_USER");
@@ -168,10 +172,14 @@ export function AuthProvider({ children }) {
 
         if (activeUser) {
           const isStudent = Boolean(
-            activeUser?.isSchoolStudent ||
+            (activeUser?.isSchoolStudent ||
             activeUser?.accountType === "STUDENT" ||
-            activeUser?.role === "STUDENT" ||
-            activeUser?.schoolId
+            activeUser?.role === "STUDENT") &&
+            activeUser?.role !== "USER" &&
+            activeUser?.role !== "TEACHER" &&
+            activeUser?.role !== "SCHOOL_ADMIN" &&
+            activeUser?.role !== "ADMIN" &&
+            activeUser?.role !== "SUPER_ADMIN"
           );
 
           const isPaidPlan = (plan) => Boolean(plan && plan.toUpperCase() !== "FREE");
@@ -305,7 +313,12 @@ export function AuthProvider({ children }) {
   const login = async (credentials) => {
     try {
       try {
-        sessionStorage.removeItem("speakmate_dashboard_data_cache");
+        const sessionKeys = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith("speakmate_dashboard_")) sessionKeys.push(k);
+        }
+        sessionKeys.forEach((k) => sessionStorage.removeItem(k));
       } catch (_) {}
       const response = await authService.login(credentials);
       if (response && response.token) {
