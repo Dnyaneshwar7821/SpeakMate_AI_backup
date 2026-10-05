@@ -25,6 +25,7 @@ const api = axios.create({
   timeout: 120000, // 120s to allow Render free-tier cold starts
   headers: {
     'Content-Type': 'application/json',
+    'X-Client-Platform': 'MOBILE',
   },
 });
 

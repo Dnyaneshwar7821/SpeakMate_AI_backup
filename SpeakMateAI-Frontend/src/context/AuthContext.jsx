@@ -9,7 +9,10 @@ const STORAGE_KEYS = {
   token: "speakmate_token",
   user: "speakmate_user",
   onboardingCompleted: "speakmate_onboarding_completed",
+  sessionExpiresAt: "speakmate_session_expires_at",
 };
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -100,6 +103,17 @@ export function AuthProvider({ children }) {
   const restoreSession = useCallback(async () => {
     try {
       setLoading(true);
+      const expiresAtStr = localStorage.getItem(STORAGE_KEYS.sessionExpiresAt);
+      if (expiresAtStr) {
+        const expiresAt = parseInt(expiresAtStr, 10);
+        if (expiresAt && Date.now() >= expiresAt) {
+          console.warn("[AuthContext] 24-hour web session expired on restore.");
+          logout();
+          setLoading(false);
+          return;
+        }
+      }
+
       const storedToken = localStorage.getItem(STORAGE_KEYS.token);
       const storedUser = localStorage.getItem(STORAGE_KEYS.user);
       const storedOnboardingCompleted = localStorage.getItem(STORAGE_KEYS.onboardingCompleted) === "true";
@@ -208,7 +222,40 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!token) return;
+
+    const checkExpiration = () => {
+      const expiresAtStr = localStorage.getItem(STORAGE_KEYS.sessionExpiresAt);
+      if (expiresAtStr) {
+        const expiresAt = parseInt(expiresAtStr, 10);
+        if (expiresAt && Date.now() >= expiresAt) {
+          console.warn("[AuthContext] 24-hour web session expired. Logging out.");
+          logout();
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (checkExpiration()) return;
+
+    let timer = null;
+    const expiresAtStr = localStorage.getItem(STORAGE_KEYS.sessionExpiresAt);
+    if (expiresAtStr) {
+      const expiresAt = parseInt(expiresAtStr, 10);
+      const remaining = expiresAt - Date.now();
+      if (remaining > 0) {
+        timer = setTimeout(() => {
+          console.warn("[AuthContext] 24 hours reached. Session expired.");
+          logout();
+        }, remaining);
+      } else {
+        logout();
+        return;
+      }
+    }
+
     const handleSync = () => {
+      if (checkExpiration()) return;
       if (document.visibilityState === "visible") {
         refreshUserProfile();
       }
@@ -216,10 +263,11 @@ export function AuthProvider({ children }) {
     window.addEventListener("focus", handleSync);
     window.addEventListener("visibilitychange", handleSync);
     return () => {
+      if (timer) clearTimeout(timer);
       window.removeEventListener("focus", handleSync);
       window.removeEventListener("visibilitychange", handleSync);
     };
-  }, [token, refreshUserProfile]);
+  }, [token, refreshUserProfile, logout]);
 
   const logout = useCallback(() => {
     try {
@@ -259,6 +307,8 @@ export function AuthProvider({ children }) {
       } catch (_) {}
       const response = await authService.login(credentials);
       if (response && response.token) {
+        const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
+        localStorage.setItem(STORAGE_KEYS.sessionExpiresAt, String(expiresAt));
         localStorage.setItem(STORAGE_KEYS.token, response.token);
         setToken(response.token);
         if (response.user) {
@@ -290,6 +340,8 @@ export function AuthProvider({ children }) {
     try {
       const response = await authService.register(userData);
       if (response && response.token) {
+        const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
+        localStorage.setItem(STORAGE_KEYS.sessionExpiresAt, String(expiresAt));
         localStorage.setItem(STORAGE_KEYS.token, response.token);
         setToken(response.token);
         if (response.user) {

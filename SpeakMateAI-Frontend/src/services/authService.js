@@ -2,7 +2,8 @@ import api from "./api";
 
 export const authService = {
   login: async (payload) => {
-    const response = await api.post("/api/users/login", payload);
+    const data = typeof payload === "object" ? { ...payload, clientType: "WEB" } : payload;
+    const response = await api.post("/api/users/login", data);
     return response.data;
   },
 

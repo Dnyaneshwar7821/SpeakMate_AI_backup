@@ -26,6 +26,8 @@ public class LoginRequest {
 
 	private String loginType; // e.g. "STUDENT", "STANDARD", "SCHOOL"
 
+	private String clientType; // "MOBILE" or "WEB"
+
 	public LoginRequest(String email, String password) {
 		this.email = com.rslsolution.speakmateai.util.ValidationUtils.normalizeEmail(email);
 		this.password = password;
@@ -52,6 +54,9 @@ public class LoginRequest {
 	public String getLoginType() { return loginType; }
 	public void setLoginType(String loginType) { this.loginType = loginType; }
 
+	public String getClientType() { return clientType; }
+	public void setClientType(String clientType) { this.clientType = clientType; }
+
 	public static LoginRequestBuilder builder() {
 		return new LoginRequestBuilder();
 	}
@@ -62,12 +67,14 @@ public class LoginRequest {
 		private String schoolCode;
 		private String portalType;
 		private String loginType;
+		private String clientType;
 
 		public LoginRequestBuilder email(String email) { this.email = email; return this; }
 		public LoginRequestBuilder password(String password) { this.password = password; return this; }
 		public LoginRequestBuilder schoolCode(String schoolCode) { this.schoolCode = schoolCode; return this; }
 		public LoginRequestBuilder portalType(String portalType) { this.portalType = portalType; return this; }
 		public LoginRequestBuilder loginType(String loginType) { this.loginType = loginType; return this; }
+		public LoginRequestBuilder clientType(String clientType) { this.clientType = clientType; return this; }
 
 		public LoginRequest build() {
             LoginRequest obj = new LoginRequest();
@@ -76,6 +83,7 @@ public class LoginRequest {
             obj.setSchoolCode(schoolCode);
             obj.setPortalType(portalType);
             obj.setLoginType(loginType);
+            obj.setClientType(clientType);
             return obj;
         }
 	}

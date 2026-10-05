@@ -11,12 +11,25 @@ const api = axios.create({
   timeout: 45000,
   headers: {
     "Content-Type": "application/json",
+    "X-Client-Platform": "WEB",
   },
 });
 
 api.interceptors.request.use(
   (config) => {
     try {
+      const expiresAtStr = localStorage.getItem("speakmate_session_expires_at");
+      if (expiresAtStr) {
+        const expiresAt = parseInt(expiresAtStr, 10);
+        if (expiresAt && Date.now() >= expiresAt) {
+          console.warn("[API] 24-hour web session expired. Triggering logout.");
+          if (logoutCallback) {
+            logoutCallback();
+          }
+          return Promise.reject(new Error("Your 24-hour session has expired. Please log in again."));
+        }
+      }
+
       const token = localStorage.getItem("speakmate_token");
       if (token && token !== "null" && token !== "undefined") {
         config.headers.Authorization = `Bearer ${token}`;

@@ -18,7 +18,10 @@ const sanitizePayloadEmail = (payload) => {
 export const authService = {
   login: async (payload) => {
     const data = sanitizePayloadEmail(payload);
-    const response = await api.post("/api/users/login", data);
+    const response = await api.post("/api/users/login", {
+      ...data,
+      clientType: "MOBILE",
+    });
     return response.data;
   },
 

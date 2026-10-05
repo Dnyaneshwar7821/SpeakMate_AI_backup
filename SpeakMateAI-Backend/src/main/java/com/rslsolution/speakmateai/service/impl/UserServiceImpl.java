@@ -396,7 +396,9 @@ public class UserServiceImpl implements UserService {
 			}
 		}
 
-		String token = jwtUtil.generateToken(user.getEmail());
+		String token = (request.getClientType() != null && !request.getClientType().isBlank())
+				? jwtUtil.generateToken(user.getEmail(), request.getClientType())
+				: jwtUtil.generateToken(user.getEmail());
 
 		return AuthResponse.builder().token(token).user(mapToUserResponse(user)).build();
 	}
@@ -412,7 +414,9 @@ public class UserServiceImpl implements UserService {
 		if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
 			throw new InvalidCredentialsException("Incorrect password");
 		}
-		String token = jwtUtil.generateUserToken(user.getEmail(), "SCHOOL_ADMIN");
+		String token = (request.getClientType() != null && !request.getClientType().isBlank())
+				? jwtUtil.generateUserToken(user.getEmail(), "SCHOOL_ADMIN", request.getClientType())
+				: jwtUtil.generateUserToken(user.getEmail(), "SCHOOL_ADMIN");
 		return AuthResponse.builder().token(token).user(mapToUserResponse(user)).build();
 	}
 
@@ -427,7 +431,9 @@ public class UserServiceImpl implements UserService {
 		if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
 			throw new InvalidCredentialsException("Incorrect password");
 		}
-		String token = jwtUtil.generateUserToken(user.getEmail(), "TEACHER");
+		String token = (request.getClientType() != null && !request.getClientType().isBlank())
+				? jwtUtil.generateUserToken(user.getEmail(), "TEACHER", request.getClientType())
+				: jwtUtil.generateUserToken(user.getEmail(), "TEACHER");
 		return AuthResponse.builder().token(token).user(mapToUserResponse(user)).build();
 	}
 
@@ -442,7 +448,9 @@ public class UserServiceImpl implements UserService {
 		if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
 			throw new InvalidCredentialsException("Incorrect password");
 		}
-		String token = jwtUtil.generateUserToken(user.getEmail(), "STUDENT");
+		String token = (request.getClientType() != null && !request.getClientType().isBlank())
+				? jwtUtil.generateUserToken(user.getEmail(), "STUDENT", request.getClientType())
+				: jwtUtil.generateUserToken(user.getEmail(), "STUDENT");
 		return AuthResponse.builder().token(token).user(mapToUserResponse(user)).build();
 	}
 
@@ -460,7 +468,9 @@ public class UserServiceImpl implements UserService {
 			throw new InvalidCredentialsException("Incorrect password");
 		}
 		String tokenRole = user.getRole() == Role.STUDENT ? "STUDENT" : "USER";
-		String token = jwtUtil.generateUserToken(user.getEmail(), tokenRole);
+		String token = (request.getClientType() != null && !request.getClientType().isBlank())
+				? jwtUtil.generateUserToken(user.getEmail(), tokenRole, request.getClientType())
+				: jwtUtil.generateUserToken(user.getEmail(), tokenRole);
 		return AuthResponse.builder().token(token).user(mapToUserResponse(user)).build();
 	}
 
