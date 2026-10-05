@@ -448,37 +448,6 @@ export function Lessons() {
                   )}
                 </h2>
               </div>
-              {continueItems.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--text-secondary)] font-medium hidden sm:inline">
-                    Slide or use arrows
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (continueRowRef.current) {
-                        continueRowRef.current.scrollBy({ left: -340, behavior: 'smooth' });
-                      }
-                    }}
-                    className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-[#6C63FF]/20 text-[var(--text-primary)] border border-white/10 flex items-center justify-center transition-all shadow-sm active:scale-95 text-xs font-bold"
-                    title="Slide Left"
-                  >
-                    ◀
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (continueRowRef.current) {
-                        continueRowRef.current.scrollBy({ left: 340, behavior: 'smooth' });
-                      }
-                    }}
-                    className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-[#6C63FF]/20 text-[var(--text-primary)] border border-white/10 flex items-center justify-center transition-all shadow-sm active:scale-95 text-xs font-bold"
-                    title="Slide Right"
-                  >
-                    ▶
-                  </button>
-                </div>
-              )}
             </div>
 
             <div
