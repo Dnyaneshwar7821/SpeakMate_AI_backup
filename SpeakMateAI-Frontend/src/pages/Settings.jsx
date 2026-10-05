@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -50,6 +50,10 @@ const normalizeAgeGroup = (rawAge) => {
 export function Settings() {
   const toast = useToast();
   const { user, updateUser, completeOnboarding } = useAuth();
+
+  const accountType = user?.accountType || user?.role || localStorage.getItem("speakmate_account_type") || "INDIVIDUAL";
+  const isStudent = accountType === "STUDENT" || user?.role === "STUDENT" || Boolean(user?.isSchoolStudent) || Boolean(user?.schoolGrade) || Boolean(user?.standard) || Boolean(localStorage.getItem("speakmate_school_grade"));
+  const schoolGrade = user?.schoolGrade || (user?.standard ? `${user.standard}th Std` : localStorage.getItem("speakmate_school_grade") || "1st Std");
 
   const [accent, setAccent] = useState(() => localStorage.getItem("speakmate_voice_accent") || "US");
   const [selectedVoice, setSelectedVoice] = useState(() => localStorage.getItem("speakmate_ai_voice") || "Default");
@@ -220,6 +224,10 @@ export function Settings() {
   };
 
   const handleSelectAgeGroup = (val) => {
+    if (isStudent) {
+      toast.info(`School Student Mode 🔒: Your target persona and curriculum are automatically managed according to your School Standard (${schoolGrade}).`);
+      return;
+    }
     setSelectedAgeGroup(val);
     localStorage.setItem("speakmate_age_group", val);
     onboardingService.update({ ageGroup: val }).catch(() => {});
@@ -237,6 +245,14 @@ export function Settings() {
     window.dispatchEvent(new CustomEvent("speakmate_settings_updated", { detail: { ageGroup: val } }));
     window.dispatchEvent(new Event("speakmate_progress_updated"));
     toast.success(`Age profile updated to ${val} ✓`);
+  };
+
+  const handleOpenPersonaModal = () => {
+    if (isStudent) {
+      toast.info(`School Student Mode 🔒: Your target persona and learning curriculum are automatically managed according to your School Standard (${schoolGrade}).`);
+      return;
+    }
+    setShowPersonaModal(true);
   };
 
   const handleToggleReminders = () => {
@@ -268,7 +284,17 @@ export function Settings() {
     l.label.toLowerCase().includes(langSearch.toLowerCase()) || l.native.toLowerCase().includes(langSearch.toLowerCase())
   );
 
-  const activePersona = AGE_OPTIONS.find((a) => a.code === selectedAgeGroup) || AGE_OPTIONS[3];
+  const studentPersona = useMemo(() => ({
+    label: `School Student Standard`,
+    ageRange: schoolGrade,
+    emoji: "🎓",
+    badge: "Curriculum Aligned",
+    desc: `Auto-configured for ${schoolGrade}. All conversation scenarios, vocabulary, and grammar tests are aligned with your school curriculum.`,
+  }), [schoolGrade]);
+
+  const activePersona = isStudent
+    ? studentPersona
+    : (AGE_OPTIONS.find((a) => a.code === selectedAgeGroup) || AGE_OPTIONS[3]);
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8 px-2 sm:px-4 lg:px-6 py-2">
@@ -434,52 +460,96 @@ export function Settings() {
           <div>
             <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] flex items-center gap-2">
               <span>👥</span> Target Persona Age Profile
+              {isStudent && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                  🔒 Locked
+                </span>
+              )}
             </h2>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">
-              Curates conversation scenarios, speaking cards, and dashboard tone to your age group.
+              {isStudent
+                ? `Auto-configured for ${schoolGrade} • Syllabus and speaking practice are managed by your school curriculum.`
+                : "Curates conversation scenarios, speaking cards, and dashboard tone to your age group."}
             </p>
           </div>
-          <span className="text-[10px] font-black px-3 py-1 rounded-full bg-[#6C63FF]/15 text-[#6C63FF] border border-[#6C63FF]/30 self-start sm:self-auto">
-            Adaptive AI Tone Active ✨
-          </span>
+          {isStudent ? (
+            <span className="text-[10px] font-black px-3 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 self-start sm:self-auto flex items-center gap-1.5 shadow-sm">
+              <span>🔒</span> School Student Mode
+            </span>
+          ) : (
+            <span className="text-[10px] font-black px-3 py-1 rounded-full bg-[#6C63FF]/15 text-[#6C63FF] border border-[#6C63FF]/30 self-start sm:self-auto">
+              Adaptive AI Tone Active ✨
+            </span>
+          )}
         </div>
 
-        {/* Active Selected Persona Highlight Card */}
-        <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#6C63FF]/20 via-[#7C3AED]/15 to-[#EC4899]/20 border-2 border-[#6C63FF]/30 grid place-items-center shadow-lg shrink-0 text-3xl sm:text-4xl">
-              {activePersona.emoji}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
-                  Active Persona
-                </span>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-cyan-500/15 text-cyan-400 border-cyan-500/30">
-                  {activePersona.ageRange}
-                </span>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
-                  {activePersona.badge}
-                </span>
+        {/* Active Selected Persona Highlight Card Container */}
+        <div className="relative overflow-hidden rounded-3xl">
+          <div
+            className={`p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 transition-all ${
+              isStudent ? "filter blur-[2px] opacity-60 select-none pointer-events-none" : ""
+            }`}
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#6C63FF]/20 via-[#7C3AED]/15 to-[#EC4899]/20 border-2 border-[#6C63FF]/30 grid place-items-center shadow-lg shrink-0 text-3xl sm:text-4xl">
+                {activePersona.emoji}
               </div>
-              <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">
-                {activePersona.label} ({activePersona.ageRange})
-              </h3>
-              <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
-                {activePersona.desc}
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
+                    {isStudent ? "School Standard" : "Active Persona"}
+                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-cyan-500/15 text-cyan-400 border-cyan-500/30">
+                    {activePersona.ageRange}
+                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                    {activePersona.badge}
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">
+                  {activePersona.label} ({activePersona.ageRange})
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
+                  {activePersona.desc}
+                </p>
+              </div>
+            </div>
+
+            <div className="w-full lg:w-auto shrink-0 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={handleOpenPersonaModal}
+                disabled={isStudent}
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <span>👥 Choose Persona</span>
+              </button>
             </div>
           </div>
 
-          <div className="w-full lg:w-auto shrink-0 flex items-center justify-end">
-            <button
-              type="button"
-              onClick={() => setShowPersonaModal(true)}
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
+          {/* Student Mode Non-Selectable Overlay (Matches Mobile App behavior) */}
+          {isStudent && (
+            <div
+              onClick={() => {
+                toast.info(`School Student Mode 🔒: Your target persona and learning curriculum are automatically managed according to your School Standard (${schoolGrade}).`);
+              }}
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center p-6 bg-black/25 dark:bg-black/40 backdrop-blur-[1px] rounded-3xl border border-amber-500/30 cursor-not-allowed transition-all select-none"
+              title={`Locked: Auto-configured for ${schoolGrade}`}
             >
-              <span>👥 Choose Persona</span>
-            </button>
-          </div>
+              <div className="flex flex-col items-center gap-2 max-w-md">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--bg-surface)]/95 border border-amber-500/40 shadow-xl text-xs font-black text-amber-500">
+                  <span className="text-base">🔒</span>
+                  <span>School Student Mode • {schoolGrade}</span>
+                </div>
+                <p className="text-xs font-bold text-white drop-shadow-md">
+                  Target persona is locked and auto-calibrated to your school curriculum.
+                </p>
+                <p className="text-[11px] text-white/80 font-medium">
+                  Assigned by your school. Click to learn more.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -741,7 +811,7 @@ export function Settings() {
       )}
 
       {/* ── TARGET PERSONA POPUP MODAL (PORTALED TO BODY) ── */}
-      {showPersonaModal && createPortal(
+      {showPersonaModal && !isStudent && createPortal(
         <div
           className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => setShowPersonaModal(false)}
