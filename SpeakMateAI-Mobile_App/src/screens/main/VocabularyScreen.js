@@ -121,6 +121,45 @@ const CURRICULUM_DATA = {
   ],
 };
 
+const DELETED_VOCAB_STORAGE_KEY = 'speakmate_deleted_vocab_words';
+
+const getDeletedVocabSet = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(DELETED_VOCAB_STORAGE_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr.map((x) => String(x).toLowerCase().trim()) : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const markVocabWordDeleted = async (item) => {
+  try {
+    const current = await getDeletedVocabSet();
+    if (item.word) current.add(String(item.word).toLowerCase().trim());
+    if (item.id) current.add(String(item.id).toLowerCase().trim());
+    await AsyncStorage.setItem(DELETED_VOCAB_STORAGE_KEY, JSON.stringify([...current]));
+  } catch {}
+};
+
+const unmarkVocabWordDeleted = async (wrd) => {
+  try {
+    const current = await getDeletedVocabSet();
+    const target = String(wrd).toLowerCase().trim();
+    current.delete(target);
+    await AsyncStorage.setItem(DELETED_VOCAB_STORAGE_KEY, JSON.stringify([...current]));
+  } catch {}
+};
+
+const getPracticeCardFontSize = (w = '') => {
+  const len = String(w || '').trim().length;
+  if (len <= 8) return 36;
+  if (len <= 13) return 28;
+  if (len <= 18) return 22;
+  return 18;
+};
+
 export default function VocabularyScreen() {
   const { isDark, theme } = useTheme();
   const [activeTab, setActiveTab] = useState('list'); // 'list', 'flashcards', 'quiz'
@@ -210,16 +249,23 @@ export default function VocabularyScreen() {
 
       // Base Curated List for User's Profile
       const curatedBase = CURRICULUM_DATA[profileKey] || CURRICULUM_DATA['1st Std'];
+      const deletedSet = await getDeletedVocabSet();
 
       // Merge with custom user added words
       const combined = [...(backendWords || [])];
       for (const cw of curatedBase) {
-        if (!combined.some((w) => w.word.toLowerCase() === cw.word.toLowerCase())) {
+        if (!combined.some((w) => (w.word || '').toLowerCase() === (cw.word || '').toLowerCase())) {
           combined.push(cw);
         }
       }
 
-      setUserWords(combined);
+      const activeWords = combined.filter((w) => {
+        const wordKey = (w.word || '').toLowerCase().trim();
+        const idKey = String(w.id || '').toLowerCase().trim();
+        return !deletedSet.has(wordKey) && !deletedSet.has(idKey);
+      });
+
+      setUserWords(activeWords);
     } catch (e) {
       console.warn('Failed to load profile vocabulary:', e);
     }
@@ -322,31 +368,218 @@ export default function VocabularyScreen() {
     }
   }, [currentCardIndex, activeTab, settings?.autoPlayAudio]);
 
-  // Add Custom Word with AI
+  // Add Custom Word with AI & Strict English Validation
   const addWord = async () => {
     const cleanWord = word.trim();
     if (!cleanWord) return;
+
+    // 1. Strict Duplicate Check: Never award XP for already added words
+    const isDuplicate = userWords.some(
+      (w) => (w.word || '').toLowerCase().trim() === cleanWord.toLowerCase()
+    );
+    if (isDuplicate) {
+      Alert.alert('Duplicate Word', `"${cleanWord}" is already in your vocabulary list!`);
+      return;
+    }
+
+    // 2. Strict English Word Format & Lexical Validation (letters, hyphens, spaces only, 2-45 chars)
+    const englishWordPattern = /^[A-Za-z]+([ -][A-Za-z]+)*$/;
+    if (!englishWordPattern.test(cleanWord) || cleanWord.length < 2 || cleanWord.length > 45) {
+      Alert.alert(
+        'Invalid Word',
+        `"${cleanWord}" is not a valid English word. SpeakMate AI accepts valid English words only (letters only, no numbers or special symbols).`
+      );
+      return;
+    }
+
+    // 3. Reject non-English words and foreign greetings
+    const nonEnglishWords = new Set([
+      'bonjour', 'hola', 'gracias', 'merci', 'namaste', 'ciao', 'danke',
+      'amigo', 'arigato', 'adios', 'sayonara', 'hallo', 'shalom', 'salam',
+      'konnichiwa', 'aloha', 'chao', 'oui', 'si', 'por favor', "s'il vous plait"
+    ]);
+    if (nonEnglishWords.has(cleanWord.toLowerCase())) {
+      Alert.alert(
+        'Foreign Word',
+        `"${cleanWord}" is a non-English word. SpeakMate AI is dedicated to English language fluency. Please enter a valid English vocabulary word.`
+      );
+      return;
+    }
+
+    // 4. Prevent repeated character mashing (e.g. "aaaaaa", "zzzzzz")
+    if (/([a-zA-Z])\1{3,}/.test(cleanWord)) {
+      Alert.alert(
+        'Keyboard Mashing',
+        `"${cleanWord}" appears to be random keyboard mashing. Please enter a meaningful English vocabulary word.`
+      );
+      return;
+    }
+
+    // 5. Catch consonant-only meaningless strings (words of 3+ letters without any vowels)
+    if (cleanWord.length >= 3 && !/[aeiouy]/i.test(cleanWord)) {
+      Alert.alert(
+        'Unrecognized Word',
+        `"${cleanWord}" does not appear to be a recognized English word. Please enter a meaningful English vocabulary word.`
+      );
+      return;
+    }
+
     setSaving(true);
     try {
+      // 6. Call backend vocabulary service (validates via AI lexicographer & DB)
       const response = await vocabularyService.add(cleanWord);
+      if (!response || !response.word) {
+        throw new Error('Unable to verify word definition.');
+      }
+
+      await unmarkVocabWordDeleted(cleanWord);
       setWord('');
-      Alert.alert('Word Added ✨', `"${cleanWord}" added with AI pronunciation and meaning! (+5 XP)`);
-      setUserWords((prev) => [response, ...prev]);
-    } catch (error) {
-      const localItem = {
-        id: 'loc_' + Date.now(),
-        word: cleanWord,
-        partOfSpeech: 'word',
-        meaning: `Definition and conversational usage for ${cleanWord}`,
-        example: `Practice using "${cleanWord}" naturally in daily English speaking.`,
-        favorite: false,
-      };
-      setUserWords((prev) => [localItem, ...prev]);
-      setWord('');
-      Alert.alert('Saved ✨', `"${cleanWord}" added to your word bank!`);
+      setUserWords((prev) => [
+        response,
+        ...prev.filter((w) => (w.word || '').toLowerCase().trim() !== cleanWord.toLowerCase()),
+      ]);
+
+      // Award XP ONLY upon confirmed valid addition
+      try {
+        const prog = await progressService.get().catch(() => null);
+        if (prog) {
+          await progressService.update({
+            ...prog,
+            xp: (prog.xp || 0) + 5,
+            totalVocabularyWords: (prog.totalVocabularyWords || 0) + 1,
+          });
+        }
+      } catch (_) {}
+
+      Alert.alert('Word Added ✨', `"${response.word}" added with AI definition! (+5 XP)`);
+    } catch (e) {
+      const serverMsg = e.response?.data?.message || e.message || '';
+      const status = e.response?.status;
+
+      // If backend explicitly rejected with validation or tutor explanation:
+      if (
+        status === 400 ||
+        (serverMsg &&
+          (serverMsg.toLowerCase().includes('not a valid') ||
+            serverMsg.toLowerCase().includes('already in your') ||
+            serverMsg.toLowerCase().includes('keyboard mashing') ||
+            serverMsg.toLowerCase().includes('cannot be added') ||
+            serverMsg.toLowerCase().includes('not recognized') ||
+            serverMsg.toLowerCase().includes('foreign') ||
+            serverMsg.toLowerCase().includes('different language')))
+      ) {
+        Alert.alert('Word Not Accepted', serverMsg || `"${cleanWord}" is not accepted as a valid English word.`);
+        return;
+      }
+
+      // If backend was unreachable, fallback to verifying with public English Dictionary API:
+      try {
+        const dictRes = await fetch(
+          `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`
+        );
+        if (dictRes.ok) {
+          const dictData = await dictRes.json();
+          if (Array.isArray(dictData) && dictData.length > 0) {
+            const entry = dictData[0];
+            const meaningObj = entry.meanings?.[0];
+            const defObj = meaningObj?.definitions?.[0];
+            const verifiedItem = {
+              id: 'loc_' + Date.now(),
+              word: entry.word || cleanWord,
+              partOfSpeech: meaningObj?.partOfSpeech || 'word',
+              phonetic: entry.phonetic || entry.phonetics?.[0]?.text || '',
+              meaning: defObj?.definition || `Definition for ${cleanWord}`,
+              example: defObj?.example || `Practice using "${cleanWord}" naturally in daily English speaking.`,
+              synonym: defObj?.synonyms?.[0] || meaningObj?.synonyms?.[0] || 'None',
+              favorite: false,
+              mastered: false,
+            };
+
+            await unmarkVocabWordDeleted(cleanWord);
+            setWord('');
+            setUserWords((prev) => [
+              verifiedItem,
+              ...prev.filter((w) => (w.word || '').toLowerCase().trim() !== cleanWord.toLowerCase()),
+            ]);
+
+            try {
+              const prog = await progressService.get().catch(() => null);
+              if (prog) {
+                await progressService.update({
+                  ...prog,
+                  xp: (prog.xp || 0) + 5,
+                  totalVocabularyWords: (prog.totalVocabularyWords || 0) + 1,
+                });
+              }
+            } catch (_) {}
+
+            Alert.alert('Verified ✨', `"${verifiedItem.word}" verified and added to your vocabulary! (+5 XP)`);
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // If neither backend nor dictionary API recognized it: REJECT with 0 XP!
+      Alert.alert(
+        'Invalid Vocabulary Word',
+        `"${cleanWord}" is not recognized in English dictionaries. SpeakMate AI is dedicated to English language fluency. Please enter a valid English vocabulary word.`
+      );
     } finally {
       setSaving(false);
     }
+  };
+
+  // Delete Vocabulary Word
+  const handleDeleteWord = (item) => {
+    if (!item) return;
+    const wordName = item.word || 'Word';
+
+    Alert.alert(
+      'Delete Word',
+      `Are you sure you want to remove "${wordName}" from your vocabulary?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // 1. Remove from local state immediately
+            setUserWords((prev) =>
+              prev.filter((w) => {
+                const sameId = w.id && item.id && String(w.id) === String(item.id);
+                const sameWord =
+                  w.word && item.word && w.word.toLowerCase().trim() === item.word.toLowerCase().trim();
+                return !sameId && !sameWord;
+              })
+            );
+
+            // 2. Blacklist in AsyncStorage so curated base won't restore it on next reload
+            await markVocabWordDeleted(item);
+
+            // 3. Decrement user vocabulary stats
+            try {
+              const prog = await progressService.get().catch(() => null);
+              if (prog && prog.totalVocabularyWords > 0) {
+                await progressService.update({
+                  ...prog,
+                  totalVocabularyWords: Math.max(0, (prog.totalVocabularyWords || 1) - 1),
+                });
+              }
+            } catch (_) {}
+
+            // 4. Adjust card index
+            setCurrentCardIndex((prev) => Math.max(0, prev > 0 ? prev - 1 : 0));
+
+            // 5. Call backend if id exists and is not a static local curated id
+            if (item.id && (typeof item.id === 'number' || !String(item.id).startsWith('v'))) {
+              vocabularyService.remove(item.id).catch(() => {});
+            }
+
+            Alert.alert('Deleted', `"${wordName}" removed from your vocabulary.`);
+          },
+        },
+      ]
+    );
   };
 
   // Toggle Favorite
@@ -407,7 +640,7 @@ export default function VocabularyScreen() {
   };
 
   // =========================================================================
-  // CARD INTERACTION: FRONT TAP -> FLIP & SPEAK MEANING, BACK TAP -> FLIP & SPEAK WORD
+  // CARD INTERACTION: FRONT TAP -> FLIP & SPEAK MEANING & AUTO-MASTER, BACK TAP -> FLIP & SPEAK WORD
   // =========================================================================
   const handleCardTap = () => {
     if (isFlippingRef.current) return;
@@ -415,9 +648,12 @@ export default function VocabularyScreen() {
 
     const nextFlipped = !flipped;
 
-    // When flipping to back (meaning side) -> AI speaks the meaning!
+    // When flipping to back (meaning side) -> AI speaks the meaning & automatically masters!
     if (nextFlipped && currentCard) {
       playWordPronunciation(currentCard.meaning ? `${currentCard.word}. ${currentCard.meaning}` : currentCard.word);
+      if (!currentCard.mastered) {
+        toggleMastered(currentCard);
+      }
     } 
     // When flipping back to front (word side) -> AI speaks the word!
     else if (!nextFlipped && currentCard) {
@@ -434,12 +670,15 @@ export default function VocabularyScreen() {
     });
   };
 
-  // Speaker button on front replays word, on back replays meaning
+  // Speaker button on front replays word, on back replays meaning & auto-masters
   const handleSpeakerTap = (e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (currentCard) {
       if (flipped) {
         playWordPronunciation(currentCard.meaning ? `${currentCard.word}. ${currentCard.meaning}` : currentCard.word);
+        if (!currentCard.mastered) {
+          toggleMastered(currentCard);
+        }
       } else {
         playWordPronunciation(currentCard.word);
       }
@@ -787,7 +1026,7 @@ export default function VocabularyScreen() {
                   AI Word Lookup & Add
                 </Text>
               </View>
-              <Text style={styles.xpBadge}>+10 XP</Text>
+              <Text style={styles.xpBadge}>+5 XP</Text>
             </View>
 
             <Text style={[styles.addSubtitle, { color: isDark ? '#C7D2FE' : '#4338CA' }]}>
@@ -912,6 +1151,13 @@ export default function VocabularyScreen() {
                           </Text>
                         </View>
                       ) : null}
+                      {item.mastered ? (
+                        <View style={[styles.posBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#D1FAE5' }]}>
+                          <Text style={[styles.posBadgeText, { color: '#10B981' }]}>
+                            ✓
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
 
@@ -919,18 +1165,30 @@ export default function VocabularyScreen() {
                     <TouchableOpacity
                       onPress={() => playWordPronunciation(item.word)}
                       style={[styles.actionBtn, { backgroundColor: isDark ? '#334155' : '#EEF2FF' }]}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Pronounce ${item.word}`}
                     >
-                      <Ionicons name="volume-high" size={18} color="#6366F1" />
+                      <Ionicons name="volume-high" size={17} color="#6366F1" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => toggleFavorite(item)}
                       style={[styles.actionBtn, { backgroundColor: isDark ? '#334155' : '#FEF3C7' }]}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Toggle favorite for ${item.word}`}
                     >
                       <Ionicons
                         name={item.favorite ? 'star' : 'star-outline'}
-                        size={18}
+                        size={17}
                         color={item.favorite ? '#F59E0B' : theme.textSecondary}
                       />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteWord(item)}
+                      style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Delete ${item.word}`}
+                    >
+                      <Ionicons name="trash-outline" size={17} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1061,17 +1319,31 @@ export default function VocabularyScreen() {
                     colors={isDark ? ['#1E293B', '#0F172A'] : ['#FFFFFF', '#F8FAFC']}
                     style={styles.cardInnerGradient}
                   >
-                    {/* Top Row: Part of Speech + Isolated Speaker Button */}
+                    {/* Top Row: Part of Speech + Mastered Badge + Isolated Speaker Button */}
                     <View style={styles.cardTopRow}>
-                      <View
-                        style={[
-                          styles.posBadgeElevated,
-                          { backgroundColor: isDark ? '#312E81' : '#EEF2FF', borderColor: isDark ? '#4338CA' : '#C7D2FE' },
-                        ]}
-                      >
-                        <Text style={[styles.posBadgeTextElevated, { color: isDark ? '#A5B4FC' : '#4F46E5' }]}>
-                          {currentCard.partOfSpeech || 'VOCABULARY'}
-                        </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1, marginRight: 8 }}>
+                        <View
+                          style={[
+                            styles.posBadgeElevated,
+                            { backgroundColor: isDark ? '#312E81' : '#EEF2FF', borderColor: isDark ? '#4338CA' : '#C7D2FE' },
+                          ]}
+                        >
+                          <Text style={[styles.posBadgeTextElevated, { color: isDark ? '#A5B4FC' : '#4F46E5' }]}>
+                            {currentCard.partOfSpeech || 'VOCABULARY'}
+                          </Text>
+                        </View>
+                        {currentCard.mastered && (
+                          <View
+                            style={[
+                              styles.posBadgeElevated,
+                              { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#D1FAE5', borderColor: '#10B981' },
+                            ]}
+                          >
+                            <Text style={[styles.posBadgeTextElevated, { color: '#10B981' }]}>
+                              ✓ MASTERED
+                            </Text>
+                          </View>
+                        )}
                       </View>
 
                       {/* Speaker with Pulse Speaking Animation */}
@@ -1102,7 +1374,13 @@ export default function VocabularyScreen() {
                       <Text
                         numberOfLines={2}
                         adjustsFontSizeToFit
-                        style={[styles.frontWordText, { color: isDark ? '#FFFFFF' : '#0F172A' }]}
+                        style={[
+                          styles.frontWordText,
+                          {
+                            color: isDark ? '#FFFFFF' : '#0F172A',
+                            fontSize: getPracticeCardFontSize(currentCard.word),
+                          },
+                        ]}
                       >
                         {currentCard.word}
                       </Text>
@@ -1117,7 +1395,7 @@ export default function VocabularyScreen() {
                     >
                       <Ionicons name="swap-horizontal" size={16} color="#6366F1" />
                       <Text style={[styles.tapToFlipText, { color: isDark ? '#94A3B8' : '#475569' }]}>
-                        Tap card to reveal meaning
+                        Tap card to reveal meaning & master
                       </Text>
                     </View>
                   </LinearGradient>
@@ -1144,7 +1422,7 @@ export default function VocabularyScreen() {
                     colors={isDark ? ['#1E293B', '#0F172A'] : ['#FFFFFF', '#F8FAFC']}
                     style={styles.cardInnerGradient}
                   >
-                    {/* Top Row: Word in secondary position + Isolated Speaker Button */}
+                    {/* Top Row: Word in secondary position + Mastered Badge + Isolated Speaker Button */}
                     <View style={styles.cardTopRow}>
                       <View style={styles.backWordRow}>
                         <Text style={[styles.backWordTitle, { color: '#6366F1' }]}>{currentCard.word}</Text>
@@ -1155,6 +1433,13 @@ export default function VocabularyScreen() {
                             </Text>
                           </View>
                         ) : null}
+                        {currentCard.mastered && (
+                          <View style={[styles.posBadgeSmall, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#D1FAE5', borderColor: '#10B981' }]}>
+                            <Text style={[styles.posBadgeTextSmall, { color: '#10B981' }]}>
+                              ✓ Mastered
+                            </Text>
+                          </View>
+                        )}
                       </View>
 
                       {/* Speaker with Pulse Speaking Animation */}
@@ -1690,21 +1975,23 @@ const styles = StyleSheet.create({
   wordHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   wordTitleCol: {
     flex: 1,
+    marginRight: 8,
   },
   wordBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   wordText: {
     fontSize: 18,
     fontWeight: '800',
+    flexShrink: 1,
   },
   posBadge: {
     paddingHorizontal: 8,
@@ -1719,7 +2006,8 @@ const styles = StyleSheet.create({
   cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexShrink: 0,
   },
   actionBtn: {
     width: 34,
@@ -1727,6 +2015,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   meaningText: {
     fontSize: 14,
