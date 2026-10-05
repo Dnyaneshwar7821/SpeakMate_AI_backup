@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { achievementService, dashboardService } from "../services/appServices";
-import { getLiveProgressStats, syncBackendProgress } from "../utils/progressTracker";
+import { getLiveProgressStats, syncBackendProgress, saveProgressStats } from "../utils/progressTracker";
 
 const MASTER_ACHIEVEMENTS = [
   // --- Speaking & Fluency ---
@@ -295,6 +295,14 @@ export function Achievements() {
       };
     });
   }, [liveStats, backendAchievements]);
+
+  useEffect(() => {
+    const unlockedCount = enrichedAchievements.filter((i) => i.unlocked).length;
+    const current = getLiveProgressStats();
+    if (current && current.badgesUnlocked !== unlockedCount) {
+      saveProgressStats({ ...current, badgesUnlocked: unlockedCount }, null, false);
+    }
+  }, [enrichedAchievements]);
 
   // Filter items
   const filteredItems = useMemo(() => {

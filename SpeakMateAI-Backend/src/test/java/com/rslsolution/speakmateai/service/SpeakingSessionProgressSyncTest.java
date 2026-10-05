@@ -95,7 +95,16 @@ public class SpeakingSessionProgressSyncTest {
         when(progressRepository.save(any(Progress.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Neon DB has 6 completed sessions
-        when(speakingSessionRepository.countByUserAndCompletedTrue(sampleUser)).thenReturn(6L);
+        List<SpeakingSession> completedSessions = List.of(
+                SpeakingSession.builder().id(1L).scenario("Daily Conversation").duration(120).completed(true).build(),
+                SpeakingSession.builder().id(2L).scenario("Daily Conversation").duration(120).completed(true).build(),
+                SpeakingSession.builder().id(3L).scenario("Daily Conversation").duration(120).completed(true).build(),
+                SpeakingSession.builder().id(4L).scenario("Daily Conversation").duration(120).completed(true).build(),
+                SpeakingSession.builder().id(5L).scenario("Show & Tell").duration(120).completed(true).build(),
+                SpeakingSession.builder().id(6L).scenario("Show & Tell").duration(120).completed(true).build()
+        );
+        when(speakingSessionRepository.findByUserAndCompletedTrue(sampleUser)).thenReturn(completedSessions);
+        lenient().when(speakingSessionRepository.countByUserAndCompletedTrue(sampleUser)).thenReturn(6L);
         when(vocabularyRepository.countByUser(sampleUser)).thenReturn(10L);
         when(grammarHistoryRepository.countByUserId(152L)).thenReturn(5L);
 
@@ -236,7 +245,7 @@ public class SpeakingSessionProgressSyncTest {
                 SpeakingSession.builder().id(5L).scenario("Show & Tell").xpEarned(20).duration(120).completed(true).build(),
                 SpeakingSession.builder().id(6L).scenario("Show & Tell").xpEarned(20).duration(120).completed(true).build()
         );
-        when(speakingSessionRepository.countByUserAndCompletedTrue(sampleUser)).thenReturn(6L);
+        lenient().when(speakingSessionRepository.countByUserAndCompletedTrue(sampleUser)).thenReturn(6L);
         when(speakingSessionRepository.findByUserAndCompletedTrue(sampleUser)).thenReturn(completedSessions);
         when(lessonProgressRepository.findByUser(sampleUser)).thenReturn(List.of());
 

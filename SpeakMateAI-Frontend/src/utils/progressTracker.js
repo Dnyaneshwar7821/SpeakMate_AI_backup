@@ -54,6 +54,38 @@ const STREAK_MILESTONES = [
   { days: 100, xp: 1500, title: "100-Day Centurion 👑", desc: "Legendary 100-day mastery status." },
 ];
 
+// Calculate badges unlocked dynamically matching all 18 Master Achievements
+export const calculateUnlockedBadges = (stats) => {
+  if (!stats) return 0;
+  let badges = 0;
+  // 1. Speaking & Fluency (4 badges)
+  if ((stats.speakingSessions || 0) >= 1) badges += 1;
+  if ((stats.distinctScenarios || 0) >= 5 || (stats.speakingSessions || 0) >= 5) badges += 1;
+  if ((stats.speakingSessions || 0) >= 15) badges += 1;
+  if ((stats.speakingSessions || 0) >= 30) badges += 1;
+  // 2. Grammar & Accuracy (4 badges)
+  if ((stats.grammarChecks || 0) >= 1) badges += 1;
+  if ((stats.grammarChecks || 0) >= 10) badges += 1;
+  if ((stats.grammarChecks || 0) >= 25) badges += 1;
+  if ((stats.grammarChecks || 0) >= 50) badges += 1;
+  // 3. Vocabulary & Word Bank (3 badges)
+  if ((stats.wordsLearned || 0) >= 5) badges += 1;
+  if ((stats.wordsLearned || 0) >= 20) badges += 1;
+  if ((stats.wordsLearned || 0) >= 50) badges += 1;
+  // 4. Streaks & Consistency (4 badges)
+  const maxStreak = Math.max(stats.streak || 0, stats.longestStreak || 0);
+  if (maxStreak >= 3) badges += 1;
+  if (maxStreak >= 7) badges += 1;
+  if (maxStreak >= 14) badges += 1;
+  if (maxStreak >= 30) badges += 1;
+  // 5. Mastery & Experience (3 badges)
+  if ((stats.xp || 0) >= 250) badges += 1;
+  if ((stats.level || 1) >= 5 || (stats.xp || 0) >= 2000) badges += 1; // Level 5 Achiever (2,000 XP)
+  if ((stats.xp || 0) >= 2000) badges += 1; // Mastery Grandmaster (2,000 XP)
+
+  return badges;
+};
+
 export const getLiveProgressStats = (userContext = null) => {
   const today = getLocalDateStr();
   const storageKey = getStorageKey(userContext);
@@ -157,33 +189,7 @@ export const getLiveProgressStats = (userContext = null) => {
 
   const totalHours = (stored.speakingMins / 60).toFixed(1);
 
-  // Calculate badges unlocked dynamically matching all 18 Master Achievements
-  let badges = 0;
-  // 1. Speaking & Fluency (4 badges)
-  if ((stored.speakingSessions || 0) >= 1) badges += 1;
-  if ((stored.distinctScenarios || 0) >= 5 || (stored.speakingSessions || 0) >= 5) badges += 1;
-  if ((stored.speakingSessions || 0) >= 15) badges += 1;
-  if ((stored.speakingSessions || 0) >= 30) badges += 1;
-  // 2. Grammar & Accuracy (4 badges)
-  if ((stored.grammarChecks || 0) >= 1) badges += 1;
-  if ((stored.grammarChecks || 0) >= 10) badges += 1;
-  if ((stored.grammarChecks || 0) >= 25) badges += 1;
-  if ((stored.grammarChecks || 0) >= 50) badges += 1;
-  // 3. Vocabulary & Word Bank (3 badges)
-  if ((stored.wordsLearned || 0) >= 5) badges += 1;
-  if ((stored.wordsLearned || 0) >= 20) badges += 1;
-  if ((stored.wordsLearned || 0) >= 50) badges += 1;
-  // 4. Streaks & Consistency (4 badges)
-  if ((stored.streak || 0) >= 3 || (stored.longestStreak || 0) >= 3) badges += 1;
-  if ((stored.streak || 0) >= 7 || (stored.longestStreak || 0) >= 7) badges += 1;
-  if ((stored.streak || 0) >= 14 || (stored.longestStreak || 0) >= 14) badges += 1;
-  if ((stored.streak || 0) >= 30 || (stored.longestStreak || 0) >= 30) badges += 1;
-  // 5. Mastery & Experience (3 badges)
-  if ((stored.xp || 0) >= 250) badges += 1;
-  if ((stored.xp || 0) >= 1000 || (stored.level || 1) >= 3) badges += 1;
-  if ((stored.xp || 0) >= 2000 || (stored.level || 1) >= 5) badges += 1;
-
-  stored.badgesUnlocked = badges;
+  stored.badgesUnlocked = calculateUnlockedBadges(stored);
 
   // Generate 7-day visual calendar data aligned Monday to Sunday for the current week
   const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -335,6 +341,9 @@ export const syncBackendProgress = (backendData, userContext = null) => {
     backendAccuracy,
     streakFreezes: finalFreezes,
   };
+
+  const calculatedBadges = calculateUnlockedBadges(synced);
+  synced.badgesUnlocked = backendData.badgesUnlocked != null ? Number(backendData.badgesUnlocked) : calculatedBadges;
 
   saveProgressStats(synced, userContext, false);
 

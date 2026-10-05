@@ -493,6 +493,7 @@ public class DashboardServiceImpl implements DashboardService {
 				.recommendations(recommendationsList)
 				.achievements(achievementsRes)
 				.notifications(notificationResList)
+				.badgesUnlocked(unlockedAchievements != null ? unlockedAchievements.size() : 0)
 				.build();
 	}
 

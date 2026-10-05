@@ -247,12 +247,39 @@ public class AchievementServiceImpl implements AchievementService {
 		int speaking = progress.getTotalSpeakingSessions() != null ? progress.getTotalSpeakingSessions() : 0;
 		int xp = progress.getXp() != null ? progress.getXp() : 0;
 		int userLevel = progress.getLevel() != null ? progress.getLevel() : Math.max(1, (xp / 500) + 1);
+		int vocab = progress.getTotalVocabularyWords() != null ? progress.getTotalVocabularyWords() : 0;
+		int grammar = progress.getTotalGrammarChecks() != null ? progress.getTotalGrammarChecks() : 0;
+		int streak = Math.max(progress.getCurrentStreak() != null ? progress.getCurrentStreak() : 0,
+				progress.getLongestStreak() != null ? progress.getLongestStreak() : 0);
 
-		if ("First Voice Conversation".equalsIgnoreCase(title) && speaking == 0) return true;
+		// Speaking
+		if ("First Voice Conversation".equalsIgnoreCase(title) && speaking < 1) return true;
 		if ("Confident Conversationalist".equalsIgnoreCase(title) && distinctScenarios < 5) return true;
 		if ("Fluency Champion".equalsIgnoreCase(title) && speaking < 15) return true;
 		if ("Orator Supreme".equalsIgnoreCase(title) && speaking < 30) return true;
-		if ("Level 5 Achiever".equalsIgnoreCase(title) && userLevel < 5) return true;
+
+		// Grammar
+		if ("Grammar Inspector".equalsIgnoreCase(title) && grammar < 1) return true;
+		if ("Syntax Detective".equalsIgnoreCase(title) && grammar < 10) return true;
+		if ("Tense Master".equalsIgnoreCase(title) && grammar < 25) return true;
+		if ("Grammar Scholar".equalsIgnoreCase(title) && grammar < 50) return true;
+
+		// Vocabulary
+		if ("Word Collector".equalsIgnoreCase(title) && vocab < 5) return true;
+		if ("Lexicon Expander".equalsIgnoreCase(title) && vocab < 20) return true;
+		if ("Vocabulary Maestro".equalsIgnoreCase(title) && vocab < 50) return true;
+
+		// Streaks
+		if ("3-Day Habit Starter".equalsIgnoreCase(title) && streak < 3) return true;
+		if ("7-Day Week Warrior".equalsIgnoreCase(title) && streak < 7) return true;
+		if ("14-Day Dedication".equalsIgnoreCase(title) && streak < 14) return true;
+		if ("30-Day Legend".equalsIgnoreCase(title) && streak < 30) return true;
+
+		// Mastery
+		if ("XP Explorer".equalsIgnoreCase(title) && xp < 250) return true;
+		if ("Level 5 Achiever".equalsIgnoreCase(title) && userLevel < 5 && xp < 2000) return true;
+		if ("Mastery Grandmaster".equalsIgnoreCase(title) && xp < 2000) return true;
+
 		return false;
 	}
 

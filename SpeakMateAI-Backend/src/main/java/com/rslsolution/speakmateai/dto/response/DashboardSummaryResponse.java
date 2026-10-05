@@ -29,6 +29,10 @@ public class DashboardSummaryResponse {
 	private List<RecommendationResponse> recommendations;
 	private List<AchievementResponse> achievements;
 	private List<NotificationResponse> notifications;
+	private Integer badgesUnlocked;
+
+	public Integer getBadgesUnlocked() { return badgesUnlocked; }
+	public void setBadgesUnlocked(Integer badgesUnlocked) { this.badgesUnlocked = badgesUnlocked; }
 
 	public String getRank() { return rank; }
 	public void setRank(String rank) { this.rank = rank; }
@@ -103,7 +107,9 @@ public class DashboardSummaryResponse {
 		private List<RecommendationResponse> recommendations;
 		private List<AchievementResponse> achievements;
 		private List<NotificationResponse> notifications;
+		private Integer badgesUnlocked;
 
+		public DashboardSummaryResponseBuilder badgesUnlocked(Integer badgesUnlocked) { this.badgesUnlocked = badgesUnlocked; return this; }
 		public DashboardSummaryResponseBuilder rank(String rank) { this.rank = rank; return this; }
 		public DashboardSummaryResponseBuilder profile(ProfileResponse profile) { this.profile = profile; return this; }
 		public DashboardSummaryResponseBuilder progress(ProgressResponse progress) { this.progress = progress; return this; }
@@ -141,6 +147,7 @@ public class DashboardSummaryResponse {
             obj.setRecommendations(recommendations);
             obj.setAchievements(achievements);
             obj.setNotifications(notifications);
+            obj.setBadgesUnlocked(badgesUnlocked);
             return obj;
         }
 	}

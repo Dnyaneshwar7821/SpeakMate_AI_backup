@@ -126,11 +126,23 @@ async function runRecalculation() {
       let distinctScenarios = 0;
       try {
         const distRes = await client.query(
-          "SELECT count(DISTINCT LOWER(TRIM(COALESCE(NULLIF(scenario, ''), topic))))::int as count FROM speaking_session WHERE user_id = $1 AND completed = true",
+          "SELECT count(DISTINCT LOWER(TRIM(COALESCE(NULLIF(scenario, ''), topic))))::int as count FROM speaking_sessions WHERE user_id = $1 AND completed = true",
           [u.id]
         );
         distinctScenarios = distRes.rows[0].count;
       } catch (err) {}
+
+      // User streaks
+      let currentStreak = 0;
+      let longestStreak = 0;
+      try {
+        const strRes = await client.query("SELECT current_streak, longest_streak FROM progress WHERE user_id = $1", [u.id]);
+        if (strRes.rows.length > 0) {
+          currentStreak = strRes.rows[0].current_streak || 0;
+          longestStreak = strRes.rows[0].longest_streak || 0;
+        }
+      } catch (err) {}
+      const streakVal = Math.max(currentStreak, longestStreak);
 
       // Re-evaluate achievements
       let achievementXp = 0;
@@ -139,14 +151,36 @@ async function runRecalculation() {
         for (const a of achRes.rows) {
           if (a.unlocked) {
             let relock = false;
+            // Speaking
             if (a.title === 'First Voice Conversation' && completedSpeakingCount < 1) relock = true;
             if (a.title === 'Confident Conversationalist' && distinctScenarios < 5) relock = true;
             if (a.title === 'Fluency Champion' && completedSpeakingCount < 15) relock = true;
             if (a.title === 'Orator Supreme' && completedSpeakingCount < 30) relock = true;
+
+            // Grammar
+            if (a.title === 'Grammar Inspector' && grammarCount < 1) relock = true;
+            if (a.title === 'Syntax Detective' && grammarCount < 10) relock = true;
+            if (a.title === 'Tense Master' && grammarCount < 25) relock = true;
+            if (a.title === 'Grammar Scholar' && grammarCount < 50) relock = true;
+
+            // Vocabulary
+            if (a.title === 'Word Collector' && vocabCount < 5) relock = true;
+            if (a.title === 'Lexicon Expander' && vocabCount < 20) relock = true;
+            if (a.title === 'Vocabulary Maestro' && vocabCount < 50) relock = true;
+
+            // Streaks
+            if (a.title === '3-Day Habit Starter' && streakVal < 3) relock = true;
+            if (a.title === '7-Day Week Warrior' && streakVal < 7) relock = true;
+            if (a.title === '14-Day Dedication' && streakVal < 14) relock = true;
+            if (a.title === '30-Day Legend' && streakVal < 30) relock = true;
+
+            // Mastery
+            const potentialXp = speakingXp + lessonXp + (vocabCount * 5) + (grammarCount * 5) + achievementXp + (a.xp_reward || 50);
+            if (a.title === 'XP Explorer' && potentialXp < 250) relock = true;
             if (a.title === 'Level 5 Achiever') {
-              const potentialXp = speakingXp + lessonXp + (vocabCount * 5) + (grammarCount * 5) + achievementXp + (a.xp_reward || 200);
-              if (Math.max(1, Math.floor(potentialXp / 500) + 1) < 5) relock = true;
+              if (Math.max(1, Math.floor(potentialXp / 500) + 1) < 5 && potentialXp < 2000) relock = true;
             }
+            if (a.title === 'Mastery Grandmaster' && potentialXp < 2000) relock = true;
 
             if (relock) {
               console.log(`  [Relocking] Achievement "${a.title}" for ${fullName} (conditions not met)`);

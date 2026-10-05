@@ -395,17 +395,49 @@ public class ProgressServiceImpl implements ProgressService {
 					if (Boolean.TRUE.equals(a.getUnlocked())) {
 						boolean relock = false;
 						String title = a.getTitle();
+						// Speaking
 						if ("First Voice Conversation".equalsIgnoreCase(title) && liveSpeakingSessions < 1) relock = true;
 						if ("Confident Conversationalist".equalsIgnoreCase(title) && distinctScenarios < 5) relock = true;
 						if ("Fluency Champion".equalsIgnoreCase(title) && liveSpeakingSessions < 15) relock = true;
 						if ("Orator Supreme".equalsIgnoreCase(title) && liveSpeakingSessions < 30) relock = true;
+
+						// Grammar
+						if ("Grammar Inspector".equalsIgnoreCase(title) && liveGrammarChecks < 1) relock = true;
+						if ("Syntax Detective".equalsIgnoreCase(title) && liveGrammarChecks < 10) relock = true;
+						if ("Tense Master".equalsIgnoreCase(title) && liveGrammarChecks < 25) relock = true;
+						if ("Grammar Scholar".equalsIgnoreCase(title) && liveGrammarChecks < 50) relock = true;
+
+						// Vocabulary
+						if ("Word Collector".equalsIgnoreCase(title) && liveVocabWords < 5) relock = true;
+						if ("Lexicon Expander".equalsIgnoreCase(title) && liveVocabWords < 20) relock = true;
+						if ("Vocabulary Maestro".equalsIgnoreCase(title) && liveVocabWords < 50) relock = true;
+
+						// Streaks
+						int streakVal = Math.max(progress.getCurrentStreak() != null ? progress.getCurrentStreak() : 0,
+								progress.getLongestStreak() != null ? progress.getLongestStreak() : 0);
+						if ("3-Day Habit Starter".equalsIgnoreCase(title) && streakVal < 3) relock = true;
+						if ("7-Day Week Warrior".equalsIgnoreCase(title) && streakVal < 7) relock = true;
+						if ("14-Day Dedication".equalsIgnoreCase(title) && streakVal < 14) relock = true;
+						if ("30-Day Legend".equalsIgnoreCase(title) && streakVal < 30) relock = true;
+
+						// Mastery
+						if ("XP Explorer".equalsIgnoreCase(title)) {
+							int reward = a.getXpReward() != null ? a.getXpReward() : 75;
+							int otherXp = speakingXp + lessonXp + vocabXp + grammarXp + achievementXp;
+							if (otherXp + reward < 250) relock = true;
+						}
 						if ("Level 5 Achiever".equalsIgnoreCase(title)) {
 							int reward = a.getXpReward() != null ? a.getXpReward() : 200;
 							int otherXp = speakingXp + lessonXp + vocabXp + grammarXp + achievementXp;
 							int potentialLevel = Math.max(1, ((otherXp + reward) / 500) + 1);
-							if (potentialLevel < 5) {
+							if (potentialLevel < 5 && (otherXp + reward) < 2000) {
 								relock = true;
 							}
+						}
+						if ("Mastery Grandmaster".equalsIgnoreCase(title)) {
+							int reward = a.getXpReward() != null ? a.getXpReward() : 1000;
+							int otherXp = speakingXp + lessonXp + vocabXp + grammarXp + achievementXp;
+							if (otherXp + reward < 2000) relock = true;
 						}
 
 						if (relock) {

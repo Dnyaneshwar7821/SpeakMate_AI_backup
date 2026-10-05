@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import ROUTES from "../constants/routes";
-import { dashboardService, assignmentService, announcementService } from "../services/appServices";
+import { dashboardService, achievementService, assignmentService, announcementService } from "../services/appServices";
 import { speakGlobalText } from "../utils/speechHelper";
 import { getEnglishLevelLabel } from "../utils/formatters";
 
@@ -208,6 +208,7 @@ export function Dashboard() {
       todayMins: live.todayMins || 0,
       completedMins: live.todayMins || 0,
       dailyGoalMins: cached?.dailyGoal?.targetSpeakingMinutes || cached?.dailyGoal?.dailyGoalMinutes || initialGoal,
+      badgesUnlocked: Number(cached?.badgesUnlocked ?? synced.badgesUnlocked ?? live.badgesUnlocked ?? 0),
     };
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -256,11 +257,14 @@ export function Dashboard() {
       todayMins: liveStats.todayMins ?? prev.todayMins ?? 0,
       completedMins: liveStats.todayMins ?? prev.todayMins ?? 0,
       dailyGoalMins: userGoal,
+      badgesUnlocked: Number(liveStats.badgesUnlocked ?? prev.badgesUnlocked ?? 0),
     }));
 
-    dashboardService
-      .summary()
-      .then((data) => {
+    Promise.all([
+      dashboardService.summary().catch(() => null),
+      achievementService.all().catch(() => null),
+    ])
+      .then(([data, achs]) => {
         if (data) {
           setDashboardData(data);
           setCachedDashboardData(data, user?.email);
@@ -285,11 +289,19 @@ export function Dashboard() {
           const synced = syncBackendProgress(data, user);
           const backendStats = data.statistics || {};
           const backendAccuracy = backendStats.averageScore > 0 ? backendStats.averageScore : null;
+          const finalAccuracy = synced.accuracy ?? backendAccuracy;
           const finalHours = backendStats.totalStudyHours != null
             ? Number(backendStats.totalStudyHours)
             : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
           const finalWords = backendStats.vocabularyLearned ?? data.progress?.totalVocabularyWords ?? synced.wordsLearned;
           const targetFromBackend = data.dailyGoal?.targetSpeakingMinutes || data.dailyGoal?.dailyGoalMinutes;
+
+          const verifiedAchsCount = Array.isArray(achs) && achs.length > 0
+            ? achs.filter((a) => a.unlocked).length
+            : null;
+          const finalBadgesUnlocked = verifiedAchsCount != null
+            ? verifiedAchsCount
+            : (data.badgesUnlocked != null ? Number(data.badgesUnlocked) : (synced.badgesUnlocked ?? 0));
 
           setStats((prev) => ({
             ...prev,
@@ -304,6 +316,7 @@ export function Dashboard() {
             todayMins: synced.todayMins ?? prev.todayMins ?? 0,
             completedMins: synced.todayMins ?? prev.todayMins ?? 0,
             dailyGoalMins: targetFromBackend || userGoal,
+            badgesUnlocked: finalBadgesUnlocked,
           }));
           setChallengeClaimed(isDailyQuoteClaimedToday(user));
         }
