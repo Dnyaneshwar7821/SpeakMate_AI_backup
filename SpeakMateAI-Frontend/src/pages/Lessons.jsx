@@ -562,12 +562,12 @@ export function Lessons() {
                     : "glass-card glass-card-hover border-[var(--border-default)]"
                 }`}
               >
-                <div className="flex items-center justify-center gap-1.5 min-w-0">
+                <div className="flex items-center justify-center gap-2 min-w-0">
                   <Folder
-                    className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                    className={`w-5 h-5 shrink-0 transition-all ${
                       selectedCategory === cat.name
-                        ? "text-white"
-                        : "text-[#6C63FF]"
+                        ? "text-yellow-300 fill-yellow-300 drop-shadow-sm"
+                        : "text-amber-400 fill-amber-400 drop-shadow-sm"
                     }`}
                   />
                   <p className="font-black text-xs truncate">{cat.name}</p>
