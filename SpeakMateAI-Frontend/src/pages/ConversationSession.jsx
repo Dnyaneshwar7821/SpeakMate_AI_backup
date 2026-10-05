@@ -56,7 +56,178 @@ const getScenarioHints = (scenario, lastAiMsg) => {
   ];
 };
 
+// Real-Time "How to Say It" Coach Card matching Mobile App pedagogical architecture
+function CoachCard({ feedback, isDark, onSpeakText }) {
+  if (!feedback) return null;
+  const { grammarCorrection, betterSentence, fluencyTip, followUpQuestion, vocabularySuggestions } = feedback;
+
+  const hasBetter = Boolean(
+    betterSentence &&
+    betterSentence.trim() &&
+    betterSentence.toLowerCase() !== "none" &&
+    betterSentence.toLowerCase() !== "null"
+  );
+  const hasGrammar = Boolean(
+    grammarCorrection &&
+    grammarCorrection.trim() &&
+    grammarCorrection.toLowerCase() !== "none" &&
+    grammarCorrection.toLowerCase() !== "null"
+  );
+  const hasFluency = Boolean(
+    fluencyTip &&
+    fluencyTip.trim() &&
+    fluencyTip.toLowerCase() !== "none" &&
+    fluencyTip.toLowerCase() !== "null"
+  );
+  const hasFollowup = Boolean(
+    followUpQuestion &&
+    followUpQuestion.trim() &&
+    followUpQuestion.toLowerCase() !== "none" &&
+    followUpQuestion.toLowerCase() !== "null"
+  );
+  const hasVocab = Boolean(
+    vocabularySuggestions &&
+    vocabularySuggestions.trim() &&
+    vocabularySuggestions.toLowerCase() !== "none" &&
+    vocabularySuggestions.toLowerCase() !== "null"
+  );
+
+  if (!hasBetter && !hasGrammar && !hasFluency && !hasFollowup && !hasVocab) return null;
+
+  const isGrammarOk =
+    hasGrammar &&
+    (grammarCorrection.includes("✅") ||
+      grammarCorrection.toLowerCase().includes("correct") ||
+      grammarCorrection.toLowerCase().includes("great job") ||
+      grammarCorrection.toLowerCase().includes("clear and natural"));
+
+  return (
+    <div
+      className={`mt-3 p-3 sm:p-3.5 rounded-2xl border backdrop-blur-md space-y-2.5 shadow-md w-full animate-in fade-in duration-300 ${
+        isDark ? "bg-slate-900/90 border-white/10 text-slate-100" : "bg-white/95 border-indigo-100/90 text-slate-800 shadow-indigo-100/50"
+      }`}
+    >
+      {/* Header */}
+      <div className={`flex items-center justify-between pb-2 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm">✨</span>
+          <span className="text-[11px] font-black uppercase tracking-wider text-[#6c63ff]">
+            "How to Say It" Coach Card
+          </span>
+        </div>
+      </div>
+
+      {/* 🚀 Better Natural Sentence */}
+      {hasBetter && (
+        <div
+          className={`p-3 rounded-xl border space-y-1.5 ${
+            isDark ? "bg-[#6c63ff]/15 border-[#6c63ff]/30 text-indigo-100" : "bg-indigo-50/80 border-indigo-200/80 text-indigo-950"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#6c63ff] flex items-center gap-1">
+              🚀 Better Natural Sentence
+            </span>
+            <button
+              type="button"
+              onClick={() => onSpeakText(betterSentence)}
+              className="px-2.5 py-1 rounded-lg bg-[#6c63ff] text-white text-[10px] font-bold hover:bg-[#8b85ff] active:scale-95 transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+              title="Listen to native pronunciation"
+            >
+              <span>🔊 Listen</span>
+            </button>
+          </div>
+          <p className="font-semibold text-xs leading-relaxed">
+            "{betterSentence}"
+          </p>
+        </div>
+      )}
+
+      {/* ✍️ Grammar Accuracy */}
+      {hasGrammar && (
+        <div
+          className={`p-3 rounded-xl border text-xs space-y-1 ${
+            isGrammarOk
+              ? isDark
+                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : isDark
+                ? "bg-amber-500/15 border-amber-500/30 text-amber-200"
+                : "bg-amber-50 border-amber-200 text-amber-800"
+          }`}
+        >
+          <span className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+            ✍️ Grammar Accuracy
+          </span>
+          <p className="font-semibold text-xs leading-relaxed">
+            {isGrammarOk ? `✅ ${grammarCorrection.replace(/^✅\s*/, "")}` : `👉 ${grammarCorrection}`}
+          </p>
+        </div>
+      )}
+
+      {/* 💡 Fluency & Pronunciation Tip */}
+      {hasFluency && (
+        <div
+          className={`p-3 rounded-xl border text-xs space-y-1 ${
+            isDark ? "bg-sky-500/15 border-sky-500/30 text-sky-200" : "bg-sky-50 border-sky-200 text-sky-900"
+          }`}
+        >
+          <span className="text-[10px] font-black uppercase tracking-wider text-sky-500 flex items-center gap-1">
+            💡 Fluency & Pronunciation Tip
+          </span>
+          <p className="font-medium text-xs leading-relaxed">
+            {fluencyTip}
+          </p>
+        </div>
+      )}
+
+      {/* ❓ Follow-up Question */}
+      {hasFollowup && (
+        <div
+          className={`p-3 rounded-xl border space-y-1.5 ${
+            isDark ? "bg-purple-500/15 border-purple-500/30 text-purple-200" : "bg-purple-50 border-purple-200 text-purple-950"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-500 flex items-center gap-1">
+              ❓ Follow-up Question
+            </span>
+            <button
+              type="button"
+              onClick={() => onSpeakText(followUpQuestion)}
+              className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-[10px] font-bold hover:bg-purple-500 active:scale-95 transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+              title="Listen to follow-up question"
+            >
+              <span>🔊 Listen</span>
+            </button>
+          </div>
+          <p className="font-semibold text-xs leading-relaxed">
+            "{followUpQuestion}"
+          </p>
+        </div>
+      )}
+
+      {/* ✨ Vocabulary Upgrade */}
+      {hasVocab && (
+        <div
+          className={`p-2.5 rounded-xl border text-xs space-y-1 ${
+            isDark ? "bg-slate-800/80 border-white/10 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"
+          }`}
+        >
+          <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 flex items-center gap-1">
+            ✨ Vocabulary Upgrade
+          </span>
+          <p className="font-medium text-xs">
+            {vocabularySuggestions}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ConversationSession() {
+
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -117,6 +288,7 @@ export function ConversationSession() {
   const { setExpression } = useExpressions(model);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [hints, setHints] = useState([]);
+  const [showHints, setShowHints] = useState(false);
   const [loadingHints, setLoadingHints] = useState(false);
   const [corrections, setCorrections] = useState(null);
   const [ending, setEnding] = useState(false);
@@ -347,25 +519,37 @@ export function ConversationSession() {
 
     // Replay latest AI message with new speed (Matches Mobile App VoiceService)
     const lastAiMsg = [...messages].reverse().find((m) => m.sender === "ai" || m.role === "assistant");
-    if (lastAiMsg && lastAiMsg.text) {
-      speakGlobalText(lastAiMsg.text, nextSpeed);
+    if (lastAiMsg && (lastAiMsg.message || lastAiMsg.text)) {
+      speakGlobalText(lastAiMsg.message || lastAiMsg.text, nextSpeed);
     }
   };
 
-  const handleFetchHints = async () => {
+  const handleToggleHints = async () => {
     if (isPaused) return;
-    setLoadingHints(true);
-    try {
-      const data = await speakingService.getHints(sessionId).catch(() => [
-        "I would like to practice speaking about my hobbies and work experience.",
-        "Could you ask me a question about my daily routine?",
-      ]);
-      setHints(data || []);
-    } catch (e) {
-      console.warn("Failed to fetch hints:", e);
-    } finally {
-      setLoadingHints(false);
+    if (showHints) {
+      setShowHints(false);
+      return;
     }
+
+    if (hints.length === 0) {
+      setLoadingHints(true);
+      try {
+        let data = null;
+        if (sessionId && !String(sessionId).startsWith("sim_")) {
+          data = await speakingService.getHints(sessionId).catch(() => null);
+        }
+        const lastAi = [...messages].reverse().find((m) => m.sender === "ai");
+        const fallback = getScenarioHints(scenario, lastAi);
+        const resolved = Array.isArray(data) && data.length > 0 ? data : fallback;
+        setHints(resolved);
+      } catch (e) {
+        const lastAi = [...messages].reverse().find((m) => m.sender === "ai");
+        setHints(getScenarioHints(scenario, lastAi));
+      } finally {
+        setLoadingHints(false);
+      }
+    }
+    setShowHints(true);
   };
 
   const handleStartListening = () => {
@@ -455,6 +639,7 @@ export function ConversationSession() {
       coachingTimerRef.current = null;
     }
 
+    setShowHints(false);
     setHints([]);
     setCurrentTranscript("");
     setIsThinking(true);
@@ -504,50 +689,117 @@ export function ConversationSession() {
       setIsThinking(false);
 
       const cleanAiReply = cleanDialogueText(feedback.aiReply || feedback.message || feedback.response);
+      let mainReply = cleanAiReply || "That is very interesting! Can you tell me more about that?";
+      if (feedback.followUpQuestion && !mainReply.toLowerCase().includes(feedback.followUpQuestion.toLowerCase())) {
+        mainReply += ` ${cleanDialogueText(feedback.followUpQuestion)}`;
+      }
+      mainReply = cleanDialogueText(mainReply);
+
+      // 1. Analyze Grammar Check
+      const rawCorrection = feedback.grammarCorrection && typeof feedback.grammarCorrection === "string"
+        ? cleanDialogueText(feedback.grammarCorrection).replace(/^👉\s*/, "")
+        : null;
+      const isGrammarCorrect = !rawCorrection ||
+        rawCorrection.includes("✅") ||
+        rawCorrection.toLowerCase().includes("correct") ||
+        rawCorrection.toLowerCase() === "none" ||
+        rawCorrection.toLowerCase() === "null" ||
+        rawCorrection.includes("|");
+      const cleanCorrection = !isGrammarCorrect && rawCorrection ? rawCorrection : null;
+
+      // 2. Analyze Better Sentence
+      const rawBetter = feedback.betterSentence && typeof feedback.betterSentence === "string"
+        ? cleanDialogueText(feedback.betterSentence)
+        : null;
+      const hasBetter = Boolean(
+        rawBetter &&
+        rawBetter.toLowerCase() !== "null" &&
+        rawBetter.toLowerCase() !== "none" &&
+        !rawBetter.includes("✅") &&
+        rawBetter.length > 3
+      );
+      const cleanBetter = hasBetter ? rawBetter : null;
+
+      // 3. Clean Fluency Tip & Explanation
+      const cleanExplanation = feedback.explanation && typeof feedback.explanation === "string"
+        ? cleanDialogueText(feedback.explanation)
+        : null;
+      const cleanNativeTip = feedback.nativeTip && typeof feedback.nativeTip === "string"
+        ? cleanDialogueText(feedback.nativeTip)
+        : (cleanExplanation || null);
+
+      // 4. Follow-up Question
+      const cleanFollowUp = feedback.followUpQuestion && typeof feedback.followUpQuestion === "string"
+        ? cleanDialogueText(feedback.followUpQuestion)
+        : null;
+
+      // 5. Vocabulary Suggestions
+      const cleanVocab = feedback.vocabularySuggestions && typeof feedback.vocabularySuggestions === "string"
+        ? cleanDialogueText(feedback.vocabularySuggestions)
+        : null;
+
+      const coachFeedback = {
+        grammarCorrection: cleanCorrection || (feedback.grammarCorrection ? cleanDialogueText(feedback.grammarCorrection) : "✅ Great pronunciation and grammar!"),
+        betterSentence: cleanBetter,
+        fluencyTip: cleanNativeTip,
+        followUpQuestion: cleanFollowUp,
+        vocabularySuggestions: cleanVocab,
+      };
+
+      const hasCoachingContent = hasBetter || !isGrammarCorrect || Boolean(cleanNativeTip) || Boolean(cleanFollowUp) || Boolean(cleanVocab);
+
       const aiMsg = {
         id: Date.now() + 1,
         sender: "ai",
         message: cleanAiReply || "That is very interesting! Can you tell me more about that?",
+        coachFeedback: hasCoachingContent ? coachFeedback : null,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
+      setCorrections(hasCoachingContent ? coachFeedback : null);
 
-      // Only set corrections if it doesn't contain raw markdown table noise
-      if (feedback.grammarCorrection && !feedback.grammarCorrection.includes("|")) {
-        setCorrections({
-          ...feedback,
-          grammarCorrection: cleanDialogueText(feedback.grammarCorrection),
-          betterSentence: feedback.betterSentence ? cleanDialogueText(feedback.betterSentence) : null,
-          explanation: feedback.explanation ? cleanDialogueText(feedback.explanation) : null,
-          vocabularySuggestions: feedback.vocabularySuggestions ? cleanDialogueText(feedback.vocabularySuggestions) : null,
-        });
-      } else {
-        setCorrections(null);
-      }
-
-      const fullSpeakableText = getSpeakableText(feedback);
-      const cleanBetter = feedback.betterSentence ? cleanDialogueText(feedback.betterSentence) : null;
-      const isCleanCorrection =
-        feedback.grammarCorrection &&
-        !feedback.grammarCorrection.includes("✅") &&
-        !feedback.grammarCorrection.toLowerCase().includes("correct") &&
-        !feedback.grammarCorrection.includes("|");
-      const cleanCorrection = isCleanCorrection ? cleanDialogueText(feedback.grammarCorrection) : null;
-      const coachingTipSentence = cleanBetter || cleanCorrection;
-
+      // TWO-STAGE PEDAGOGICAL AI SPEECH (Matches Mobile App Architecture):
       if (coachingTimerRef.current) {
         clearTimeout(coachingTimerRef.current);
         coachingTimerRef.current = null;
       }
 
-      handleSpeakText(fullSpeakableText, () => {
-        if (coachingTipSentence && !isMuted) {
+      const needsPedagogicalCoaching = !isGrammarCorrect || hasBetter;
+
+      if (!needsPedagogicalCoaching) {
+        // SCENARIO A: Sentence is 100% correct! Speaks praise + in-character reply directly
+        const praises = ["Spot on!", "Nicely said!", "Well phrased!", "Great sentence!"];
+        const randomPraise = praises[Math.floor(Math.random() * praises.length)];
+        const fullSpeech = `${randomPraise} ${mainReply}`;
+        handleSpeakText(fullSpeech, null, true);
+      } else {
+        // SCENARIO B: Sentence has a mistake or better phrasing exists!
+        const targetPhrase = (!isGrammarCorrect && cleanCorrection) ? cleanCorrection : cleanBetter;
+        const acknowledgments = ["Got it!", "I see what you mean!", "Makes total sense!"];
+        const randomAck = acknowledgments[Math.floor(Math.random() * acknowledgments.length)];
+        const tipPrefixes = [
+          "Quick tip—you can say",
+          "By the way, you can phrase that as",
+          "A natural way to say that is",
+        ];
+        const randomPrefix = tipPrefixes[Math.floor(Math.random() * tipPrefixes.length)];
+        const coachingPhrase = `${randomAck} ${randomPrefix}: "${targetPhrase}".${cleanExplanation ? ` ${cleanExplanation}` : ""}`;
+
+        // Stage 1: Tutor first speaks the coaching tip with live lip-sync
+        handleSpeakText(coachingPhrase, () => {
+          // Mouth immediately returns to REST during the 0.5s pause
+          setIsAiSpeaking(false);
+          setViseme("REST");
+
+          // Natural 0.5-second conversational pause before Stage 2
           coachingTimerRef.current = setTimeout(() => {
-            const coachingSpeech = `A better way to say that is: ${coachingTipSentence}`;
-            handleSpeakText(coachingSpeech, null, true);
-          }, 300); // 0.30 sec pause before coaching tip
-        }
-      }, true);
+            if (!isMuted) {
+              // Stage 2: Tutor switches to speaking the main in-character reply + follow-up
+              handleSpeakText(mainReply, null, true);
+            }
+          }, 500);
+        }, true);
+      }
     } catch (e) {
       setIsThinking(false);
     }
@@ -798,7 +1050,7 @@ export function ConversationSession() {
           {messages.map((m) => (
             <div key={m.id} className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}>
               <div
-                className={`max-w-[88%] sm:max-w-[80%] p-4 rounded-2xl text-xs font-semibold shadow-md space-y-2 ${m.sender === "user"
+                className={`max-w-[92%] sm:max-w-[85%] p-4 rounded-2xl text-xs font-semibold shadow-md space-y-2.5 ${m.sender === "user"
                     ? "bg-gradient-to-r from-[#6c63ff] to-[#5a52e0] text-white rounded-br-none"
                     : isDark
                       ? "bg-slate-800/80 backdrop-blur-md border border-white/10 text-slate-100 rounded-bl-none shadow-sm"
@@ -811,8 +1063,9 @@ export function ConversationSession() {
                   </span>
                   {m.sender === "ai" && (
                     <button
+                      type="button"
                       onClick={() => handleSpeakText(m.message)}
-                      className={`p-1 rounded-lg transition-all text-xs ${isDark ? "bg-white/10 hover:bg-white/20 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                      className={`p-1.5 rounded-lg transition-all text-xs cursor-pointer ${isDark ? "bg-white/10 hover:bg-white/20 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                         }`}
                       title="Replay Voice"
                     >
@@ -821,6 +1074,11 @@ export function ConversationSession() {
                   )}
                 </div>
                 <p className="leading-relaxed text-xs sm:text-[13px]">{m.message}</p>
+
+                {/* In-Chat Live Coaching Card below each message */}
+                {m.sender === "ai" && m.coachFeedback && (
+                  <CoachCard feedback={m.coachFeedback} isDark={isDark} onSpeakText={(t) => handleSpeakText(t)} />
+                )}
               </div>
             </div>
           ))}
@@ -829,53 +1087,6 @@ export function ConversationSession() {
             <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-[#6c63ff]/10 border border-[#6c63ff]/30 text-xs font-bold text-[#6c63ff] animate-pulse max-w-sm">
               <span className="h-2 w-2 rounded-full bg-[#6c63ff] animate-ping" />
               Analyzing your grammar and speaking pacing...
-            </div>
-          )}
-
-          {/* Dynamic Tutor Feedback & Corrections card */}
-          {corrections && (
-            <div className={`p-4 rounded-2xl backdrop-blur-md border space-y-2.5 shadow-lg animate-in fade-in duration-300 ${isDark ? "bg-slate-800/90 border-white/10 text-slate-100" : "bg-white border-slate-200 text-slate-800"
-              }`}>
-              <div className={`flex items-center justify-between gap-2 text-xs font-extrabold text-[#6c63ff] pb-2 border-b ${isDark ? "border-white/10" : "border-slate-200"
-                }`}>
-                <span className="flex items-center gap-1.5">🎓 Live Tutor Evaluation</span>
-                <button
-                  onClick={() => handleSpeakText(getSpeakableText(corrections))}
-                  className="px-2.5 py-1 rounded-lg bg-[#6c63ff] text-white text-[10px] font-bold hover:bg-[#8b85ff] transition-all flex items-center gap-1 shadow-sm"
-                  title="Listen Correction Audio"
-                >
-                  <span>🔊 Hear Feedback</span>
-                </button>
-              </div>
-
-              {corrections.grammarCorrection && (
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-1">
-                  <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? "text-emerald-500" : "text-emerald-600"}`}>Grammar Tip</span>
-                  <p className={`font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>👉 {corrections.grammarCorrection}</p>
-                </div>
-              )}
-
-              {corrections.betterSentence && (
-                <div className="p-2.5 rounded-xl bg-[#6c63ff]/10 border border-[#6c63ff]/30 text-xs space-y-1">
-                  <span className="text-[10px] font-black text-[#6c63ff] uppercase tracking-wider">Native Expression</span>
-                  <p className={`font-semibold ${isDark ? "text-slate-100" : "text-slate-800"}`}>💡 "{corrections.betterSentence}"</p>
-                </div>
-              )}
-
-              {corrections.explanation && (
-                <div className={`p-2.5 rounded-xl border text-xs space-y-1 ${isDark ? "bg-slate-900/60 border-white/10 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
-                  }`}>
-                  <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>Explanation</span>
-                  <p className="font-normal italic">{corrections.explanation}</p>
-                </div>
-              )}
-
-              {corrections.vocabularySuggestions && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
-                  <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? "text-amber-500" : "text-amber-600"}`}>Vocabulary Upgrade</span>
-                  <p className={`font-semibold ${isDark ? "text-amber-300" : "text-amber-700"}`}>✨ {corrections.vocabularySuggestions}</p>
-                </div>
-              )}
             </div>
           )}
 
@@ -892,37 +1103,104 @@ export function ConversationSession() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Dynamic Scenario Suggestions chips */}
-        {(() => {
-          const lastAi = [...messages].reverse().find((m) => m.sender === "ai");
-          const activeHints = hints.length > 0 ? hints : getScenarioHints(scenario, lastAi);
-          return (
-            <div className={`p-2.5 sm:px-4 border-t flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none ${isDark ? "bg-slate-900/60 border-white/10" : "bg-slate-50 border-slate-200"
-              }`}>
-              <span className={`text-[10px] font-black uppercase tracking-wide shrink-0 flex items-center gap-1 ${isDark ? "text-indigo-300" : "text-indigo-600"
+        {/* Floating AI Hint Button (Shown when drawer is closed — hints DO NOT come automatically) */}
+        {!showHints && (
+          <div className="flex justify-end px-4 py-2 shrink-0 border-t border-transparent pointer-events-auto">
+            <button
+              type="button"
+              onClick={handleToggleHints}
+              disabled={loadingHints}
+              className="px-4 py-2 rounded-full bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 text-white text-xs font-black shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer border border-white/20"
+              title="Click to open AI response suggestions"
+            >
+              <span className="text-yellow-300 text-xs">💡</span>
+              <span>{loadingHints ? "Loading..." : "AI Hint ✨"}</span>
+            </button>
+          </div>
+        )}
+
+        {/* AI Hint Drawer: Quick suggested replies with scroll and audio preview */}
+        {showHints && (
+          <div className={`p-3 sm:px-4 border-t transition-all shrink-0 ${
+            isDark ? "bg-slate-900/95 border-white/10" : "bg-indigo-50/80 border-indigo-200"
+          }`}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm">✨</span>
+                <span className={`text-[11px] font-black uppercase tracking-wider truncate ${
+                  isDark ? "text-indigo-300" : "text-indigo-800"
                 }`}>
-                💡 Suggestions:
-              </span>
-              {activeHints.map((hint, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    stopSpeaking();
-                    setIsAiSpeaking(false);
-                    setViseme("REST");
-                    sendUserText(hint);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all border shadow-sm whitespace-nowrap ${isDark
-                      ? "bg-slate-800/80 hover:bg-[#6c63ff] hover:text-white text-slate-200 border-white/10"
-                      : "bg-white hover:bg-[#6c63ff] hover:text-white text-slate-700 border-slate-200"
-                    }`}
-                >
-                  {hint}
-                </button>
-              ))}
+                  Suggested Responses (Tap to speak or listen):
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHints(false)}
+                className={`p-1 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                  isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-500 hover:text-slate-900 hover:bg-slate-200"
+                }`}
+                title="Close AI Hints"
+              >
+                ✕
+              </button>
             </div>
-          );
-        })()}
+
+            {loadingHints ? (
+              <div className="flex items-center gap-2 py-2 text-xs font-semibold text-[#6c63ff] animate-pulse">
+                <span className="h-2 w-2 rounded-full bg-[#6c63ff] animate-ping" />
+                <span>Generating contextual speaking suggestions...</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto pb-2 pt-1 flex items-center gap-3 scroll-smooth scrollbar-thin">
+                {(hints.length > 0 ? hints : getScenarioHints(scenario, [...messages].reverse().find((m) => m.sender === "ai"))).map((hint, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center rounded-xl border shadow-sm shrink-0 transition-all overflow-hidden ${
+                      isDark
+                        ? "bg-slate-800/90 border-white/10 hover:border-[#6c63ff]"
+                        : "bg-white border-slate-200 hover:border-[#6c63ff]"
+                    }`}
+                  >
+                    {/* Click to send text */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowHints(false);
+                        stopSpeaking();
+                        setIsAiSpeaking(false);
+                        setViseme("REST");
+                        sendUserText(hint);
+                      }}
+                      className={`px-3 py-2 text-xs font-semibold text-left transition-colors whitespace-nowrap max-w-[280px] sm:max-w-md truncate cursor-pointer ${
+                        isDark ? "text-slate-200 hover:text-[#A5B4FC]" : "text-slate-700 hover:text-[#6c63ff]"
+                      }`}
+                      title={`Send: "${hint}"`}
+                    >
+                      {hint}
+                    </button>
+
+                    {/* Click to listen to audio preview before speaking */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSpeakText(hint);
+                      }}
+                      className={`px-2.5 py-2 border-l transition-colors flex items-center justify-center cursor-pointer ${
+                        isDark
+                          ? "border-white/10 text-indigo-300 hover:bg-white/10 hover:text-white"
+                          : "border-slate-200 text-[#6c63ff] hover:bg-indigo-50 hover:text-indigo-900"
+                      }`}
+                      title="Listen to native pronunciation preview before speaking"
+                    >
+                      🔊
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Bottom Control Center */}
         <div className={`p-3 sm:p-4 border-t backdrop-blur-2xl flex flex-col gap-2.5 shrink-0 ${isDark ? "bg-slate-900/80 border-white/10" : "bg-white border-slate-200"
@@ -1009,12 +1287,20 @@ export function ConversationSession() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={handleFetchHints}
+                type="button"
+                onClick={handleToggleHints}
                 disabled={loadingHints}
-                className="px-3 py-2 rounded-xl bg-[#6c63ff]/10 border border-[#6c63ff]/30 text-[#6c63ff] text-xs font-bold hover:bg-[#6c63ff]/20 transition-all shadow-sm"
-                title="Get AI Suggestion"
+                className={`px-3 py-2 rounded-xl border text-xs font-extrabold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer ${
+                  showHints
+                    ? "bg-[#6c63ff] text-white border-[#6c63ff] shadow-md shadow-[#6c63ff]/30"
+                    : isDark
+                      ? "bg-slate-800/80 border-white/10 text-indigo-300 hover:bg-slate-700 hover:text-white"
+                      : "bg-indigo-50/80 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                }`}
+                title="Toggle AI Hints Drawer"
               >
-                💡 {loadingHints ? "..." : "Hint"}
+                <span>💡</span>
+                <span>{loadingHints ? "..." : "AI Hint ✨"}</span>
               </button>
 
               <button
