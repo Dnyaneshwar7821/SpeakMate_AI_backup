@@ -115,13 +115,6 @@ export function Lessons() {
   const [activeTab, setActiveTab] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState(null);
 
-  // Sync lessons and continue items reactively when profile changes
-  useEffect(() => {
-    const cached = CurriculumCache.getLessons(user?.id, profileKey);
-    setLessons(cached && cached.length > 0 ? cached : profileLessons);
-    setContinueItems(CurriculumCache.getContinueItems(user?.id, profileKey, profileLessons) || []);
-  }, [profileLessons, profileKey, user?.id]);
-
   // Distinct categories computed strictly from user's profile lessons
   const categories = useMemo(() => {
     const counts = {};
@@ -217,14 +210,19 @@ export function Lessons() {
       let finalCont = [];
       if (enrichedCont.length > 0) {
         finalCont = enrichedCont;
-      } else if (profileLessons.length > 0) {
-        // Fallback to first uncompleted lesson in this user's 20-lesson list
-        const firstUncompleted = profileLessons.find((p) => {
-          const titleKey = (p.title || "").toLowerCase().trim();
-          const idKey = String(p.id || "").toLowerCase();
-          return !completedSet.has(titleKey) && !completedSet.has(idKey) && !p.completed && (p.progressPercent || 0) < 100;
-        }) || profileLessons[0];
-        finalCont = [firstUncompleted];
+      } else {
+        const cachedCont = CurriculumCache.getContinueItems(user?.id, profileKey, profileLessons);
+        if (cachedCont && cachedCont.length > 0) {
+          finalCont = cachedCont;
+        } else if (profileLessons.length > 0) {
+          // Fallback to first uncompleted lesson in this user's 20-lesson list
+          const firstUncompleted = profileLessons.find((p) => {
+            const titleKey = (p.title || "").toLowerCase().trim();
+            const idKey = String(p.id || "").toLowerCase();
+            return !completedSet.has(titleKey) && !completedSet.has(idKey) && !p.completed && (p.progressPercent || 0) < 100;
+          }) || profileLessons[0];
+          finalCont = [firstUncompleted];
+        }
       }
 
       CurriculumCache.setContinueItems(user?.id, profileKey, finalCont);
@@ -268,16 +266,19 @@ export function Lessons() {
 
   useEffect(() => {
     const handleSettingsUpdated = () => {
-      CurriculumCache.clear();
-      loadData();
+      CurriculumCache.clear(false);
+      loadData(false);
+    };
+    const handleProgressRefresh = () => {
+      loadData(false);
     };
     window.addEventListener("speakmate_settings_updated", handleSettingsUpdated);
-    window.addEventListener("speakmate_curriculum_updated", handleSettingsUpdated);
-    window.addEventListener("speakmate_progress_updated", handleSettingsUpdated);
+    window.addEventListener("speakmate_curriculum_updated", handleProgressRefresh);
+    window.addEventListener("speakmate_progress_updated", handleProgressRefresh);
     return () => {
       window.removeEventListener("speakmate_settings_updated", handleSettingsUpdated);
-      window.removeEventListener("speakmate_curriculum_updated", handleSettingsUpdated);
-      window.removeEventListener("speakmate_progress_updated", handleSettingsUpdated);
+      window.removeEventListener("speakmate_curriculum_updated", handleProgressRefresh);
+      window.removeEventListener("speakmate_progress_updated", handleProgressRefresh);
     };
   }, []);
 

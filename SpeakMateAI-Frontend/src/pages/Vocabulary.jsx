@@ -104,6 +104,31 @@ const CURRICULUM_DATA = {
 
 const DELETED_VOCAB_STORAGE_KEY = "speakmate_deleted_vocab_words";
 
+const getVocabCacheKey = (userId) => {
+  return `speakmate_vocab_cache_${userId || "guest"}`;
+};
+
+const getCachedVocabList = (userId) => {
+  try {
+    const raw = localStorage.getItem(getVocabCacheKey(userId));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+};
+
+const setCachedVocabList = (userId, list) => {
+  try {
+    if (Array.isArray(list)) {
+      localStorage.setItem(getVocabCacheKey(userId), JSON.stringify(list));
+    }
+  } catch {}
+};
+
 const getDeletedVocabSet = () => {
   try {
     const raw = localStorage.getItem(DELETED_VOCAB_STORAGE_KEY);
@@ -146,6 +171,15 @@ export function Vocabulary() {
   const [activeTab, setActiveTab] = useState("list"); // 'list', 'flashcards', 'quiz'
 
   const getInitialCurated = () => {
+    const userIdentifier = user?.id || user?.email;
+    const cached = getCachedVocabList(userIdentifier);
+    const deletedSet = getDeletedVocabSet();
+    if (cached && cached.length > 0) {
+      return cached.filter(
+        (w) => !deletedSet.has((w.word || "").toLowerCase().trim()) && !deletedSet.has(String(w.id || "").toLowerCase().trim())
+      );
+    }
+
     const savedAccType = user?.accountType || localStorage.getItem("speakmate_account_type") || "INDIVIDUAL_USER";
     const savedGrade = user?.schoolGrade || localStorage.getItem("speakmate_school_grade") || "1st Std";
     const savedAge = user?.ageGroup || localStorage.getItem("speakmate_age_group") || "Young Adult";
@@ -161,13 +195,12 @@ export function Vocabulary() {
       else profileKey = "Young Adult";
     }
     const curated = CURRICULUM_DATA[profileKey] || CURRICULUM_DATA["1st Std"];
-    const deletedSet = getDeletedVocabSet();
     return curated.filter(
       (w) => !deletedSet.has((w.word || "").toLowerCase().trim()) && !deletedSet.has(String(w.id || "").toLowerCase().trim())
     );
   };
 
-  const [items, setItems] = useState(() => getInitialCurated(user));
+  const [items, setItems] = useState(() => getInitialCurated());
   const [loading, setLoading] = useState(false);
   const [wordInput, setWordInput] = useState("");
   const [adding, setAdding] = useState(false);
@@ -232,11 +265,18 @@ export function Vocabulary() {
         return !deletedSet.has(wordKey) && !deletedSet.has(idKey);
       });
 
-      setItems(activeWords);
+      setItems((prev) => {
+        const isSame = prev.length === activeWords.length && prev.every((p, idx) => p.id === activeWords[idx]?.id && p.word === activeWords[idx]?.word && p.favorite === activeWords[idx]?.favorite && p.mastered === activeWords[idx]?.mastered);
+        return isSame ? prev : activeWords;
+      });
+      setCachedVocabList(user?.id || user?.email, activeWords);
     } catch (e) {
       const curatedBase = CURRICULUM_DATA["1st Std"];
       const deletedSet = getDeletedVocabSet();
-      setItems(curatedBase.filter((w) => !deletedSet.has((w.word || "").toLowerCase().trim())));
+      setItems((prev) => {
+        const fallback = curatedBase.filter((w) => !deletedSet.has((w.word || "").toLowerCase().trim()));
+        return prev && prev.length > 0 ? prev : fallback;
+      });
     } finally {
       setLoading(false);
     }
@@ -345,7 +385,11 @@ export function Vocabulary() {
 
       unmarkVocabWordDeleted(rawWord);
       setWordInput("");
-      setItems((prev) => [res, ...prev.filter((w) => (w.word || "").toLowerCase().trim() !== rawWord.toLowerCase())]);
+      setItems((prev) => {
+        const next = [res, ...prev.filter((w) => (w.word || "").toLowerCase().trim() !== rawWord.toLowerCase())];
+        setCachedVocabList(user?.id || user?.email, next);
+        return next;
+      });
 
       // Award XP ONLY upon successful, confirmed valid English addition
       recordWordAdded(1, user);
@@ -413,13 +457,15 @@ export function Vocabulary() {
     const wordName = item.word || "Word";
 
     // 1. Remove from local items state immediately for instantaneous, fluid UX
-    setItems((prev) =>
-      prev.filter((w) => {
+    setItems((prev) => {
+      const next = prev.filter((w) => {
         const sameId = w.id && item.id && String(w.id) === String(item.id);
         const sameWord = w.word && item.word && (w.word || "").toLowerCase().trim() === (item.word || "").toLowerCase().trim();
         return !sameId && !sameWord;
-      })
-    );
+      });
+      setCachedVocabList(user?.id || user?.email, next);
+      return next;
+    });
 
     // 2. Blacklist in localStorage so curated base won't restore it on next reload
     markVocabWordDeleted(item);

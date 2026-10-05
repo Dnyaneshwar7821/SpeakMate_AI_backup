@@ -4,8 +4,27 @@
  * Guarantees ZERO latency (0ms) and prevents stale data flashing/jumping across route changes.
  */
 
-const STORAGE_IN_PROGRESS_KEY = 'speakmate_in_progress_lessons';
-const STORAGE_COMPLETED_KEY = 'speakmate_completed_lessons';
+function getInProgressStorageKey(userId) {
+  let id = userId;
+  if (!id && typeof window !== "undefined") {
+    try {
+      const u = JSON.parse(localStorage.getItem("speakmate_user") || "{}");
+      id = u?.id || u?.email;
+    } catch {}
+  }
+  return `speakmate_in_progress_lessons_${id || 'guest'}`;
+}
+
+function getCompletedStorageKey(userId) {
+  let id = userId;
+  if (!id && typeof window !== "undefined") {
+    try {
+      const u = JSON.parse(localStorage.getItem("speakmate_user") || "{}");
+      id = u?.id || u?.email;
+    } catch {}
+  }
+  return `speakmate_completed_lessons_${id || 'guest'}`;
+}
 
 const _continueItemsMap = new Map();
 const _lessonsMap = new Map();
@@ -16,10 +35,10 @@ function getCacheKey(userId, profileKey) {
   return `${userId || 'guest'}_${(profileKey || 'default').toLowerCase().trim()}`;
 }
 
-function loadInitialCompletedSet() {
+function loadInitialCompletedSet(userId = null) {
   if (_completedSetLoaded) return _completedSet;
   try {
-    const raw = localStorage.getItem(STORAGE_COMPLETED_KEY);
+    const raw = localStorage.getItem(getCompletedStorageKey(userId));
     if (raw) {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr)) {
@@ -68,7 +87,7 @@ export const CurriculumCache = {
     }
     // Attempt hydration from localStorage
     try {
-      const raw = localStorage.getItem(STORAGE_IN_PROGRESS_KEY);
+      const raw = localStorage.getItem(getInProgressStorageKey(userId));
       if (raw) {
         const arr = JSON.parse(raw);
         if (Array.isArray(arr) && arr.length > 0) {
@@ -117,7 +136,7 @@ export const CurriculumCache = {
       _completedSet = new Set(setOrArray.map((x) => String(x).toLowerCase().trim()));
     }
     try {
-      localStorage.setItem(STORAGE_COMPLETED_KEY, JSON.stringify(Array.from(_completedSet)));
+      localStorage.setItem(getCompletedStorageKey(), JSON.stringify(Array.from(_completedSet)));
     } catch (_) {}
   },
 
@@ -178,7 +197,7 @@ export const CurriculumCache = {
 
     // Sync to localStorage
     try {
-      const raw = localStorage.getItem(STORAGE_IN_PROGRESS_KEY);
+      const raw = localStorage.getItem(getInProgressStorageKey());
       let inProg = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(inProg)) inProg = [];
       const existingIdx = inProg.findIndex(
@@ -201,7 +220,7 @@ export const CurriculumCache = {
       } else {
         inProg.unshift(itemToSave);
       }
-      localStorage.setItem(STORAGE_IN_PROGRESS_KEY, JSON.stringify(inProg));
+      localStorage.setItem(getInProgressStorageKey(), JSON.stringify(inProg));
     } catch (_) {}
   },
 
@@ -239,7 +258,7 @@ export const CurriculumCache = {
 
     // Remove from localStorage in-progress list
     try {
-      const raw = localStorage.getItem(STORAGE_IN_PROGRESS_KEY);
+      const raw = localStorage.getItem(getInProgressStorageKey());
       if (raw) {
         const inProg = JSON.parse(raw);
         if (Array.isArray(inProg)) {
@@ -248,7 +267,7 @@ export const CurriculumCache = {
             const id = String(x.id || '').toLowerCase();
             return t !== titleKey && id !== idKey;
           });
-          localStorage.setItem(STORAGE_IN_PROGRESS_KEY, JSON.stringify(filtered));
+          localStorage.setItem(getInProgressStorageKey(), JSON.stringify(filtered));
         }
       }
     } catch (_) {}
@@ -264,12 +283,12 @@ export const CurriculumCache = {
     }
   },
 
-  clear() {
+  clear(broadcast = false) {
     _continueItemsMap.clear();
     _lessonsMap.clear();
     _completedSet.clear();
     _completedSetLoaded = false;
-    if (typeof window !== "undefined") {
+    if (broadcast && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("speakmate_curriculum_updated", { detail: { cleared: true } }));
     }
   },
