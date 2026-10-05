@@ -30,11 +30,11 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const AGE_OPTIONS = [
-  { code: "Kids", label: "Kids (6-12) 🎈", desc: "Simple words, fun stories & high encouragement" },
-  { code: "Teens", label: "Teens (13-17) ⚡", desc: "School life, pop culture & casual chatter" },
-  { code: "Young Adult", label: "Young Adults (18-24) 🎓", desc: "Campus life, travel & interview prep" },
-  { code: "Professional", label: "Professionals (25-50) 💼", desc: "Business English, executive tone & presentations" },
-  { code: "Senior", label: "Seniors (50+) ☕", desc: "Relaxed conversation, culture & life stories" },
+  { code: "Kids", label: "Kids", ageRange: "Age 6–12", emoji: "🎈", badge: "Beginner Friendly", desc: "Simple words, fun stories & high encouragement" },
+  { code: "Teens", label: "Teens", ageRange: "Age 13–17", emoji: "⚡", badge: "Casual & Dynamic", desc: "School life, pop culture & casual chatter" },
+  { code: "Young Adult", label: "Young Adults", ageRange: "Age 18–24", emoji: "🎓", badge: "Campus & Career", desc: "Campus life, travel & interview prep" },
+  { code: "Professional", label: "Professionals", ageRange: "Age 25–50", emoji: "💼", badge: "Executive Tone", desc: "Business English, executive tone & presentations" },
+  { code: "Senior", label: "Seniors", ageRange: "Age 50+", emoji: "☕", badge: "Culture & Wisdom", desc: "Relaxed conversation, culture & life stories" },
 ];
 
 const normalizeAgeGroup = (rawAge) => {
@@ -68,6 +68,7 @@ export function Settings() {
 
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
+  const [showPersonaModal, setShowPersonaModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [langSearch, setLangSearch] = useState("");
   const [playingVoice, setPlayingVoice] = useState(null);
@@ -279,6 +280,8 @@ export function Settings() {
     l.label.toLowerCase().includes(langSearch.toLowerCase()) || l.native.toLowerCase().includes(langSearch.toLowerCase())
   );
 
+  const activePersona = AGE_OPTIONS.find((a) => a.code === selectedAgeGroup) || AGE_OPTIONS[3];
+
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8 px-2 sm:px-4 lg:px-6 py-2">
       {/* Page Header Title */}
@@ -343,8 +346,8 @@ export function Settings() {
         </div>
 
         {/* VOICE SELECTION CARD WITH POPUP TRIGGER */}
-        <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
+        <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-4 min-w-0">
             <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-[var(--bg-surface)] border-2 border-[#6C63FF]/30 grid place-items-center shadow-lg shrink-0 overflow-hidden relative">
               {activeAvatar.thumbnail ? (
                 <img
@@ -362,8 +365,8 @@ export function Settings() {
                 </div>
               )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
                   AI Tutor Voice
                 </span>
@@ -371,7 +374,7 @@ export function Settings() {
                   {activeAvatar.name} ({activeAvatar.badge})
                 </span>
               </div>
-              <h3 className="text-xl font-black text-[var(--text-primary)] mt-1">{activeVoiceLabel}</h3>
+              <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">{activeVoiceLabel}</h3>
               <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
                 {isHaruOrChitose
                   ? "Teacher & Male Teacher support switching between custom Male & Female voices and accents below."
@@ -380,10 +383,10 @@ export function Settings() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full lg:w-auto shrink-0">
             <button
               onClick={() => playVoicePreview(selectedVoice || activeAvatar.voiceProfile)}
-              className="px-4 py-3 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] text-xs font-black text-[#6C63FF] hover:bg-[#6C63FF] hover:text-white transition-all shrink-0 active:scale-95 shadow-sm"
+              className="px-4 py-3 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] text-xs font-black text-[#6C63FF] hover:bg-[#6C63FF] hover:text-white transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer"
             >
               {playingVoice === (selectedVoice || activeAvatar.voiceProfile)
                 ? "🔊 Playing Audio..."
@@ -391,7 +394,7 @@ export function Settings() {
             </button>
             <button
               onClick={() => setShowVoiceModal(true)}
-              className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+              className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
             >
               <span>🎙️ Choose Regional Voice</span>
             </button>
@@ -448,25 +451,36 @@ export function Settings() {
           </div>
         </div>
 
-        <div className="glass-card p-6 sm:p-8 rounded-3xl border border-[var(--border-default)] shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-black text-[var(--text-primary)]">App Translation Language</h2>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">Currently: {selectedLang}</p>
+        <div className="glass-card p-6 sm:p-8 rounded-3xl border border-[var(--border-default)] shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#6C63FF]/15 text-[#6C63FF] flex items-center justify-center text-2xl shadow-inner shrink-0 border border-[#6C63FF]/30">
+              🌐
             </div>
-            <button
-              onClick={() => setShowLangModal(true)}
-              className="px-4 py-2 rounded-xl bg-[#6C63FF]/15 text-[#6C63FF] text-xs font-black hover:bg-[#6C63FF]/25"
-            >
-              Change Language 🌐
-            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
+                  Language
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
+                  {selectedLang}
+                </span>
+              </div>
+              <h2 className="text-base font-black text-[var(--text-primary)] mt-1 truncate">App Translation Language</h2>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">UI prompts, hints, and feedback</p>
+            </div>
           </div>
+          <button
+            onClick={() => setShowLangModal(true)}
+            className="px-5 py-3 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[#6C63FF] hover:bg-[#6C63FF] hover:text-white text-xs font-black transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto text-center"
+          >
+            Change Language 🌐
+          </button>
         </div>
       </div>
 
-      {/* SECTION 3.5: TARGET PERSONA AGE PROFILE DROPDOWN */}
+      {/* SECTION 3.5: TARGET PERSONA AGE PROFILE HIGHLIGHT CARD */}
       <div className="glass-card p-6 sm:p-8 rounded-3xl border border-[var(--border-default)] shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[var(--border-default)]">
           <div>
             <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] flex items-center gap-2">
               <span>👥</span> Target Persona Age Profile
@@ -475,18 +489,47 @@ export function Settings() {
               Curates conversation scenarios, speaking cards, and dashboard tone to your age group.
             </p>
           </div>
+          <span className="text-[10px] font-black px-3 py-1 rounded-full bg-[#6C63FF]/15 text-[#6C63FF] border border-[#6C63FF]/30 self-start sm:self-auto">
+            Adaptive AI Tone Active ✨
+          </span>
+        </div>
 
-          <select
-            value={selectedAgeGroup}
-            onChange={(e) => handleSelectAgeGroup(e.target.value)}
-            className="px-5 py-3.5 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] text-xs font-black text-[var(--text-primary)] focus:outline-none focus:border-[#6C63FF] shadow-sm cursor-pointer min-w-[240px]"
-          >
-            {AGE_OPTIONS.map((opt) => (
-              <option key={opt.code} value={opt.code}>
-                {opt.label} - {opt.desc}
-              </option>
-            ))}
-          </select>
+        {/* Active Selected Persona Highlight Card */}
+        <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#6C63FF]/20 via-[#7C3AED]/15 to-[#EC4899]/20 border-2 border-[#6C63FF]/30 grid place-items-center shadow-lg shrink-0 text-3xl sm:text-4xl">
+              {activePersona.emoji}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
+                  Active Persona
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-cyan-500/15 text-cyan-400 border-cyan-500/30">
+                  {activePersona.ageRange}
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                  {activePersona.badge}
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">
+                {activePersona.label} ({activePersona.ageRange})
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
+                {activePersona.desc}
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full lg:w-auto shrink-0 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setShowPersonaModal(true)}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
+            >
+              <span>👥 Choose Persona</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -756,6 +799,122 @@ export function Settings() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── TARGET PERSONA POPUP MODAL (PORTALED TO BODY) ── */}
+      {showPersonaModal && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setShowPersonaModal(false)}
+        >
+          <div
+            className="max-w-3xl w-full rounded-3xl shadow-2xl border border-[var(--border-default)] dark:border-white/10 flex flex-col max-h-[90vh] sm:max-h-[86vh] overflow-hidden bg-[var(--bg-surface)] transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-[var(--border-default)] dark:border-white/10 bg-[var(--bg-surface)]/95 backdrop-blur-md flex items-center justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6C63FF] via-[#7C3AED] to-[#EC4899] text-white flex items-center justify-center text-2xl shadow-lg shadow-[#6C63FF]/30 shrink-0">
+                  👥
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-black text-xl text-[var(--text-primary)] tracking-tight">
+                    Select Target Persona Age Profile
+                  </h3>
+                  <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
+                    Personalizes conversation tone, topic depth, vocabulary, and curriculum recommendations.
+                  </p>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setShowPersonaModal(false)}
+                className="w-10 h-10 rounded-2xl border border-[var(--border-default)] dark:border-white/10 bg-[var(--bg-elevated)] hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all flex items-center justify-center text-xs font-black text-[var(--text-secondary)] cursor-pointer active:scale-90 shadow-sm shrink-0"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Persona Options Grid */}
+            <div className="p-5 sm:p-8 overflow-y-auto space-y-4 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {AGE_OPTIONS.map((opt) => {
+                  const isSelected = selectedAgeGroup === opt.code;
+                  return (
+                    <div
+                      key={opt.code}
+                      onClick={() => {
+                        handleSelectAgeGroup(opt.code);
+                        setShowPersonaModal(false);
+                      }}
+                      className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between group ${
+                        isSelected
+                          ? "border-[#6C63FF] bg-[#6C63FF]/15 shadow-xl scale-102 ring-2 ring-[#6C63FF]/30"
+                          : "border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[#6C63FF]/50"
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] grid place-items-center text-2xl shadow-inner group-hover:scale-105 transition-transform">
+                            {opt.emoji}
+                          </div>
+                          {isSelected ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-[#6C63FF] text-white text-[10px] font-black uppercase">
+                              ✓ Active
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-secondary)] text-[10px] font-bold border border-[var(--border-default)]">
+                              {opt.ageRange}
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-black text-base text-[var(--text-primary)]">
+                              {opt.label}
+                            </h4>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                              {opt.badge}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--text-secondary)] font-medium mt-1">
+                            {opt.desc}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 mt-3 border-t border-[var(--border-default)]/60 flex items-center justify-between text-[11px] font-bold">
+                        <span className="text-[var(--text-secondary)]">Target: {opt.ageRange}</span>
+                        <span className={`transition-colors ${isSelected ? "text-[#6C63FF]" : "text-[var(--text-secondary)] group-hover:text-[#6C63FF]"}`}>
+                          {isSelected ? "Selected ✓" : "Select Persona →"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[var(--border-default)] dark:border-white/10 bg-[var(--bg-surface)] flex items-center justify-between gap-3 shrink-0">
+              <span className="text-xs text-[var(--text-secondary)] font-medium">
+                Active: <strong className="text-[var(--text-primary)]">{activePersona.label} ({activePersona.ageRange})</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPersonaModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-[var(--bg-elevated)] text-xs font-black text-[var(--text-primary)] hover:bg-[#6C63FF] hover:text-white transition-all cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>,

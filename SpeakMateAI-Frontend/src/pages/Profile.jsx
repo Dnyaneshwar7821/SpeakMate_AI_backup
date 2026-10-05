@@ -879,8 +879,8 @@ export function Profile() {
             {(() => {
               const activeTutorObj = getAvatarById(activeAvatarId);
               return (
-                <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col sm:flex-row items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
+                <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4 min-w-0">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[var(--bg-surface)] border-2 border-[#6C63FF]/30 grid place-items-center shadow-lg shrink-0 overflow-hidden relative">
                       {activeTutorObj.thumbnail ? (
                         <img
@@ -898,7 +898,7 @@ export function Profile() {
                         </div>
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
                           Active Selected Tutor
@@ -907,7 +907,7 @@ export function Profile() {
                           {activeTutorObj.badge}
                         </span>
                       </div>
-                      <h3 className="text-xl font-black text-[var(--text-primary)] mt-1">
+                      <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">
                         {activeTutorObj.name}
                       </h3>
                       <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
@@ -916,7 +916,7 @@ export function Profile() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full lg:w-auto shrink-0">
                     <button
                       type="button"
                       onClick={() => playAvatarPreview(activeTutorObj)}
@@ -927,9 +927,9 @@ export function Profile() {
                     <button
                       type="button"
                       onClick={() => setShowTutorModal(true)}
-                      className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] hover:opacity-95 text-white text-xs font-black shadow-lg shadow-[#6C63FF]/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
                     >
-                      <span>🎭 Choose AI Avatar (10 Options)</span>
+                      <span>🎭 Choose AI Avatar</span>
                     </button>
                   </div>
                 </div>
