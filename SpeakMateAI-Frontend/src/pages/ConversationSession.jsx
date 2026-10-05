@@ -1129,10 +1129,10 @@ export function ConversationSession() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* AI Hint Drawer: Quick suggested replies with smooth scroll and audio preview */}
+        {/* AI Hint Drawer: Quick suggested replies with smooth scroll */}
         {showHints && (
           <div className={`p-3 sm:px-5 border-t transition-all shrink-0 animate-in fade-in duration-200 ${
-            isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200 shadow-sm"
+            isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200 shadow-xs"
           }`}>
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -1143,7 +1143,7 @@ export function ConversationSession() {
                   Suggested Responses
                 </span>
                 <span className="hidden sm:inline text-[11px] text-slate-400 font-normal">
-                  — click a response to send, or 🔊 to listen
+                  — click any response to send
                 </span>
               </div>
               <button
@@ -1152,7 +1152,7 @@ export function ConversationSession() {
                 className={`p-1 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                   isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-800 hover:bg-slate-100"
                 }`}
-                title="Close AI Hints"
+                title="Close Suggestions"
               >
                 ✕
               </button>
@@ -1164,51 +1164,27 @@ export function ConversationSession() {
                 <span>Generating contextual speaking suggestions...</span>
               </div>
             ) : (
-              <div className="overflow-x-auto pb-2 pt-1 flex items-center gap-3 scroll-smooth scrollbar-thin">
+              <div className="overflow-x-auto pb-2 pt-1 flex items-center gap-2.5 scroll-smooth scrollbar-thin">
                 {(hints.length > 0 ? hints : getScenarioHints(scenario, [...messages].reverse().find((m) => m.sender === "ai"))).map((hint, idx) => (
-                  <div
+                  <button
                     key={idx}
-                    className={`group flex items-center rounded-xl border shadow-xs shrink-0 transition-all overflow-hidden ${
+                    type="button"
+                    onClick={() => {
+                      setShowHints(false);
+                      stopSpeaking();
+                      setIsAiSpeaking(false);
+                      setViseme("REST");
+                      sendUserText(hint);
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold shrink-0 transition-all border shadow-xs whitespace-nowrap cursor-pointer active:scale-95 ${
                       isDark
-                        ? "bg-slate-800/80 border-white/10 hover:border-[#6c63ff]/60 hover:bg-slate-800"
-                        : "bg-slate-50/90 border-slate-200/90 hover:border-[#6c63ff]/60 hover:bg-white"
+                        ? "bg-slate-800/80 text-slate-200 border-white/10 hover:border-[#6c63ff] hover:bg-[#6c63ff] hover:text-white"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:border-[#6c63ff] hover:bg-[#6c63ff] hover:text-white"
                     }`}
+                    title={`Click to send: "${hint}"`}
                   >
-                    {/* Click to send text */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowHints(false);
-                        stopSpeaking();
-                        setIsAiSpeaking(false);
-                        setViseme("REST");
-                        sendUserText(hint);
-                      }}
-                      className={`px-3.5 py-2 text-xs font-medium text-left transition-colors whitespace-nowrap max-w-[280px] sm:max-w-md truncate cursor-pointer ${
-                        isDark ? "text-slate-200 group-hover:text-[#A5B4FC]" : "text-slate-700 group-hover:text-[#6c63ff]"
-                      }`}
-                      title={`Send: "${hint}"`}
-                    >
-                      {hint}
-                    </button>
-
-                    {/* Click to listen to audio preview before speaking */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSpeakText(hint);
-                      }}
-                      className={`px-2.5 py-2 border-l transition-colors flex items-center justify-center cursor-pointer ${
-                        isDark
-                          ? "border-white/10 text-slate-400 hover:text-white hover:bg-white/10"
-                          : "border-slate-200 text-slate-400 hover:text-[#6c63ff] hover:bg-indigo-50/60"
-                      }`}
-                      title="Listen to native pronunciation preview before speaking"
-                    >
-                      🔊
-                    </button>
-                  </div>
+                    {hint}
+                  </button>
                 ))}
               </div>
             )}
