@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import ROUTES from "../constants/routes";
 import { aiService, chatService } from "../services/appServices";
-import { generateDynamicCoachingResponse, cleanDialogueText, getDynamicContextualHints } from "../utils/aiConversationEngine";
+import { generateDynamicCoachingResponse, cleanDialogueText, getDynamicContextualHints, stripQuotes } from "../utils/aiConversationEngine";
 import { AvatarCanvas } from "../components/avatar/AvatarCanvas";
 import { speakGlobalText, stopSpeaking } from "../utils/speechHelper";
 import { useAuth } from "../context/AuthContext";
@@ -224,37 +224,8 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
       {/* Expanded Unified Body */}
       {isExpanded && (
         <div className="divide-y divide-slate-100 dark:divide-white/5 animate-in fade-in duration-150">
-          {/* Hero Callout: Native Natural Phrasing OR Your Sentence is Correct */}
-          {hasBetter ? (
-            <div
-              className={`p-3.5 sm:p-4 transition-colors ${
-                isDark ? "bg-indigo-950/20" : "bg-indigo-50/40"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6c63ff] dark:text-[#A5B4FC] flex items-center gap-1.5">
-                  <span>🚀</span>
-                  <span>Better Natural Phrasing</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onSpeakText(betterSentence)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer bg-[#6c63ff] hover:bg-[#5a52e0] text-white shadow-xs active:scale-95 shrink-0"
-                  title="Listen to native pronunciation"
-                >
-                  <span>🔊</span>
-                  <span>Listen</span>
-                </button>
-              </div>
-              <p
-                className={`text-xs sm:text-[13px] font-medium leading-relaxed italic ${
-                  isDark ? "text-indigo-100" : "text-slate-800"
-                }`}
-              >
-                "{betterSentence}"
-              </p>
-            </div>
-          ) : isGrammarOk ? (
+          {/* Hero Callout: Your Sentence is Correct OR Better Natural Phrasing */}
+          {isGrammarOk ? (
             <div
               className={`p-3.5 sm:p-4 transition-colors ${
                 isDark ? "bg-emerald-950/20" : "bg-emerald-50/50"
@@ -272,6 +243,35 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
                 }`}
               >
                 Great job! Your sentence is grammatically clear and natural.
+              </p>
+            </div>
+          ) : hasBetter ? (
+            <div
+              className={`p-3.5 sm:p-4 transition-colors ${
+                isDark ? "bg-indigo-950/20" : "bg-indigo-50/40"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6c63ff] dark:text-[#A5B4FC] flex items-center gap-1.5">
+                  <span>🚀</span>
+                  <span>Better Natural Phrasing</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSpeakText(stripQuotes(betterSentence))}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer bg-[#6c63ff] hover:bg-[#5a52e0] text-white shadow-xs active:scale-95 shrink-0"
+                  title="Listen to native pronunciation"
+                >
+                  <span>🔊</span>
+                  <span>Listen</span>
+                </button>
+              </div>
+              <p
+                className={`text-xs sm:text-[13px] font-medium leading-relaxed italic ${
+                  isDark ? "text-indigo-100" : "text-slate-800"
+                }`}
+              >
+                "{stripQuotes(betterSentence)}"
               </p>
             </div>
           ) : null}
@@ -334,30 +334,16 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
 
           {/* Follow-up Question Inquiry */}
           {hasFollowup && (
-            <div className="p-3.5 flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1 flex items-start gap-2.5">
-                <span className="text-purple-500 font-bold shrink-0 mt-0.5 text-xs">❓</span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-0.5">
-                    Suggested Follow-up
-                  </div>
-                  <p className={`text-xs font-medium italic ${isDark ? "text-purple-200" : "text-slate-800"}`}>
-                    "{followUpQuestion}"
-                  </p>
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-purple-500 font-bold shrink-0 mt-0.5 text-xs">❓</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-0.5">
+                  Suggested Follow-up
                 </div>
+                <p className={`text-xs font-medium italic ${isDark ? "text-purple-200" : "text-slate-800"}`}>
+                  "{stripQuotes(followUpQuestion)}"
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => onSpeakText(followUpQuestion)}
-                className={`p-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
-                  isDark
-                    ? "bg-white/10 hover:bg-white/20 text-purple-300"
-                    : "bg-purple-100/70 hover:bg-purple-200 text-purple-700"
-                }`}
-                title="Listen to follow-up question"
-              >
-                <span className="text-xs">🔊</span>
-              </button>
             </div>
           )}
         </div>

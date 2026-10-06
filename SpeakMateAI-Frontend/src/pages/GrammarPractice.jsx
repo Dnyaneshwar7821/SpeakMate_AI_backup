@@ -4,6 +4,7 @@ import { useTheme } from "../context/ThemeContext";
 import { grammarService } from "../services/appServices";
 import { speakGlobalText, speakGlobalSequential } from "../utils/speechHelper";
 import { recordGrammarCheck, recordQuizCompleted } from "../utils/progressTracker";
+import { stripQuotes } from "../utils/aiConversationEngine";
 import {
   analyzeSentenceGrammarLocally,
   EXTENSIVE_GRAMMAR_GUIDE,
@@ -429,7 +430,7 @@ export function GrammarPractice() {
                       ? "bg-emerald-50 border-emerald-300 text-emerald-900"
                       : "bg-indigo-50/90 border-indigo-200 text-[#1E1B4B]"
                   }`}>
-                  "{analysisResult.correctedText}"
+                  "{stripQuotes(analysisResult.correctedText)}"
                 </div>
               </div>
 
@@ -449,7 +450,7 @@ export function GrammarPractice() {
                   <span className="text-base">💡</span>
                   <div>
                     <span className={`font-black ${isDark ? "text-indigo-400" : "text-[#4338CA]"}`}>Native Natural Phrasing: </span>
-                    <span className={`font-bold ${isDark ? "text-white" : "text-slate-900"}`}>"{analysisResult.nativeAlternative}"</span>
+                    <span className={`font-bold ${isDark ? "text-white" : "text-slate-900"}`}>"{stripQuotes(analysisResult.nativeAlternative)}"</span>
                   </div>
                 </div>
               )}
@@ -600,10 +601,10 @@ export function GrammarPractice() {
 
                           <div className="grid sm:grid-cols-2 gap-2 pt-1 text-xs font-semibold">
                             <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-900 dark:text-emerald-200">
-                              <span className="font-bold">✅ Correct: </span>"{rule.correctExample}"
+                              <span className="font-bold">✅ Correct: </span>"{stripQuotes(rule.correctExample)}"
                             </div>
                             <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-900 dark:text-rose-200 line-through">
-                              <span className="font-bold">❌ Common Mistake: </span>"{rule.wrongExample}"
+                              <span className="font-bold">❌ Common Mistake: </span>"{stripQuotes(rule.wrongExample)}"
                             </div>
                           </div>
                         </div>

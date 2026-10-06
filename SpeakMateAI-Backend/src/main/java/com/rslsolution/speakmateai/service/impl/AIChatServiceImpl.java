@@ -336,6 +336,8 @@ public class AIChatServiceImpl implements AIChatService {
 		}
 		if (better != null && (better.equalsIgnoreCase("none") || better.equalsIgnoreCase("null") || better.trim().isEmpty())) {
 			better = null;
+		} else if (better != null) {
+			better = better.replaceAll("^[\"']+|[\"']+$", "").trim();
 		}
 		if (vocab != null && (vocab.equalsIgnoreCase("none") || vocab.equalsIgnoreCase("null") || vocab.trim().isEmpty())) {
 			vocab = null;
@@ -345,6 +347,8 @@ public class AIChatServiceImpl implements AIChatService {
 		}
 		if (followup != null && (followup.equalsIgnoreCase("none") || followup.equalsIgnoreCase("null") || followup.trim().isEmpty())) {
 			followup = null;
+		} else if (followup != null) {
+			followup = followup.replaceAll("^[\"']+|[\"']+$", "").trim();
 		}
 
 		// Grammar Correction logic

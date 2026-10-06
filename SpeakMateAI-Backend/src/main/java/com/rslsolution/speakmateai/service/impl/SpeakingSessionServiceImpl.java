@@ -548,7 +548,8 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 		clean = clean.replaceAll("[*#_~`]", "");
 		// 4. Remove stage directions like (smiling), (laughs), (excited)
 		clean = clean.replaceAll("\\([^)]*\\)", "");
-		// 5. Clean excess whitespace
+		// 5. Clean excess whitespace & outer quotes
+		clean = clean.replaceAll("^[\"']+|[\"']+$", "").trim();
 		clean = clean.replaceAll("\\s+", " ").trim();
 		return clean.isEmpty() ? null : clean;
 	}

@@ -44,12 +44,20 @@ export function cleanDialogueText(rawText) {
   clean = clean.replace(/\(.*?\)/g, "");
   clean = clean.replace(/\s+/g, " ").trim();
   
+  // Strip outer quotes so AI text never duplicates quotation marks
+  clean = clean.replace(/^["'“”«»]+|["'“”«»]+$/g, "").trim();
+
   // If clean string is too short or is a leftover label, provide a natural conversational fallback
   if (clean.length < 5 || clean.toLowerCase() === "text" || clean.toLowerCase() === "overall impression") {
     clean = "That is a great thought! Can you tell me more about that?";
   }
 
   return clean;
+}
+
+export function stripQuotes(str) {
+  if (!str || typeof str !== "string") return "";
+  return str.trim().replace(/^["'“”«»]+|["'“”«»]+$/g, "").trim();
 }
 
 export function generateDynamicCoachingResponse(userText, scenario = "Daily Conversation", history = []) {

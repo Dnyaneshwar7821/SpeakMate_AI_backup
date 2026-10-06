@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import ROUTES from "../constants/routes";
+import { stripQuotes } from "../utils/aiConversationEngine";
 
 export function SpeakingSummary() {
   const location = useLocation();
@@ -176,7 +177,7 @@ export function SpeakingSummary() {
             <h2 className="text-xs font-black uppercase tracking-wider text-[#6C63FF] flex items-center gap-2">
               <span>📈 Recommended Native Phrasing</span>
             </h2>
-            <p className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">💡 "{summary.betterSentences}"</p>
+            <p className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">💡 "{stripQuotes(summary.betterSentences)}"</p>
           </div>
         )}
       </div>
