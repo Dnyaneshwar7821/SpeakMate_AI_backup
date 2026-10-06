@@ -71,6 +71,8 @@ public class UserResponse {
 
 	private Long schoolId;
 
+	private String schoolName;
+
 	private Boolean isSchoolStudent;
 
 	private String accountType;
@@ -141,6 +143,9 @@ public class UserResponse {
 	public Long getSchoolId() { return schoolId; }
 	public void setSchoolId(Long schoolId) { this.schoolId = schoolId; }
 
+	public String getSchoolName() { return schoolName; }
+	public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
+
 	public Boolean getIsSchoolStudent() { return isSchoolStudent; }
 	public void setIsSchoolStudent(Boolean isSchoolStudent) { this.isSchoolStudent = isSchoolStudent; }
 
@@ -182,6 +187,7 @@ public class UserResponse {
 		private String standard;
 		private String interests;
 		private Long schoolId;
+		private String schoolName;
 		private Boolean isSchoolStudent;
 		private String accountType;
 
@@ -210,6 +216,7 @@ public class UserResponse {
 		public UserResponseBuilder standard(String standard) { this.standard = standard; return this; }
 		public UserResponseBuilder interests(String interests) { this.interests = interests; return this; }
 		public UserResponseBuilder schoolId(Long schoolId) { this.schoolId = schoolId; return this; }
+		public UserResponseBuilder schoolName(String schoolName) { this.schoolName = schoolName; return this; }
 		public UserResponseBuilder isSchoolStudent(Boolean isSchoolStudent) { this.isSchoolStudent = isSchoolStudent; return this; }
 		public UserResponseBuilder accountType(String accountType) { this.accountType = accountType; return this; }
 
@@ -239,6 +246,7 @@ public class UserResponse {
             obj.setStandard(standard);
             obj.setInterests(interests);
             obj.setSchoolId(schoolId);
+            obj.setSchoolName(schoolName);
             obj.setIsSchoolStudent(isSchoolStudent);
             obj.setAccountType(accountType);
             return obj;

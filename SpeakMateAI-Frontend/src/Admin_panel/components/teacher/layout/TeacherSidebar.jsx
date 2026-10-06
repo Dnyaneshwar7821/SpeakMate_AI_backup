@@ -62,7 +62,7 @@ export function TeacherSidebar({
     onNavigate,
     labelId = "teacher-sidebar-title",
 }) {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const { unreadCount, formattedUnreadCount } = useNotifications();
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -116,6 +116,11 @@ export function TeacherSidebar({
                             <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                                 Teacher Workspace
                             </p>
+                            {user?.schoolName && (
+                                <p className="truncate text-[11px] font-medium text-[var(--color-primary)]" title={user.schoolName}>
+                                    {user.schoolName}
+                                </p>
+                            )}
                         </div>
                     </div>
 

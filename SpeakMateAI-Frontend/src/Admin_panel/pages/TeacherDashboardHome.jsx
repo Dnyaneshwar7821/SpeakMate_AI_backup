@@ -7,6 +7,8 @@ import { containerVariants, itemVariants } from "@animations/variants";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/Admin_panel/context/AuthContext";
 import { teacherDataApi } from "@services/admin/teacherDataApi";
+import { Building2 } from "lucide-react";
+import { updateAdminSessionUser } from "@/Admin_panel/services/adminSession";
 
 const toneStyles = {
     indigo: {
@@ -360,15 +362,38 @@ export function TeacherDashboardHome() {
     const [assignedStandards, setAssignedStandards] = useState(() => cachedData?.assignedStandards || []);
     const [assignedDivisions, setAssignedDivisions] = useState(() => cachedData?.assignedDivisions || []);
     const [assignedClassTitle, setAssignedClassTitle] = useState(() => cachedData?.assignedClassTitle || null);
+    const [schoolName, setSchoolName] = useState(() => cachedData?.schoolName || user?.schoolName || "");
 
     const teacherName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : null) || user?.email || "Teacher";
-    const teacherTitle = assignedClassTitle || (user?.designation || user?.department ? `${user?.designation || 'Teacher'}${user?.department ? ` • ${user.department}` : ''}` : (user?.schoolName ? `${user?.schoolName} Teacher` : "Teacher"));
+    const currentSchool = schoolName || user?.schoolName || "";
+    const teacherTitle = assignedClassTitle || (user?.designation || user?.department ? `${user?.designation || 'Teacher'}${user?.department ? ` • ${user.department}` : ''}` : (currentSchool ? `${currentSchool} Teacher` : "Teacher"));
 
     useEffect(() => {
         const fetchDashboard = async () => {
             try {
                 const stats = await teacherDataApi.getDashboardStats();
                 if (stats) {
+                    let resolvedSchool = stats.schoolName || stats.teacherInfo?.schoolName || user?.schoolName || "";
+                    if (!resolvedSchool) {
+                        try {
+                            const prof = await teacherDataApi.getProfile();
+                            if (prof?.schoolName && prof.schoolName !== "No School Assigned") {
+                                resolvedSchool = prof.schoolName;
+                            }
+                        } catch (e) {
+                            // Non-critical fallback
+                        }
+                    }
+                    if (resolvedSchool) {
+                        setSchoolName(resolvedSchool);
+                        if (!user?.schoolName || user.schoolName !== resolvedSchool) {
+                            updateAdminSessionUser({
+                                schoolName: resolvedSchool,
+                                schoolId: stats.schoolId || stats.teacherInfo?.schoolId
+                            });
+                        }
+                    }
+
                     const rawClasses = Array.isArray(stats.assignedClasses) ? stats.assignedClasses : [];
                     setAssignedClasses(rawClasses);
 
@@ -494,6 +519,7 @@ export function TeacherDashboardHome() {
                         assignedStandards: stds,
                         assignedDivisions: divs,
                         assignedClassTitle: computedTitle,
+                        schoolName: resolvedSchool || schoolName,
                     });
                 }
             } catch (err) {
@@ -529,35 +555,52 @@ export function TeacherDashboardHome() {
             <motion.section variants={itemVariants} className="mb-6" aria-labelledby="welcome-heading">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <p className="text-sm font-bold uppercase tracking-wide text-[var(--color-primary)]">
-                            Teacher dashboard
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <p className="text-sm font-bold uppercase tracking-wide text-[var(--color-primary)]">
+                                Teacher dashboard
+                            </p>
+                            {currentSchool && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/10 px-2.5 py-0.5 text-xs font-semibold text-[var(--color-primary)]">
+                                    <Building2 className="h-3 w-3" />
+                                    {currentSchool}
+                                </span>
+                            )}
+                        </div>
                         <p className="mt-3 text-base font-semibold text-[var(--text-secondary)]">Welcome,</p>
                         <h1 id="welcome-heading" className="mt-1 text-3xl font-black tracking-tight text-[var(--text-primary)] sm:text-4xl">
                             {teacherName}
                         </h1>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-[var(--text-secondary)]">
-                                {assignedClasses.length > 1
-                                    ? "Assigned Classes:"
-                                    : (assignedClassTitle || teacherTitle)}
-                            </p>
-                            {assignedClasses.length > 1 && (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                    {assignedClasses.map((cls, idx) => (
-                                        <button
-                                            key={cls.id || `${cls.grade}-${cls.division}-${idx}`}
-                                            type="button"
-                                            onClick={() => handleNavigateToClass(cls)}
-                                            title={`Filter roster by ${cls.name || cls.grade}`}
-                                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.5 py-0.5 text-xs font-bold text-[var(--text-primary)] transition hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-primary)]/10 active:scale-95"
-                                        >
-                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                            {cls.name || (cls.grade ? `Grade ${cls.grade}${cls.division ? ` - ${cls.division}` : ''}` : `Class ${idx + 1}`)}
-                                        </button>
-                                    ))}
+                        <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                            {currentSchool && (
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] shadow-xs">
+                                    <Building2 className="h-3.5 w-3.5 text-[var(--color-primary)]" />
+                                    <span className="text-[var(--text-muted)]">School:</span>
+                                    <span className="font-bold text-[var(--text-primary)]">{currentSchool}</span>
                                 </div>
                             )}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold text-[var(--text-secondary)]">
+                                    {assignedClasses.length > 1
+                                        ? "Assigned Classes:"
+                                        : (assignedClassTitle || teacherTitle)}
+                                </p>
+                                {assignedClasses.length > 1 && (
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        {assignedClasses.map((cls, idx) => (
+                                            <button
+                                                key={cls.id || `${cls.grade}-${cls.division}-${idx}`}
+                                                type="button"
+                                                onClick={() => handleNavigateToClass(cls)}
+                                                title={`Filter roster by ${cls.name || cls.grade}`}
+                                                className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.5 py-0.5 text-xs font-bold text-[var(--text-primary)] transition hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-primary)]/10 active:scale-95"
+                                            >
+                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                {cls.name || (cls.grade ? `Grade ${cls.grade}${cls.division ? ` - ${cls.division}` : ''}` : `Class ${idx + 1}`)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3 shadow-[var(--shadow-sm)]">

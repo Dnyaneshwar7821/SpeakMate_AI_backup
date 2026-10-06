@@ -30,10 +30,13 @@ export const adminAuthService = {
       const res = await schoolAdminAuthApi.login(email, password);
       // Backend returns AuthResponse directly
       const userObj = {
+        ...res.user,
         name: `${res.user.firstName || ""} ${res.user.lastName || ""}`.trim() || res.user.email,
         email: res.user.email,
         role: "SCHOOL_ADMIN",
         welcomeCompleted: res.user.welcomeCompleted,
+        schoolId: res.user.schoolId,
+        schoolName: res.user.schoolName,
         avatar: res.user.avatar,
         profileImage: res.user.avatar
       };
@@ -48,9 +51,12 @@ export const adminAuthService = {
       const res = await teacherAuthApi.login(email, password);
       // Backend returns AuthResponse directly
       const userObj = {
+        ...res.user,
         name: `${res.user.firstName || ""} ${res.user.lastName || ""}`.trim() || res.user.email,
         email: res.user.email,
         role: "TEACHER",
+        schoolId: res.user.schoolId,
+        schoolName: res.user.schoolName,
         avatar: res.user.avatar,
         profileImage: res.user.avatar
       };

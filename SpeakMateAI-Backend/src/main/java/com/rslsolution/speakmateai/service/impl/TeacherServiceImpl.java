@@ -687,6 +687,82 @@ public class TeacherServiceImpl implements TeacherService {
 		return buildRecentActivityFromLists(sessions, vocabs, grammars);
 	}
 
+	private static class ResolvedTeacherSchool {
+		final Long id;
+		final String name;
+
+		ResolvedTeacherSchool(Long id, String name) {
+			this.id = id;
+			this.name = name;
+		}
+	}
+
+	private ResolvedTeacherSchool resolveTeacherSchool(User teacher, List<ClassRoom> classes) {
+		String resolvedSchoolName = teacher.getSchoolName();
+		Long resolvedSchoolId = teacher.getSchoolId();
+
+		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && resolvedSchoolId != null && schoolRepository != null) {
+			resolvedSchoolName = schoolRepository.findById(resolvedSchoolId)
+					.map(s -> s.getName() != null && !s.getName().trim().isEmpty() ? s.getName() : s.getSchoolName())
+					.orElse(null);
+		}
+
+		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && teacherStandardDivisionRepository != null && teacher.getId() != null) {
+			List<TeacherStandardDivision> teacherStdDivs = teacherStandardDivisionRepository.findByTeacherId(teacher.getId());
+			if (teacherStdDivs != null) {
+				for (TeacherStandardDivision tsd : teacherStdDivs) {
+					if (tsd.getStandardDivision() != null && tsd.getStandardDivision().getSchoolStandard() != null
+							&& tsd.getStandardDivision().getSchoolStandard().getSchool() != null) {
+						School sch = tsd.getStandardDivision().getSchoolStandard().getSchool();
+						if (resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) {
+							resolvedSchoolName = sch.getName() != null && !sch.getName().trim().isEmpty() ? sch.getName() : sch.getSchoolName();
+						}
+						if (resolvedSchoolId == null) {
+							resolvedSchoolId = sch.getId();
+						}
+						if (resolvedSchoolName != null && !resolvedSchoolName.trim().isEmpty()) {
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && classes != null && schoolRepository != null) {
+			for (ClassRoom cr : classes) {
+				if (cr.getSchoolId() != null) {
+					resolvedSchoolName = schoolRepository.findById(cr.getSchoolId())
+							.map(s -> s.getName() != null && !s.getName().trim().isEmpty() ? s.getName() : s.getSchoolName())
+							.orElse(null);
+					if (resolvedSchoolId == null) {
+						resolvedSchoolId = cr.getSchoolId();
+					}
+					if (resolvedSchoolName != null && !resolvedSchoolName.trim().isEmpty()) {
+						break;
+					}
+				}
+			}
+		}
+
+		// Backfill teacher school details if missing
+		if (resolvedSchoolName != null && (teacher.getSchoolName() == null || teacher.getSchoolName().trim().isEmpty())) {
+			teacher.setSchoolName(resolvedSchoolName);
+			if (resolvedSchoolId != null && teacher.getSchoolId() == null) {
+				teacher.setSchoolId(resolvedSchoolId);
+			}
+			try {
+				if (teacher instanceof Teacher && teacherRepository != null) {
+					teacherRepository.save((Teacher) teacher);
+				} else if (userRepository != null) {
+					userRepository.save(teacher);
+				}
+			} catch (Exception ignored) {
+			}
+		}
+
+		return new ResolvedTeacherSchool(resolvedSchoolId, resolvedSchoolName);
+	}
+
 	@Override
 	public TeacherDashboardResponse getTeacherDashboard() {
 		User teacher = getCurrentTeacher();
@@ -697,10 +773,12 @@ public class TeacherServiceImpl implements TeacherService {
 
 		List<ClassRoom> classes = getTeacherClasses(teacher.getId());
 		List<User> students = getStudentsInClasses(classes);
+		ResolvedTeacherSchool resolvedSchool = resolveTeacherSchool(teacher, classes);
 
 		ProfileResponse profile = ProfileResponse.builder().id(teacher.getId()).firstName(teacher.getFirstName())
 				.lastName(teacher.getLastName()).email(teacher.getEmail()).role(teacher.getRole().name())
 				.avatar(teacher.getAvatar()).englishLevel(teacher.getEnglishLevel()).learningGoal(teacher.getLearningGoal())
+				.schoolId(resolvedSchool.id).schoolName(resolvedSchool.name)
 				.build();
 
 		Map<String, AssignedClassResponse> assignedClassMap = buildTeacherAssignedClassMap(teacher, classes, students);
@@ -741,6 +819,7 @@ public class TeacherServiceImpl implements TeacherService {
 			TeacherDashboardResponse response = TeacherDashboardResponse.builder().teacherInfo(profile).assignedClasses(assignedClasses)
 					.assignedStandards(assignedStandards).assignedDivisions(assignedDivisions)
 					.assignedStandardString(assignedStandardString)
+					.schoolId(resolvedSchool.id).schoolName(resolvedSchool.name)
 					.totalStudents(0).averageProgress(0.0).weeklyCompletion(getEmptyWeeklyProgress())
 					.completedStudents(0).skillPerformance(skillPerformance)
 					.studentsRequiringAttention(new ArrayList<>()).recentActivity(new ArrayList<>()).build();
@@ -926,6 +1005,7 @@ public class TeacherServiceImpl implements TeacherService {
 		TeacherDashboardResponse response = TeacherDashboardResponse.builder().teacherInfo(profile).assignedClasses(assignedClasses)
 				.assignedStandards(assignedStandards).assignedDivisions(assignedDivisions)
 				.assignedStandardString(assignedStandardString)
+				.schoolId(resolvedSchool.id).schoolName(resolvedSchool.name)
 				.totalStudents(totalStudents).averageProgress(avgProgress).weeklyCompletion(weeklyCompletion)
 				.completedStudents((int) completedStudentsCount).skillPerformance(skillPerformance)
 				.studentsRequiringAttention(attentionStudents).recentActivity(recentActivity).build();
@@ -1745,60 +1825,10 @@ public class TeacherServiceImpl implements TeacherService {
 		Teacher teacher = getAuthenticatedTeacher();
 		com.rslsolution.speakmateai.entity.Settings settings = settingsRepository.findByUser(teacher).orElse(null);
 
-		// Resolve School Name & School ID
-		String resolvedSchoolName = teacher.getSchoolName();
-		Long resolvedSchoolId = teacher.getSchoolId();
-
-		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && resolvedSchoolId != null && schoolRepository != null) {
-			resolvedSchoolName = schoolRepository.findById(resolvedSchoolId)
-					.map(s -> s.getName() != null && !s.getName().trim().isEmpty() ? s.getName() : s.getSchoolName())
-					.orElse(null);
-		}
-
-		List<TeacherStandardDivision> teacherStdDivs = teacherStandardDivisionRepository.findByTeacherId(teacher.getId());
-		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && teacherStdDivs != null) {
-			for (TeacherStandardDivision tsd : teacherStdDivs) {
-				if (tsd.getStandardDivision() != null && tsd.getStandardDivision().getSchoolStandard() != null
-						&& tsd.getStandardDivision().getSchoolStandard().getSchool() != null) {
-					School sch = tsd.getStandardDivision().getSchoolStandard().getSchool();
-					if (resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) {
-						resolvedSchoolName = sch.getName() != null && !sch.getName().trim().isEmpty() ? sch.getName() : sch.getSchoolName();
-					}
-					if (resolvedSchoolId == null) {
-						resolvedSchoolId = sch.getId();
-					}
-				}
-			}
-		}
-
 		List<ClassRoom> classes = getTeacherClasses(teacher.getId());
-		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && classes != null && schoolRepository != null) {
-			for (ClassRoom cr : classes) {
-				if (cr.getSchoolId() != null) {
-					resolvedSchoolName = schoolRepository.findById(cr.getSchoolId())
-							.map(s -> s.getName() != null && !s.getName().trim().isEmpty() ? s.getName() : s.getSchoolName())
-							.orElse(null);
-					if (resolvedSchoolId == null) {
-						resolvedSchoolId = cr.getSchoolId();
-					}
-					if (resolvedSchoolName != null && !resolvedSchoolName.trim().isEmpty()) {
-						break;
-					}
-				}
-			}
-		}
-
-		// Backfill teacher school details if missing
-		if (resolvedSchoolName != null && (teacher.getSchoolName() == null || teacher.getSchoolName().trim().isEmpty())) {
-			teacher.setSchoolName(resolvedSchoolName);
-			if (resolvedSchoolId != null && teacher.getSchoolId() == null) {
-				teacher.setSchoolId(resolvedSchoolId);
-			}
-			try {
-				teacherRepository.save(teacher);
-			} catch (Exception ignored) {
-			}
-		}
+		ResolvedTeacherSchool resolvedSchool = resolveTeacherSchool(teacher, classes);
+		String resolvedSchoolName = resolvedSchool.name;
+		Long resolvedSchoolId = resolvedSchool.id;
 
 		// Resolve Assigned Classes
 		Map<String, AssignedClassResponse> profileClassMap = buildTeacherAssignedClassMap(teacher, classes, null);

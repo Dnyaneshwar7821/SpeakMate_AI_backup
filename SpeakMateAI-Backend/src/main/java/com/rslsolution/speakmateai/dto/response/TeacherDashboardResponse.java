@@ -13,6 +13,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class TeacherDashboardResponse {
 	private ProfileResponse teacherInfo;
+	private Long schoolId;
+	private String schoolName;
 	private List<AssignedClassResponse> assignedClasses;
 	private List<String> assignedStandards;
 	private List<String> assignedDivisions;

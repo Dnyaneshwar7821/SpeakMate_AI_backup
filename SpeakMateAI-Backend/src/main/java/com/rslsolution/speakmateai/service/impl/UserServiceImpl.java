@@ -836,6 +836,13 @@ public class UserServiceImpl implements UserService {
 			}
 		}
 
+		String resolvedSchoolName = user.getSchoolName();
+		if ((resolvedSchoolName == null || resolvedSchoolName.trim().isEmpty()) && user.getSchoolId() != null && schoolRepository != null) {
+			resolvedSchoolName = schoolRepository.findById(user.getSchoolId())
+					.map(s -> s.getName() != null && !s.getName().trim().isEmpty() ? s.getName() : s.getSchoolName())
+					.orElse(null);
+		}
+
 		return UserResponse.builder().id(user.getId()).firstName(user.getFirstName()).lastName(user.getLastName())
 				.email(user.getEmail()).role(user.getRole()).avatar(user.getAvatar()).active(user.isActive())
 				.isPro(isPro).subscriptionPlan(subPlan)
@@ -846,7 +853,7 @@ public class UserServiceImpl implements UserService {
 				.dailyGoalMinutes(user.getDailyGoalMinutes()).preferredVoice(user.getPreferredVoice())
 				.preferredAccent(user.getPreferredAccent()).ageGroup(effectiveAge).schoolGrade(effectiveGrade)
 				.standard(user.getStandard()).interests(user.getInterests())
-				.schoolId(user.getSchoolId()).isSchoolStudent(isStudent)
+				.schoolId(user.getSchoolId()).schoolName(resolvedSchoolName).isSchoolStudent(isStudent)
 				.accountType(isStudent ? "STUDENT" : "INDIVIDUAL")
 				.build();
 	}

@@ -16,6 +16,7 @@ import {
     VolumeX,
     Sliders,
     Settings,
+    Building2,
 } from "lucide-react";
 import { useTheme } from "@/Admin_panel/context/ThemeContext";
 import { useAuth } from "@/Admin_panel/context/AuthContext";
@@ -378,6 +379,12 @@ export function TeacherNavbar({
                                             <p className="truncate text-xs text-[var(--text-secondary)]">
                                                 {displayEmail}
                                             </p>
+                                            {user?.schoolName && (
+                                                <p className="mt-0.5 truncate text-[11px] font-semibold text-[var(--color-primary)] flex items-center gap-1" title={user.schoolName}>
+                                                    <Building2 className="h-3 w-3 shrink-0" />
+                                                    <span className="truncate">{user.schoolName}</span>
+                                                </p>
+                                            )}
                                             <p className="truncate text-[10px] font-medium text-[var(--text-muted)]">
                                                 {assignedStandard}
                                             </p>

@@ -215,6 +215,10 @@ export function TeacherProfile() {
                     setForm(profileData);
                     setInitialForm(profileData);
 
+                    if (profileData.schoolName && profileData.schoolName !== "No School Assigned") {
+                        updateAdminSessionUser({ schoolName: profileData.schoolName, schoolId: res.schoolId });
+                    }
+
                     if (res.identity?.avatar || profileData.avatar) {
                         syncInsigniaFromBackend("TEACHER", profileData.email, res.identity?.avatar || profileData.avatar, profileData.name);
                     }

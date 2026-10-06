@@ -33,6 +33,8 @@ public class ProfileResponse {
 
 	private Long schoolId;
 
+	private String schoolName;
+
 	private Boolean isSchoolStudent;
 
 	private Integer xp;
@@ -194,8 +196,20 @@ public class ProfileResponse {
 		return totalVocabularyWords;
 	}
 
-	public void setTotalVocabularyWords(Integer totalVocabularyWords) {
-		this.totalVocabularyWords = totalVocabularyWords;
+	public Long getSchoolId() {
+		return schoolId;
+	}
+
+	public void setSchoolId(Long schoolId) {
+		this.schoolId = schoolId;
+	}
+
+	public String getSchoolName() {
+		return schoolName;
+	}
+
+	public void setSchoolName(String schoolName) {
+		this.schoolName = schoolName;
 	}
 
 	public static ProfileResponseBuilder builder() {
@@ -211,6 +225,8 @@ public class ProfileResponse {
 		private String avatar;
 		private String englishLevel;
 		private String learningGoal;
+		private Long schoolId;
+		private String schoolName;
 		private Integer xp;
 		private Integer level;
 		private Integer currentStreak;
@@ -259,6 +275,16 @@ public class ProfileResponse {
 
 		public ProfileResponseBuilder learningGoal(String learningGoal) {
 			this.learningGoal = learningGoal;
+			return this;
+		}
+
+		public ProfileResponseBuilder schoolId(Long schoolId) {
+			this.schoolId = schoolId;
+			return this;
+		}
+
+		public ProfileResponseBuilder schoolName(String schoolName) {
+			this.schoolName = schoolName;
 			return this;
 		}
 
@@ -322,6 +348,8 @@ public class ProfileResponse {
 			obj.setAvatar(avatar);
 			obj.setEnglishLevel(englishLevel);
 			obj.setLearningGoal(learningGoal);
+			obj.setSchoolId(schoolId);
+			obj.setSchoolName(schoolName);
 			obj.setXp(xp);
 			obj.setLevel(level);
 			obj.setCurrentStreak(currentStreak);
