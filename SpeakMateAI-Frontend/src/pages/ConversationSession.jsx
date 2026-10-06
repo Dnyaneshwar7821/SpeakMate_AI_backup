@@ -99,6 +99,24 @@ const cleanVocabList = (text) => {
     .filter((w) => w.length > 0 && !w.toLowerCase().includes("none") && !w.toLowerCase().includes("null"));
 };
 
+// Conversational Voice Activity Thresholds
+const NORMAL_SILENCE_THRESHOLD = 3000; // 3.0s: comfortable complete-thought pause
+const INCOMPLETE_SILENCE_THRESHOLD = 4500; // 4.5s: extra hesitation tolerance for connectors
+
+const INCOMPLETE_CONNECTORS = new Set([
+  "and", "because", "but", "or", "so", "that", "to", "with", "like",
+  "if", "when", "while", "although", "since", "for"
+]);
+
+const isIncompleteSentence = (text) => {
+  if (!text || typeof text !== "string") return false;
+  const clean = text.trim().toLowerCase().replace(/[.,!?;:]+$/, "").trim();
+  if (!clean) return false;
+  const words = clean.split(/\s+/);
+  const lastWord = words[words.length - 1];
+  return INCOMPLETE_CONNECTORS.has(lastWord);
+};
+
 // Sleek Unified Web Coach Card (Modern Desktop Web Design)
 function CoachCard({ feedback, isDark, onSpeakText }) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -415,6 +433,8 @@ export function ConversationSession() {
   const interimTranscriptRef = useRef("");
   const handleStopListeningAndSendRef = useRef(null);
   const sendUserTextRef = useRef(null);
+  const isSendingRef = useRef(false);
+  const recordingSessionRef = useRef(0);
   const chatEndRef = useRef(null);
   const hasSpokenInitialRef = useRef(false);
   const hasFinishedRef = useRef(false);
@@ -552,7 +572,9 @@ export function ConversationSession() {
         }
         interimTranscriptRef.current = interim;
 
-        const fullTranscript = (accumulatedTranscriptRef.current + " " + interim).trim();
+        const fullTranscript = `${accumulatedTranscriptRef.current} ${interim}`
+          .replace(/\s+/g, " ")
+          .trim();
         setCurrentTranscript(fullTranscript);
 
         // Reset silence timer on every speech event
@@ -561,13 +583,22 @@ export function ConversationSession() {
           silenceTimerRef.current = null;
         }
 
-        // Arm auto-send timer when speech has been detected (2.8s pause triggers send)
-        if (fullTranscript.length > 0) {
+        // Arm auto-send timer when meaningful speech has been detected (>= 2 chars)
+        if (fullTranscript.length >= 2 && !isSendingRef.current) {
+          const activeSessionId = recordingSessionRef.current;
+          const threshold = isIncompleteSentence(fullTranscript)
+            ? INCOMPLETE_SILENCE_THRESHOLD
+            : NORMAL_SILENCE_THRESHOLD;
+
           silenceTimerRef.current = setTimeout(() => {
-            if (handleStopListeningAndSendRef.current) {
+            if (
+              recordingSessionRef.current === activeSessionId &&
+              !isSendingRef.current &&
+              handleStopListeningAndSendRef.current
+            ) {
               handleStopListeningAndSendRef.current();
             }
-          }, 2800);
+          }, threshold);
         }
       };
 
@@ -589,7 +620,7 @@ export function ConversationSession() {
       recognition.onend = () => {
         // If the browser session ended automatically but user is still in listening mode,
         // restart it seamlessly so user can talk as long as they want without premature cutoff!
-        if (isListeningRef.current && !stoppingByUserRef.current) {
+        if (isListeningRef.current && !stoppingByUserRef.current && !isSendingRef.current) {
           try {
             recognition.start();
           } catch (e) {}
@@ -612,6 +643,7 @@ export function ConversationSession() {
           recognitionRef.current.stop();
         } catch (e) {}
       }
+      isSendingRef.current = false;
     };
   }, []);
 
@@ -685,7 +717,7 @@ export function ConversationSession() {
   };
 
   const handleStartListening = () => {
-    if (isPaused) return;
+    if (isPaused || isSendingRef.current) return;
     if (coachingTimerRef.current) {
       clearTimeout(coachingTimerRef.current);
       coachingTimerRef.current = null;
@@ -701,6 +733,7 @@ export function ConversationSession() {
       silenceTimerRef.current = null;
     }
 
+    recordingSessionRef.current += 1;
     stoppingByUserRef.current = false;
     accumulatedTranscriptRef.current = "";
     interimTranscriptRef.current = "";
@@ -725,43 +758,16 @@ export function ConversationSession() {
           if (handleStopListeningAndSendRef.current) {
             handleStopListeningAndSendRef.current();
           }
-        }, 2000);
+        }, NORMAL_SILENCE_THRESHOLD);
       }, 1500);
     }
   };
 
-  const handleStopListeningAndSend = async () => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-
-    stoppingByUserRef.current = true;
-    isListeningRef.current = false;
-    setIsListening(false);
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (err) {}
-    }
-
-    const finalSpoken = (
-      accumulatedTranscriptRef.current + " " + (interimTranscriptRef.current || "")
-    ).trim() || currentTranscript.trim();
-
-    accumulatedTranscriptRef.current = "";
-    interimTranscriptRef.current = "";
-
-    if (!finalSpoken) return;
-
-    if (sendUserTextRef.current) {
-      await sendUserTextRef.current(finalSpoken);
-    }
-  };
-  handleStopListeningAndSendRef.current = handleStopListeningAndSend;
-
   const sendUserText = async (text) => {
+    if (!text || typeof text !== "string") return;
+    const cleanUserText = text.trim();
+    if (cleanUserText.length < 2) return;
+
     // Stop any ongoing speech and ensure mouth is firmly at REST
     stopSpeaking();
     setIsAiSpeaking(false);
@@ -778,7 +784,7 @@ export function ConversationSession() {
     setCurrentTranscript("");
     setIsThinking(true);
 
-    const userMsg = { id: Date.now(), sender: "user", message: text };
+    const userMsg = { id: Date.now(), sender: "user", message: cleanUserText };
     setMessages((prev) => [...prev, userMsg]);
 
     try {
@@ -943,6 +949,75 @@ export function ConversationSession() {
     } catch (e) {
       setIsThinking(false);
     }
+  };
+  sendUserTextRef.current = sendUserText;
+
+  const handleStopListeningAndSend = async () => {
+    // 1. Immediately cancel any pending silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    // 2. Race condition protection: prevent multiple concurrent sends
+    if (isSendingRef.current) return;
+
+    stoppingByUserRef.current = true;
+    isListeningRef.current = false;
+    setIsListening(false);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {}
+    }
+
+    // 3. Collect complete available transcript (accumulated final + interim)
+    const finalSpoken = `${accumulatedTranscriptRef.current} ${interimTranscriptRef.current}`
+      .replace(/\s+/g, " ")
+      .trim() || currentTranscript.replace(/\s+/g, " ").trim();
+
+    accumulatedTranscriptRef.current = "";
+    interimTranscriptRef.current = "";
+    setCurrentTranscript("");
+
+    // 4. Minimum Transcript Guard: prevent empty sends, noise, or clicks (< 2 chars)
+    if (!finalSpoken || finalSpoken.length < 2) {
+      return;
+    }
+
+    // 5. Send message with race-condition lock
+    isSendingRef.current = true;
+    try {
+      if (sendUserTextRef.current) {
+        await sendUserTextRef.current(finalSpoken);
+      } else {
+        await sendUserText(finalSpoken);
+      }
+    } finally {
+      isSendingRef.current = false;
+    }
+  };
+  handleStopListeningAndSendRef.current = handleStopListeningAndSend;
+
+  const handleCancelListening = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    stoppingByUserRef.current = true;
+    isListeningRef.current = false;
+    setIsListening(false);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {}
+    }
+
+    accumulatedTranscriptRef.current = "";
+    interimTranscriptRef.current = "";
+    setCurrentTranscript("");
   };
 
   const handleEscapeSession = async () => {
@@ -1341,7 +1416,16 @@ export function ConversationSession() {
                 </div>
                 <span>Listening — auto-sends when you finish speaking...</span>
               </div>
-              <span className={`text-[10px] uppercase font-black ${isDark ? "text-rose-300" : "text-rose-600"}`}>Auto-sends on silence</span>
+              <button
+                type="button"
+                onClick={handleCancelListening}
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                  isDark ? "text-rose-300 hover:bg-rose-500/20" : "text-rose-600 hover:bg-rose-500/10"
+                }`}
+                title="Cancel Recording"
+              >
+                Cancel ✕
+              </button>
             </div>
           )}
 
