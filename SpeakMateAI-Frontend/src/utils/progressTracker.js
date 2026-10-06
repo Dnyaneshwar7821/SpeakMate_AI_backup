@@ -435,12 +435,22 @@ export const recordWordDeleted = (count = 1, userContext = null) => {
   return stats;
 };
 
-// 5. Record AI Chat Message (+5 XP)
+// 5. Record AI Chat Message (Turn tracker, 0 XP)
 export const recordChatMessage = (count = 1, userContext = null) => {
   const stats = getLiveProgressStats(userContext);
   stats.todayMins = (stats.todayMins || 0) + 1;
-  stats.xp += count * 5;
+  checkAndUpdateDailyGoal(stats, userContext);
+  saveProgressStats(stats, userContext);
+  return stats;
+};
 
+// 5b. Record AI Chat Session Completed (awarded only on session Finish if eligible)
+export const recordChatSessionCompleted = (xp = 5, userContext = null) => {
+  const stats = getLiveProgressStats(userContext);
+  stats.todayMins = (stats.todayMins || 0) + 2;
+  if (xp > 0) {
+    stats.xp += xp;
+  }
   checkAndUpdateDailyGoal(stats, userContext);
   saveProgressStats(stats, userContext);
   return stats;

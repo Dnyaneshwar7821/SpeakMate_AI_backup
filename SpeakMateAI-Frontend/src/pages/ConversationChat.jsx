@@ -9,7 +9,7 @@ import { speakGlobalText, stopSpeaking } from "../utils/speechHelper";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
-import { recordChatMessage } from "../utils/progressTracker";
+import { recordChatMessage, recordChatSessionCompleted } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 
 // Dynamic AI contextual hint generator according to live chat history
@@ -383,6 +383,8 @@ export function ConversationChat() {
   const [hints, setHints] = useState([]);
   const [showHints, setShowHints] = useState(false);
   const [loadingHints, setLoadingHints] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishSummary, setFinishSummary] = useState(null);
   const lastHintsTurnRef = useRef(-1);
   const [speechSpeed, setSpeechSpeed] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
@@ -931,9 +933,8 @@ export function ConversationChat() {
       setMessages((prev) => [...prev, response]);
       setEvaluating(false);
 
-      // Award +5 XP per conversational turn
+      // Track conversational turn for daily activity time (0 XP per message, awarded upon finishing session)
       recordChatMessage(1);
-      toast.success("+5 XP Earned! 💬");
 
       // Spoken voice speaks only concise conversational reply + follow-up question
       const fullSpeakableText = getSpeakableText(response, false);
@@ -956,6 +957,89 @@ export function ConversationChat() {
       console.error(err);
     } finally {
       setSelectedMessage(null);
+    }
+  };
+
+  const handleFinishChat = async () => {
+    if (finishing) return;
+    setFinishing(true);
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      setIsAiSpeaking(false);
+      setViseme("REST");
+    }
+
+    const userMessages = messages.filter((m) => m.sender === "user");
+    const totalWords = userMessages.reduce(
+      (sum, m) => sum + (m.message || "").trim().split(/\s+/).filter(Boolean).length,
+      0
+    );
+    const isLocallyEligible = userMessages.length >= 3 && totalWords >= 15;
+
+    try {
+      let finishData = null;
+      if (sessionId && !String(sessionId).startsWith("sim_")) {
+        try {
+          finishData = await chatService.finish(sessionId);
+        } catch (apiErr) {
+          console.warn("Backend chat finish failed, using local fallback:", apiErr);
+        }
+      }
+
+      const xpEarned = finishData != null ? (finishData.xpEarned || 0) : (isLocallyEligible ? 5 : 0);
+      const isEligible = finishData != null ? finishData.eligibleForXp : isLocallyEligible;
+      const feedback = finishData?.feedback || (isEligible
+        ? `Great chat session! You completed ${userMessages.length} exchanges (${totalWords} words) and earned 5 XP! 🎉`
+        : `Session ended with ${userMessages.length} exchange(s). Chat at least 3 turns (15+ words) next time to earn 5 XP! 💬`);
+
+      if (xpEarned > 0) {
+        recordChatSessionCompleted(xpEarned);
+        toast.success("Chat Complete! +5 XP Earned! 🎉");
+      } else {
+        toast.info("Session ended with 0 XP. Chat at least 3 turns to earn XP!");
+      }
+
+      setFinishSummary({
+        userMessageCount: userMessages.length,
+        totalWords,
+        xpEarned,
+        isEligible,
+        feedback,
+      });
+    } catch (err) {
+      console.error("Error finishing chat session:", err);
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  const handleRestartChat = async () => {
+    setFinishSummary(null);
+    setMessages([]);
+    hasSpokenInitialRef.current = false;
+    try {
+      const res = await chatService.start(mode);
+      if (res?.id) {
+        setSessionId(res.id);
+        const initMsg = {
+          id: Date.now(),
+          sender: "ai",
+          message: `Hello! I am SpeakMate AI, your Coach for ${mode}. Let's begin a fresh session! What would you like to discuss today?`,
+        };
+        setMessages([initMsg]);
+        setTimeout(() => handleSpeakText(initMsg.message, true), 400);
+      }
+    } catch {
+      const newSimId = Date.now().toString();
+      setSessionId(newSimId);
+      const initMsg = {
+        id: Date.now(),
+        sender: "ai",
+        message: `Hello! I am SpeakMate AI, your Coach for ${mode}. Let's practice speaking and writing together!`,
+      };
+      setMessages([initMsg]);
+      setTimeout(() => handleSpeakText(initMsg.message, true), 400);
     }
   };
 
@@ -1106,6 +1190,16 @@ export function ConversationChat() {
               }`}
             >
               {isMuted ? "🔇 Muted" : "🔊 Sound On"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleFinishChat}
+              disabled={finishing}
+              className="px-3 py-1 rounded-xl bg-gradient-to-r from-[#6c63ff] to-[#ff6584] hover:opacity-90 disabled:opacity-50 text-white text-[11px] font-extrabold shadow-md shadow-[#6c63ff]/20 transition-all shrink-0 cursor-pointer flex items-center gap-1 active:scale-95"
+              title="Finish Chat & Earn XP"
+            >
+              {finishing ? "Finishing..." : "Finish →"}
             </button>
           </div>
         </div>
@@ -1367,6 +1461,105 @@ export function ConversationChat() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Finish Summary Modal */}
+      {finishSummary && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className={`w-full max-w-md p-6 sm:p-7 rounded-3xl border shadow-2xl space-y-5 text-center transition-all ${
+            isDark ? "bg-slate-900/95 border-white/10 text-white shadow-purple-950/40" : "bg-white border-slate-200 text-slate-900 shadow-xl"
+          }`}>
+            {/* Hero Icon */}
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#6c63ff] to-[#ff6584] shadow-lg shadow-[#6c63ff]/30 text-3xl">
+              {finishSummary.isEligible ? "🏆" : "💬"}
+            </div>
+
+            <div>
+              <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">
+                {finishSummary.isEligible ? "Chat Session Completed!" : "Session Concluded"}
+              </h3>
+              <p className={`text-xs mt-1 leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                {finishSummary.feedback}
+              </p>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-3 gap-2.5 pt-1">
+              <div className={`p-3 rounded-2xl border text-center ${
+                isDark ? "bg-slate-800/70 border-white/10" : "bg-slate-50 border-slate-200"
+              }`}>
+                <span className="text-[10px] font-bold block text-slate-400 uppercase tracking-wider">Turns</span>
+                <span className="text-base font-extrabold text-[#6c63ff]">{finishSummary.userMessageCount}</span>
+              </div>
+
+              <div className={`p-3 rounded-2xl border text-center ${
+                isDark ? "bg-slate-800/70 border-white/10" : "bg-slate-50 border-slate-200"
+              }`}>
+                <span className="text-[10px] font-bold block text-slate-400 uppercase tracking-wider">Words</span>
+                <span className="text-base font-extrabold text-[#6c63ff]">{finishSummary.totalWords}</span>
+              </div>
+
+              <div className={`p-3 rounded-2xl border text-center ${
+                finishSummary.isEligible
+                  ? isDark ? "bg-emerald-500/15 border-emerald-500/30" : "bg-emerald-50 border-emerald-200"
+                  : isDark ? "bg-amber-500/15 border-amber-500/30" : "bg-amber-50 border-amber-200"
+              }`}>
+                <span className={`text-[10px] font-bold block uppercase tracking-wider ${
+                  finishSummary.isEligible ? "text-emerald-500" : "text-amber-500"
+                }`}>Reward</span>
+                <span className={`text-base font-extrabold ${
+                  finishSummary.isEligible ? "text-emerald-500" : "text-amber-500"
+                }`}>
+                  {finishSummary.xpEarned > 0 ? `+${finishSummary.xpEarned} XP` : "0 XP"}
+                </span>
+              </div>
+            </div>
+
+            {/* Explanatory banner if not eligible */}
+            {!finishSummary.isEligible && (
+              <div className={`p-3 rounded-xl border text-xs text-left flex items-start gap-2.5 ${
+                isDark ? "bg-amber-500/10 border-amber-500/25 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-800"
+              }`}>
+                <span className="text-base shrink-0">💡</span>
+                <p className="leading-relaxed text-[11px]">
+                  <strong>Earn 5 XP:</strong> Practice actively by exchanging at least 3 conversation turns (15+ words) before clicking Finish.
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={handleRestartChat}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-[#6c63ff] to-[#8b5cf6] hover:opacity-95 shadow-md shadow-[#6c63ff]/25 transition-all cursor-pointer active:scale-98"
+              >
+                🔄 Start Fresh Chat Session
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFinishSummary(null)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                    isDark ? "bg-slate-800 border-white/10 text-slate-300 hover:text-white" : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900"
+                  }`}
+                >
+                  Review Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(ROUTES.AI_CHAT)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                    isDark ? "bg-slate-800 border-white/10 text-slate-300 hover:text-white" : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900"
+                  }`}
+                >
+                  Exit to Topics
+                </button>
+              </div>
             </div>
           </div>
         </div>

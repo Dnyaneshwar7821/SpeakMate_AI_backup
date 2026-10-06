@@ -7,6 +7,7 @@ import com.rslsolution.speakmateai.dto.request.ChatSessionMessageRequest;
 import com.rslsolution.speakmateai.dto.request.ChatStartRequest;
 import com.rslsolution.speakmateai.dto.response.ChatMessageResponse;
 import com.rslsolution.speakmateai.dto.response.ChatSessionDetailResponse;
+import com.rslsolution.speakmateai.dto.response.ChatSessionFinishResponse;
 import com.rslsolution.speakmateai.dto.response.ChatSessionResponse;
 
 public interface AIChatService {
@@ -28,4 +29,6 @@ public interface AIChatService {
 	List<ChatMessageResponse> getBookmarkedMessages();
 
 	List<String> getHints(Long id);
+
+	ChatSessionFinishResponse finishSession(Long id);
 }

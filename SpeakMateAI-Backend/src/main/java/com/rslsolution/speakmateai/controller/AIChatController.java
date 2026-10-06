@@ -9,6 +9,7 @@ import com.rslsolution.speakmateai.dto.request.ChatSessionMessageRequest;
 import com.rslsolution.speakmateai.dto.request.ChatStartRequest;
 import com.rslsolution.speakmateai.dto.response.ChatMessageResponse;
 import com.rslsolution.speakmateai.dto.response.ChatSessionDetailResponse;
+import com.rslsolution.speakmateai.dto.response.ChatSessionFinishResponse;
 import com.rslsolution.speakmateai.dto.response.ChatSessionResponse;
 import com.rslsolution.speakmateai.service.AIChatService;
 
@@ -69,5 +70,10 @@ public class AIChatController {
 	@GetMapping("/hint/{id}")
 	public List<String> getHints(@PathVariable Long id) {
 		return aiChatService.getHints(id);
+	}
+
+	@PostMapping("/session/{id}/finish")
+	public ChatSessionFinishResponse finishSession(@PathVariable Long id) {
+		return aiChatService.finishSession(id);
 	}
 }

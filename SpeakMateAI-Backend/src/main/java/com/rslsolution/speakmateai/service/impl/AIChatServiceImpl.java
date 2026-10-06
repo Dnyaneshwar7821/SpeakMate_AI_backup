@@ -23,6 +23,7 @@ import com.rslsolution.speakmateai.dto.request.ChatStartRequest;
 import com.rslsolution.speakmateai.dto.groq.GroqRequest;
 import com.rslsolution.speakmateai.dto.response.ChatMessageResponse;
 import com.rslsolution.speakmateai.dto.response.ChatSessionDetailResponse;
+import com.rslsolution.speakmateai.dto.response.ChatSessionFinishResponse;
 import com.rslsolution.speakmateai.dto.response.ChatSessionResponse;
 import com.rslsolution.speakmateai.dto.groq.GroqResponse;
 import com.rslsolution.speakmateai.entity.ChatBookmark;
@@ -214,26 +215,6 @@ public class AIChatServiceImpl implements AIChatService {
 				.voiceEnabled(request.isVoiceEnabled())
 				.build();
 		chatMessageRepository.save(userMsg);
-
-		// Credit +5 XP for active conversation turn
-		try {
-			Progress progress = progressRepository.findByUser(user)
-					.orElseGet(() -> Progress.builder()
-							.user(user)
-							.xp(0)
-							.level(1)
-							.currentStreak(0)
-							.longestStreak(0)
-							.totalPracticeMinutes(0)
-							.totalSpeakingSessions(0)
-							.totalGrammarChecks(0)
-							.totalVocabularyWords(0)
-							.build());
-			int newXp = (progress.getXp() == null ? 0 : progress.getXp()) + 5;
-			progress.setXp(newXp);
-			progress.setLevel(Math.max(1, (newXp / 500) + 1));
-			progressRepository.save(progress);
-		} catch (Exception ignored) {}
 
 
 		// 2. Determine Level
@@ -747,5 +728,86 @@ public class AIChatServiceImpl implements AIChatService {
 				"I understand. What do you recommend I focus on next?",
 				"Could you give me an example of how a native would say that?"
 		);
+	}
+
+	@Override
+	public ChatSessionFinishResponse finishSession(Long id) {
+		User user = currentUser();
+		ChatSession session = chatSessionRepository.findById(id)
+				.orElseThrow(() -> new IllegalArgumentException("Chat session not found"));
+
+		if (!session.getUser().getId().equals(user.getId())) {
+			throw new SecurityException("Unauthorized access to chat session");
+		}
+
+		List<ChatMessage> messages = chatMessageRepository.findBySessionOrderByCreatedAtAsc(session);
+		List<ChatMessage> userMessages = messages.stream()
+				.filter(m -> "user".equalsIgnoreCase(m.getSender()))
+				.toList();
+
+		int userMessageCount = userMessages.size();
+		int totalWords = 0;
+		for (ChatMessage m : userMessages) {
+			if (m.getMessage() != null && !m.getMessage().trim().isEmpty()) {
+				totalWords += m.getMessage().trim().split("\\s+").length;
+			}
+		}
+
+		// Calculate practice duration in seconds
+		long durationSeconds = 60;
+		if (!messages.isEmpty()) {
+			LocalDateTime first = messages.get(0).getCreatedAt();
+			LocalDateTime last = messages.get(messages.size() - 1).getCreatedAt();
+			if (first != null && last != null) {
+				durationSeconds = Math.max(30, java.time.Duration.between(first, last).getSeconds());
+			}
+		}
+
+		// Genuine chatting criteria: At least 3 user turns AND at least 15 words spoken/typed
+		boolean isEligible = userMessageCount >= 3 && totalWords >= 15;
+		int xpEarned = isEligible ? 5 : 0;
+
+		if (isEligible) {
+			try {
+				Progress progress = progressRepository.findByUser(user)
+						.orElseGet(() -> Progress.builder()
+								.user(user)
+								.xp(0)
+								.level(1)
+								.currentStreak(0)
+								.longestStreak(0)
+								.totalPracticeMinutes(0)
+								.totalSpeakingSessions(0)
+								.totalGrammarChecks(0)
+								.totalVocabularyWords(0)
+								.build());
+
+				int newXp = (progress.getXp() == null ? 0 : progress.getXp()) + xpEarned;
+				progress.setXp(newXp);
+				progress.setLevel(Math.max(1, (newXp / 500) + 1));
+
+				int sessionMinutes = (int) Math.max(1, Math.ceil(durationSeconds / 60.0));
+				progress.setTotalPracticeMinutes((progress.getTotalPracticeMinutes() == null ? 0 : progress.getTotalPracticeMinutes()) + sessionMinutes);
+				progressRepository.save(progress);
+			} catch (Exception ignored) {}
+		}
+
+		String feedback;
+		if (isEligible) {
+			feedback = "Great chat session! You completed " + userMessageCount + " exchanges (" + totalWords + " words) and earned 5 XP! Keep up the great work!";
+		} else {
+			feedback = "Session ended with " + userMessageCount + " exchange(s). Chat at least 3 turns (15+ words) next time to earn 5 XP! Keep practicing!";
+		}
+
+		return ChatSessionFinishResponse.builder()
+				.sessionId(session.getId())
+				.mode(session.getMode())
+				.title(session.getTitle())
+				.userMessageCount(userMessageCount)
+				.totalWords(totalWords)
+				.xpEarned(xpEarned)
+				.feedback(feedback)
+				.eligibleForXp(isEligible)
+				.build();
 	}
 }
