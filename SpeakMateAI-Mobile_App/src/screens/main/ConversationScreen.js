@@ -39,6 +39,7 @@ import LevelSegmentedControl from '../../components/common/LevelSegmentedControl
 // ── Voice Activity Timing & Hesitation Thresholds (Web Parity) ────────────────
 const NORMAL_SILENCE_THRESHOLD = 3000; // 3.0s: comfortable complete-thought pause
 const INCOMPLETE_SILENCE_THRESHOLD = 4500; // 4.5s: extra hesitation tolerance for connectors
+const INITIAL_SILENCE_THRESHOLD = 8000; // 8.0s: auto-close if user stays completely silent
 
 const INCOMPLETE_CONNECTORS = new Set([
   "and", "because", "but", "or", "so", "that", "to", "with", "like",
@@ -353,6 +354,7 @@ export default function ConversationScreen({ navigation, route }) {
   // Live Speech Recognition & Silence Auto-Stop refs & Session Token
   const [currentTranscript, setCurrentTranscript] = useState('');
   const silenceTimerRef = useRef(null);
+  const initialSilenceTimerRef = useRef(null);
   const stoppingRef = useRef(false);
   const startingRef = useRef(false);
   const isRecordingRef = useRef(false);
@@ -573,6 +575,10 @@ export default function ConversationScreen({ navigation, route }) {
       setStatusText('Waiting for Response');
       updateIsPaused(true);
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (isRecordingRef.current) {
         try {
           ExpoSpeechRecognitionModule.stop();
@@ -1062,7 +1068,11 @@ export default function ConversationScreen({ navigation, route }) {
         .trim();
       setCurrentTranscript(full);
 
-      // Reset silence timer on every speech event
+      // Reset timers on speech event
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -1116,6 +1126,10 @@ export default function ConversationScreen({ navigation, route }) {
       subResult.remove();
       subError.remove();
       subEnd.remove();
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -1134,6 +1148,10 @@ export default function ConversationScreen({ navigation, route }) {
       VoiceService.stop();
       setIsSpeaking(false);
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -1146,13 +1164,31 @@ export default function ConversationScreen({ navigation, route }) {
         return;
       }
 
-      recordingSessionIdRef.current += 1;
+      const activeSessionId = recordingSessionIdRef.current + 1;
+      recordingSessionIdRef.current = activeSessionId;
       accumulatedTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       setCurrentTranscript('');
       isRecordingRef.current = true;
       setIsRecording(true);
       setStatusText('Listening');
+
+      // Option B: Auto-close after 8 seconds of complete silence
+      initialSilenceTimerRef.current = setTimeout(() => {
+        if (
+          recordingSessionIdRef.current === activeSessionId &&
+          isRecordingRef.current &&
+          !isSendingRef.current
+        ) {
+          isRecordingRef.current = false;
+          setIsRecording(false);
+          setStatusText('Waiting for Response');
+          try {
+            ExpoSpeechRecognitionModule.stop();
+          } catch (_) {}
+          Alert.alert('No Speech Detected 🤫', 'No words were heard. Tap the mic when you are ready to speak.');
+        }
+      }, INITIAL_SILENCE_THRESHOLD);
 
       ExpoSpeechRecognitionModule.start({
         lang: 'en-US',
@@ -1174,6 +1210,10 @@ export default function ConversationScreen({ navigation, route }) {
     if (stoppingRef.current || isSendingRef.current) return;
     stoppingRef.current = true;
 
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;

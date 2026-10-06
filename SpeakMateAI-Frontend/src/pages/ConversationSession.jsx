@@ -102,6 +102,7 @@ const cleanVocabList = (text) => {
 // Conversational Voice Activity Thresholds
 const NORMAL_SILENCE_THRESHOLD = 3000; // 3.0s: comfortable complete-thought pause
 const INCOMPLETE_SILENCE_THRESHOLD = 4500; // 4.5s: extra hesitation tolerance for connectors
+const INITIAL_SILENCE_THRESHOLD = 8000; // 8.0s: auto-close if user stays completely silent
 
 const INCOMPLETE_CONNECTORS = new Set([
   "and", "because", "but", "or", "so", "that", "to", "with", "like",
@@ -428,6 +429,7 @@ export function ConversationSession() {
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
   const silenceTimerRef = useRef(null);
+  const initialSilenceTimerRef = useRef(null);
   const stoppingByUserRef = useRef(false);
   const accumulatedTranscriptRef = useRef("");
   const interimTranscriptRef = useRef("");
@@ -577,7 +579,11 @@ export function ConversationSession() {
           .trim();
         setCurrentTranscript(fullTranscript);
 
-        // Reset silence timer on every speech event
+        // Reset timers on every speech event
+        if (initialSilenceTimerRef.current) {
+          clearTimeout(initialSilenceTimerRef.current);
+          initialSilenceTimerRef.current = null;
+        }
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
@@ -634,6 +640,10 @@ export function ConversationSession() {
     }
 
     return () => {
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -728,16 +738,39 @@ export function ConversationSession() {
       setViseme("REST");
     }
 
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
 
-    recordingSessionRef.current += 1;
+    const activeSessionId = recordingSessionRef.current + 1;
+    recordingSessionRef.current = activeSessionId;
     stoppingByUserRef.current = false;
     accumulatedTranscriptRef.current = "";
     interimTranscriptRef.current = "";
     setCurrentTranscript("");
+
+    // Option B: Auto-close after 8 seconds of complete silence
+    initialSilenceTimerRef.current = setTimeout(() => {
+      if (
+        recordingSessionRef.current === activeSessionId &&
+        isListeningRef.current &&
+        !isSendingRef.current
+      ) {
+        stoppingByUserRef.current = true;
+        isListeningRef.current = false;
+        setIsListening(false);
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch (e) {}
+        }
+      }
+    }, INITIAL_SILENCE_THRESHOLD);
 
     if (recognitionRef.current) {
       try {
@@ -954,6 +987,10 @@ export function ConversationSession() {
 
   const handleStopListeningAndSend = async () => {
     // 1. Immediately cancel any pending silence timer
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -1001,6 +1038,10 @@ export function ConversationSession() {
   handleStopListeningAndSendRef.current = handleStopListeningAndSend;
 
   const handleCancelListening = () => {
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;

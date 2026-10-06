@@ -437,6 +437,7 @@ const getModeHints = (modeParam, lastAiMsg) => {
 
 const NORMAL_SILENCE_THRESHOLD = 3000;
 const INCOMPLETE_SILENCE_THRESHOLD = 4500;
+const INITIAL_SILENCE_THRESHOLD = 8000;
 
 const INCOMPLETE_CONNECTORS = [
   'because', 'and', 'or', 'but', 'so', 'if', 'that', 'which', 'who', 'whom',
@@ -574,6 +575,7 @@ export default function ConversationChatScreen({ navigation, route }) {
   // Live Speech Recognition & Silence Auto-Stop refs & Session Token
   const [currentTranscript, setCurrentTranscript] = useState('');
   const silenceTimerRef = useRef(null);
+  const initialSilenceTimerRef = useRef(null);
   const stoppingRef = useRef(false);
   const startingRef = useRef(false);
   const isRecordingRef = useRef(false);
@@ -611,6 +613,10 @@ export default function ConversationChatScreen({ navigation, route }) {
       setCurrentTranscript(full);
 
       // Reset silence timer on every speech event
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -664,6 +670,10 @@ export default function ConversationChatScreen({ navigation, route }) {
       subResult.remove();
       subError.remove();
       subEnd.remove();
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -898,6 +908,10 @@ export default function ConversationChatScreen({ navigation, route }) {
       setMenuVisible(false);
       Keyboard.dismiss();
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (isRecordingRef.current) {
         try {
           ExpoSpeechRecognitionModule.stop();
@@ -1199,6 +1213,10 @@ export default function ConversationChatScreen({ navigation, route }) {
       VoiceService.stop();
       setIsSpeaking(false);
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -1211,13 +1229,31 @@ export default function ConversationChatScreen({ navigation, route }) {
         return;
       }
 
-      recordingSessionIdRef.current += 1;
+      const activeSessionId = recordingSessionIdRef.current + 1;
+      recordingSessionIdRef.current = activeSessionId;
       accumulatedTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       setCurrentTranscript('');
       isRecordingRef.current = true;
       setRecording(true);
       setStatusText('Listening');
+
+      // Option B: Auto-close after 8 seconds of complete silence
+      initialSilenceTimerRef.current = setTimeout(() => {
+        if (
+          recordingSessionIdRef.current === activeSessionId &&
+          isRecordingRef.current &&
+          !isSendingRef.current
+        ) {
+          isRecordingRef.current = false;
+          setRecording(false);
+          setStatusText('Waiting for Response');
+          try {
+            ExpoSpeechRecognitionModule.stop();
+          } catch (_) {}
+          Alert.alert('No Speech Detected 🤫', 'No words were heard. Tap the mic when you are ready to speak.');
+        }
+      }, INITIAL_SILENCE_THRESHOLD);
 
       ExpoSpeechRecognitionModule.start({
         lang: 'en-US',
@@ -1239,6 +1275,10 @@ export default function ConversationChatScreen({ navigation, route }) {
     if (stoppingRef.current || isSendingRef.current) return;
     stoppingRef.current = true;
 
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;

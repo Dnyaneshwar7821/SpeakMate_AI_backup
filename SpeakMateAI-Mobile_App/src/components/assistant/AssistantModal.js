@@ -45,6 +45,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const NORMAL_SILENCE_THRESHOLD = 3000;
 const INCOMPLETE_SILENCE_THRESHOLD = 4500;
+const INITIAL_SILENCE_THRESHOLD = 8000;
 
 const INCOMPLETE_CONNECTORS = [
   'because', 'and', 'or', 'but', 'so', 'if', 'that', 'which', 'who', 'whom',
@@ -193,6 +194,7 @@ export function AssistantModal({
 
   const isRecordingRef = useRef(false);
   const silenceTimerRef = useRef(null);
+  const initialSilenceTimerRef = useRef(null);
   const stoppingRef = useRef(false);
   const recordingSessionIdRef = useRef(0);
   const startingRef = useRef(false);
@@ -228,6 +230,10 @@ export function AssistantModal({
         .trim();
       setDraft(full);
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -280,6 +286,10 @@ export function AssistantModal({
       subResult.remove();
       subError.remove();
       subEnd.remove();
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -401,6 +411,10 @@ export function AssistantModal({
     VoiceService.stop();
     setSpeakingMessageId(null);
 
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (isRecordingRef.current) {
       isRecordingRef.current = false;
       setIsRecording(false);
@@ -417,6 +431,10 @@ export function AssistantModal({
       VoiceService.stop();
       setSpeakingMessageId(null);
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (isRecordingRef.current) {
         isRecordingRef.current = false;
         setIsRecording(false);
@@ -477,6 +495,10 @@ export function AssistantModal({
     if (stoppingRef.current || isSendingRef.current) return;
     stoppingRef.current = true;
 
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -522,6 +544,10 @@ export function AssistantModal({
       VoiceService.stop();
       setSpeakingMessageId(null);
 
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -534,12 +560,29 @@ export function AssistantModal({
         return;
       }
 
-      recordingSessionIdRef.current += 1;
+      const activeSessionId = recordingSessionIdRef.current + 1;
+      recordingSessionIdRef.current = activeSessionId;
       accumulatedTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       setDraft('');
       isRecordingRef.current = true;
       setIsRecording(true);
+
+      // Option B: Auto-close after 8 seconds of complete silence
+      initialSilenceTimerRef.current = setTimeout(() => {
+        if (
+          recordingSessionIdRef.current === activeSessionId &&
+          isRecordingRef.current &&
+          !isSendingRef.current
+        ) {
+          isRecordingRef.current = false;
+          setIsRecording(false);
+          try {
+            ExpoSpeechRecognitionModule.stop();
+          } catch (_) {}
+          Alert.alert('No Speech Detected 🤫', 'No words were heard. Tap the mic when you are ready to speak.');
+        }
+      }, INITIAL_SILENCE_THRESHOLD);
 
       ExpoSpeechRecognitionModule.start({
         lang: 'en-US',

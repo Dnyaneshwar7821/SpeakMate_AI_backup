@@ -103,6 +103,7 @@ export function ConversationChat() {
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
   const silenceTimerRef = useRef(null);
+  const initialSilenceTimerRef = useRef(null);
   const stoppingByUserRef = useRef(false);
   const accumulatedTranscriptRef = useRef("");
   const interimTranscriptRef = useRef("");
@@ -271,7 +272,11 @@ export function ConversationChat() {
         setCurrentTranscript(fullTranscript);
         setInputText(fullTranscript);
 
-        // Reset silence timer on every speech event
+        // Reset timers on every speech event
+        if (initialSilenceTimerRef.current) {
+          clearTimeout(initialSilenceTimerRef.current);
+          initialSilenceTimerRef.current = null;
+        }
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
@@ -319,6 +324,10 @@ export function ConversationChat() {
     }
 
     return () => {
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -361,6 +370,10 @@ export function ConversationChat() {
   };
 
   const handleStopListeningAndSend = async () => {
+    if (initialSilenceTimerRef.current) {
+      clearTimeout(initialSilenceTimerRef.current);
+      initialSilenceTimerRef.current = null;
+    }
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -401,6 +414,10 @@ export function ConversationChat() {
         setIsAiSpeaking(false);
         setViseme("REST");
       }
+      if (initialSilenceTimerRef.current) {
+        clearTimeout(initialSilenceTimerRef.current);
+        initialSilenceTimerRef.current = null;
+      }
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -410,6 +427,20 @@ export function ConversationChat() {
       interimTranscriptRef.current = "";
       setCurrentTranscript("");
       setInputText("");
+
+      // Option B: Auto-close after 8 seconds of complete silence
+      initialSilenceTimerRef.current = setTimeout(() => {
+        if (isListeningRef.current) {
+          stoppingByUserRef.current = true;
+          isListeningRef.current = false;
+          setIsListening(false);
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.stop();
+            } catch (e) {}
+          }
+        }
+      }, 8000);
 
       if (recognitionRef.current) {
         try {
