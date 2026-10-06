@@ -320,20 +320,16 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {vocabList.map((word, wIdx) => (
-                    <button
+                    <span
                       key={wIdx}
-                      type="button"
-                      onClick={() => onSpeakText(word)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border cursor-pointer active:scale-95 flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border inline-flex items-center ${
                         isDark
-                          ? "bg-slate-800/90 text-amber-300 border-amber-500/20 hover:border-amber-400 hover:bg-slate-800"
-                          : "bg-amber-50/80 text-amber-900 border-amber-200/80 hover:border-amber-400 hover:bg-amber-100"
+                          ? "bg-slate-800/90 text-amber-300 border-amber-500/20"
+                          : "bg-amber-50/80 text-amber-900 border-amber-200/80"
                       }`}
-                      title={`Listen to pronunciation of "${word}"`}
                     >
-                      <span>{word}</span>
-                      <span className="text-[9px] opacity-70">🔊</span>
-                    </button>
+                      {word}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -1397,20 +1393,6 @@ export function ConversationSession() {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleToggleHints(true)}
-                  disabled={loadingHints}
-                  className={`p-1 px-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer border ${
-                    isDark
-                      ? "text-slate-300 border-white/10 hover:bg-slate-800 hover:text-white"
-                      : "text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
-                  title="Generate 3 fresh AI suggestions"
-                >
-                  <span className={loadingHints ? "animate-spin inline-block" : ""}>↻</span>
-                  <span className="text-[11px]">New Hints</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => setShowHints(false)}

@@ -105,6 +105,267 @@ const isIncompleteSentence = (text) => {
   return INCOMPLETE_CONNECTORS.has(lastWord);
 };
 
+// Clean vocabulary splitter
+const cleanVocabList = (text) => {
+  if (!text || typeof text !== "string") return [];
+  return text
+    .split(/[,;\n]+/)
+    .map((w) => w.trim().replace(/^["']|["']$/g, ""))
+    .filter((w) => w.length > 0 && !w.toLowerCase().includes("none") && !w.toLowerCase().includes("null"));
+};
+
+// Sleek Unified Web Coach Card (Matches Speaking Practice)
+function CoachCard({ feedback, isDark, onSpeakText }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  if (!feedback) return null;
+  const { grammarCorrection, betterSentence, explanation, followUpQuestion, vocabularySuggestions } = feedback;
+
+  const hasBetter = Boolean(
+    betterSentence &&
+    betterSentence.trim() &&
+    betterSentence.toLowerCase() !== "none" &&
+    betterSentence.toLowerCase() !== "null"
+  );
+  const hasGrammar = Boolean(
+    grammarCorrection &&
+    grammarCorrection.trim() &&
+    grammarCorrection.toLowerCase() !== "none" &&
+    grammarCorrection.toLowerCase() !== "null"
+  );
+  const hasFluency = Boolean(
+    explanation &&
+    explanation.trim() &&
+    explanation.toLowerCase() !== "none" &&
+    explanation.toLowerCase() !== "null"
+  );
+  const hasFollowup = Boolean(
+    followUpQuestion &&
+    followUpQuestion.trim() &&
+    followUpQuestion.toLowerCase() !== "none" &&
+    followUpQuestion.toLowerCase() !== "null"
+  );
+  const vocabList = cleanVocabList(vocabularySuggestions);
+  const hasVocab = vocabList.length > 0;
+
+  if (!hasBetter && !hasGrammar && !hasFluency && !hasFollowup && !hasVocab) return null;
+
+  const isGrammarOk =
+    hasGrammar &&
+    (grammarCorrection.includes("✅") ||
+      grammarCorrection.toLowerCase().includes("correct") ||
+      grammarCorrection.toLowerCase().includes("great job") ||
+      grammarCorrection.toLowerCase().includes("clear and natural"));
+
+  return (
+    <div
+      className={`mt-3 rounded-2xl border transition-all overflow-hidden w-full shadow-xs ${
+        isDark
+          ? "bg-slate-900/60 border-indigo-500/20 shadow-black/20"
+          : "bg-slate-50/90 border-slate-200/80"
+      }`}
+    >
+      {/* Sleek Header Bar with Status & Collapse Toggle */}
+      <div
+        className={`px-3.5 py-2.5 flex items-center justify-between gap-2.5 transition-colors ${
+          isDark ? "bg-slate-800/40 border-b border-white/5" : "bg-white/80 border-b border-slate-200/60"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-5 h-5 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] dark:text-[#A5B4FC] flex items-center justify-center text-xs shrink-0 font-bold">
+            ✨
+          </div>
+          <span
+            className={`text-[11px] font-bold tracking-wider uppercase truncate ${
+              isDark ? "text-slate-200" : "text-slate-800"
+            }`}
+          >
+            Coach Insights
+          </span>
+          <span className="hidden sm:inline text-[10px] text-slate-400 font-normal">
+            · live speech analysis
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {hasGrammar && (
+            <span
+              className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                isGrammarOk
+                  ? isDark
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : isDark
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isGrammarOk ? "bg-emerald-500" : "bg-amber-500"}`} />
+              <span>{isGrammarOk ? "Grammar Accurate" : "Refinement Needed"}</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`p-1 px-1.5 rounded-md text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+              isDark
+                ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+            }`}
+            title={isExpanded ? "Collapse evaluation" : "Expand evaluation"}
+          >
+            <span>{isExpanded ? "Hide" : "Details"}</span>
+            <span className="text-[9px]">{isExpanded ? "▲" : "▼"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Unified Body */}
+      {isExpanded && (
+        <div className="divide-y divide-slate-100 dark:divide-white/5 animate-in fade-in duration-150">
+          {/* Hero Callout: Native Natural Phrasing OR Your Sentence is Correct */}
+          {hasBetter ? (
+            <div
+              className={`p-3.5 sm:p-4 transition-colors ${
+                isDark ? "bg-indigo-950/20" : "bg-indigo-50/40"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6c63ff] dark:text-[#A5B4FC] flex items-center gap-1.5">
+                  <span>🚀</span>
+                  <span>Better Natural Phrasing</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSpeakText(betterSentence)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer bg-[#6c63ff] hover:bg-[#5a52e0] text-white shadow-xs active:scale-95 shrink-0"
+                  title="Listen to native pronunciation"
+                >
+                  <span>🔊</span>
+                  <span>Listen</span>
+                </button>
+              </div>
+              <p
+                className={`text-xs sm:text-[13px] font-medium leading-relaxed italic ${
+                  isDark ? "text-indigo-100" : "text-slate-800"
+                }`}
+              >
+                "{betterSentence}"
+              </p>
+            </div>
+          ) : isGrammarOk ? (
+            <div
+              className={`p-3.5 sm:p-4 transition-colors ${
+                isDark ? "bg-emerald-950/20" : "bg-emerald-50/50"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <span>✅</span>
+                  <span>Your Sentence is Correct</span>
+                </span>
+              </div>
+              <p
+                className={`text-xs sm:text-[13px] font-medium leading-relaxed ${
+                  isDark ? "text-emerald-200/90" : "text-emerald-800"
+                }`}
+              >
+                Great job! Your sentence is grammatically clear and natural.
+              </p>
+            </div>
+          ) : null}
+
+          {/* Grammar Correction (Displayed when refinement is needed) */}
+          {hasGrammar && !isGrammarOk && (
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-amber-500 font-bold shrink-0 mt-0.5 text-xs">✍️</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-0.5">
+                  Grammar Suggestion
+                </div>
+                <p className={`text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  👉 {grammarCorrection.replace(/^👉\s*/, "")}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Fluency & Pronunciation Tip */}
+          {hasFluency && (
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-sky-500 font-bold shrink-0 mt-0.5 text-xs">💡</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-0.5">
+                  Fluency & Nuance
+                </div>
+                <p className={`text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  {explanation}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Vocabulary Upgrades as sleek interactive pills WITHOUT sound icon */}
+          {hasVocab && (
+            <div className="p-3.5 flex items-start gap-2.5">
+              <span className="text-amber-500 font-bold shrink-0 mt-0.5 text-xs">✨</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
+                  Vocabulary Upgrade
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {vocabList.map((word, wIdx) => (
+                    <span
+                      key={wIdx}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all border inline-flex items-center ${
+                        isDark
+                          ? "bg-slate-800/90 text-amber-300 border-amber-500/20"
+                          : "bg-amber-50/80 text-amber-900 border-amber-200/80"
+                      }`}
+                    >
+                      {word}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Follow-up Question Inquiry */}
+          {hasFollowup && (
+            <div className="p-3.5 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 flex items-start gap-2.5">
+                <span className="text-purple-500 font-bold shrink-0 mt-0.5 text-xs">❓</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-0.5">
+                    Suggested Follow-up
+                  </div>
+                  <p className={`text-xs font-medium italic ${isDark ? "text-purple-200" : "text-slate-800"}`}>
+                    "{followUpQuestion}"
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onSpeakText(followUpQuestion)}
+                className={`p-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
+                  isDark
+                    ? "bg-white/10 hover:bg-white/20 text-purple-300"
+                    : "bg-purple-100/70 hover:bg-purple-200 text-purple-700"
+                }`}
+                title="Listen to follow-up question"
+              >
+                <span className="text-xs">🔊</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ConversationChat() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -895,50 +1156,11 @@ export function ConversationChat() {
 
                   <p className="leading-relaxed text-xs sm:text-sm font-medium whitespace-pre-line">
                     {m.message}
-                    {m.followUpQuestion &&
-                      m.followUpQuestion.toLowerCase() !== "none" &&
-                      !m.message?.includes(m.followUpQuestion) && (
-                        <span className="block mt-2 font-semibold text-[#6c63ff]">
-                          👉 {m.followUpQuestion}
-                        </span>
-                      )}
                   </p>
 
-                  {/* Inline Tutor Evaluation Feedback Card */}
-                  {!isUser && (hasGrammar || hasBetter || hasVocab) && (
-                    <div className={`mt-2.5 p-3 rounded-xl border space-y-2 text-[11px] ${
-                      isDark ? "bg-[#1E1B4B]/60 border-[#6c63ff]/40 text-slate-200" : "bg-indigo-50 border-indigo-200 text-slate-800"
-                    }`}>
-                      <div className="flex items-center justify-between font-extrabold text-[#6c63ff]">
-                        <span>🎓 Tutor Feedback & Coaching</span>
-                        <button
-                          onClick={() => handleSpeakText(getSpeakableText(m, true))}
-                          className="px-2 py-0.5 rounded bg-[#6c63ff] text-white text-[9px] font-black hover:opacity-90"
-                        >
-                          🔊 Listen Tip
-                        </button>
-                      </div>
-
-                      {hasGrammar && (
-                        <div>
-                          <span className="text-[9px] font-black uppercase text-indigo-400">Grammar Check</span>
-                          <p className="font-semibold text-emerald-500 mt-0.5">👉 {m.grammarCorrection}</p>
-                        </div>
-                      )}
-
-                      {hasBetter && (
-                        <div>
-                          <span className="text-[9px] font-black uppercase text-indigo-400">Better Native Phrasing</span>
-                          <p className="font-semibold mt-0.5">💡 "{m.betterSentence}"</p>
-                        </div>
-                      )}
-
-                      {m.explanation && (
-                        <p className="italic opacity-80 border-t border-indigo-500/20 pt-1 text-[10px]">
-                          {m.explanation}
-                        </p>
-                      )}
-                    </div>
+                  {/* Sleek Coach Insights Card matching Speaking Practice */}
+                  {!isUser && (
+                    <CoachCard feedback={m} isDark={isDark} onSpeakText={(t) => handleSpeakText(t)} />
                   )}
                 </div>
               </div>
@@ -973,20 +1195,6 @@ export function ConversationChat() {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleToggleHints(true)}
-                  disabled={loadingHints}
-                  className={`p-1 px-2 rounded-lg text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer border ${
-                    isDark
-                      ? "text-slate-300 border-white/10 hover:bg-slate-800 hover:text-white"
-                      : "text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
-                  title="Generate 3 fresh AI suggestions"
-                >
-                  <span className={loadingHints ? "animate-spin inline-block" : ""}>↻</span>
-                  <span>New Hints</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => setShowHints(false)}
