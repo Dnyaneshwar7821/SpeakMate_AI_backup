@@ -26,7 +26,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Speech from 'expo-speech';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { ExpoSpeechRecognitionModule, isNativeSpeechRecognitionAvailable } from '../../utils/speechRecognitionService';
+import { VoiceRecorder } from '../../utils/audioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { speechService, speakingService, settingsService, profileService } from '../../services/appServices';
 import { COLORS } from '../../constants/colors';
@@ -362,6 +363,7 @@ export default function ConversationScreen({ navigation, route }) {
   const accumulatedTranscriptRef = useRef('');
   const interimTranscriptRef = useRef('');
   const isSendingRef = useRef(false);
+  const fallbackRecorderRef = useRef(null);
 
   // Auto-collapse top avatar on keyboard show to maximize chat view
   useEffect(() => {
@@ -535,6 +537,11 @@ export default function ConversationScreen({ navigation, route }) {
       try {
         ExpoSpeechRecognitionModule.stop();
       } catch (_) {}
+      if (fallbackRecorderRef.current) {
+        fallbackRecorderRef.current.stop().catch(() => {});
+        fallbackRecorderRef.current = null;
+      }
+      VoiceRecorder.resetAudioMode().catch(() => {});
     };
   }, []); // Run only once on mount
 
@@ -583,6 +590,11 @@ export default function ConversationScreen({ navigation, route }) {
         try {
           ExpoSpeechRecognitionModule.stop();
         } catch (_) {}
+        if (fallbackRecorderRef.current) {
+          fallbackRecorderRef.current.stop().catch(() => {});
+          fallbackRecorderRef.current = null;
+        }
+        VoiceRecorder.resetAudioMode().catch(() => {});
         isRecordingRef.current = false;
         setIsRecording(false);
       }
@@ -1157,44 +1169,95 @@ export default function ConversationScreen({ navigation, route }) {
         silenceTimerRef.current = null;
       }
 
-      const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!granted?.granted) {
-        Alert.alert('Microphone Access Denied', 'Please grant microphone and speech recognition permissions to speak with your AI tutor.');
-        startingRef.current = false;
-        return;
-      }
-
-      const activeSessionId = recordingSessionIdRef.current + 1;
-      recordingSessionIdRef.current = activeSessionId;
-      accumulatedTranscriptRef.current = '';
-      interimTranscriptRef.current = '';
-      setCurrentTranscript('');
-      isRecordingRef.current = true;
-      setIsRecording(true);
-      setStatusText('Listening');
-
-      // Option B: Auto-close after 8 seconds of complete silence
-      initialSilenceTimerRef.current = setTimeout(() => {
-        if (
-          recordingSessionIdRef.current === activeSessionId &&
-          isRecordingRef.current &&
-          !isSendingRef.current
-        ) {
-          isRecordingRef.current = false;
-          setIsRecording(false);
-          setStatusText('Waiting for Response');
-          try {
-            ExpoSpeechRecognitionModule.stop();
-          } catch (_) {}
-          Alert.alert('No Speech Detected 🤫', 'No words were heard. Tap the mic when you are ready to speak.');
+      if (isNativeSpeechRecognitionAvailable) {
+        const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!granted?.granted) {
+          Alert.alert('Microphone Access Denied', 'Please grant microphone and speech recognition permissions to speak with your AI tutor.');
+          startingRef.current = false;
+          return;
         }
-      }, INITIAL_SILENCE_THRESHOLD);
 
-      ExpoSpeechRecognitionModule.start({
-        lang: 'en-US',
-        continuous: true,
-        interimResults: true,
-      });
+        const activeSessionId = recordingSessionIdRef.current + 1;
+        recordingSessionIdRef.current = activeSessionId;
+        accumulatedTranscriptRef.current = '';
+        interimTranscriptRef.current = '';
+        setCurrentTranscript('');
+        isRecordingRef.current = true;
+        setIsRecording(true);
+        setStatusText('Listening');
+
+        // Option B: Auto-close after 8 seconds of complete silence
+        initialSilenceTimerRef.current = setTimeout(() => {
+          if (
+            recordingSessionIdRef.current === activeSessionId &&
+            isRecordingRef.current &&
+            !isSendingRef.current
+          ) {
+            isRecordingRef.current = false;
+            setIsRecording(false);
+            setStatusText('Waiting for Response');
+            try {
+              ExpoSpeechRecognitionModule.stop();
+            } catch (_) {}
+            Alert.alert('No Speech Detected 🤫', 'No words were heard. Tap the mic when you are ready to speak.');
+          }
+        }, INITIAL_SILENCE_THRESHOLD);
+
+        ExpoSpeechRecognitionModule.start({
+          lang: 'en-US',
+          continuous: true,
+          interimResults: true,
+        });
+      } else {
+        // Fallback for dev client APKs where native speech recognition binary is not yet compiled
+        const granted = await VoiceRecorder.requestPermissions();
+        if (!granted) {
+          Alert.alert('Microphone Access Denied', 'Please grant microphone permissions to speak with your AI tutor.');
+          startingRef.current = false;
+          return;
+        }
+
+        if (fallbackRecorderRef.current) {
+          try {
+            await fallbackRecorderRef.current.stop();
+          } catch (_) {}
+          fallbackRecorderRef.current = null;
+        }
+
+        const activeSessionId = recordingSessionIdRef.current + 1;
+        recordingSessionIdRef.current = activeSessionId;
+        accumulatedTranscriptRef.current = '';
+        interimTranscriptRef.current = '';
+        setCurrentTranscript('');
+        isRecordingRef.current = true;
+        setIsRecording(true);
+        setStatusText('Listening');
+
+        const recorder = new VoiceRecorder();
+        fallbackRecorderRef.current = recorder;
+        await recorder.start();
+
+        // Option B: Auto-close after 8 seconds of complete silence
+        initialSilenceTimerRef.current = setTimeout(async () => {
+          if (
+            recordingSessionIdRef.current === activeSessionId &&
+            isRecordingRef.current &&
+            !isSendingRef.current
+          ) {
+            isRecordingRef.current = false;
+            setIsRecording(false);
+            setStatusText('Waiting for Response');
+            try {
+              if (fallbackRecorderRef.current) {
+                await fallbackRecorderRef.current.stop();
+                fallbackRecorderRef.current = null;
+              }
+              await VoiceRecorder.resetAudioMode();
+            } catch (_) {}
+            Alert.alert('No Speech Detected 🤫', 'No words were heard. Tap the mic when you are ready to speak.');
+          }
+        }, INITIAL_SILENCE_THRESHOLD);
+      }
     } catch (error) {
       console.warn('[SpeechRecognition] Failed to start:', error);
       Alert.alert('Speech Recognition Error', 'Could not initialize speech recognition. Please check permissions.');
@@ -1223,37 +1286,85 @@ export default function ConversationScreen({ navigation, route }) {
     setIsRecording(false);
     setStatusText('Thinking');
 
-    try {
-      ExpoSpeechRecognitionModule.stop();
-    } catch (_) {}
+    if (isNativeSpeechRecognitionAvailable) {
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
 
-    const finalSpoken = `${accumulatedTranscriptRef.current} ${interimTranscriptRef.current}`
-      .replace(/\s+/g, ' ')
-      .trim() || currentTranscript.replace(/\s+/g, ' ').trim();
+      const finalSpoken = `${accumulatedTranscriptRef.current} ${interimTranscriptRef.current}`
+        .replace(/\s+/g, ' ')
+        .trim() || currentTranscript.replace(/\s+/g, ' ').trim();
 
-    accumulatedTranscriptRef.current = '';
-    interimTranscriptRef.current = '';
-    setCurrentTranscript('');
+      accumulatedTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
+      setCurrentTranscript('');
 
-    if (!finalSpoken || finalSpoken.length < 2) {
-      setStatusText('Waiting for Response');
-      stoppingRef.current = false;
-      return;
-    }
+      if (!finalSpoken || finalSpoken.length < 2) {
+        setStatusText('Waiting for Response');
+        stoppingRef.current = false;
+        return;
+      }
 
-    isSendingRef.current = true;
-    setLoading(true);
+      isSendingRef.current = true;
+      setLoading(true);
 
-    try {
-      await sendUserText(finalSpoken);
-    } catch (error) {
-      console.warn('Sending spoken text failed:', error);
-      Alert.alert('Transcription Failed', 'Make sure you have an active network connection and try again.');
-      setStatusText('Waiting for Response');
-    } finally {
-      setLoading(false);
-      stoppingRef.current = false;
-      isSendingRef.current = false;
+      try {
+        await sendUserText(finalSpoken);
+      } catch (error) {
+        console.warn('Sending spoken text failed:', error);
+        Alert.alert('Transcription Failed', 'Make sure you have an active network connection and try again.');
+        setStatusText('Waiting for Response');
+      } finally {
+        setLoading(false);
+        stoppingRef.current = false;
+        isSendingRef.current = false;
+      }
+    } else {
+      // Fallback: stop audio recorder and transcribe via Whisper
+      try {
+        const recorder = fallbackRecorderRef.current;
+        fallbackRecorderRef.current = null;
+        if (!recorder) {
+          setStatusText('Waiting for Response');
+          stoppingRef.current = false;
+          return;
+        }
+
+        const uri = await recorder.stop();
+        await VoiceRecorder.resetAudioMode();
+
+        if (!uri) {
+          setStatusText('Waiting for Response');
+          stoppingRef.current = false;
+          return;
+        }
+
+        isSendingRef.current = true;
+        setLoading(true);
+
+        const stt = await speechService.speechToText({
+          uri,
+          name: 'recording.m4a',
+          type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+        });
+
+        if (!stt || !stt.transcript || !stt.transcript.trim()) {
+          Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Tap mic and try speaking again.');
+          setStatusText('Waiting for Response');
+          return;
+        }
+
+        const userText = stt.transcript.trim();
+        await sendUserText(userText);
+      } catch (error) {
+        console.warn('Fallback audio sending failed:', error);
+        Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
+        setStatusText('Waiting for Response');
+      } finally {
+        setLoading(false);
+        stoppingRef.current = false;
+        isSendingRef.current = false;
+      }
     }
   };
 
