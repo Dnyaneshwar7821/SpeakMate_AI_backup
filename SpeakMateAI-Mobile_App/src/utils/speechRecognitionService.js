@@ -1,19 +1,36 @@
-import { requireOptionalNativeModule } from 'expo';
+import { NativeModules } from 'react-native';
 
 /**
  * Safe Speech Recognition Service Adapter
  * 
- * Safely wraps ExpoSpeechRecognitionModule so that if the native binary has not yet been compiled
- * into the currently running APK (e.g. running on an older development client build), the JS bundle
- * does NOT throw a fatal "[runtime not ready]: Cannot find native module 'ExpoSpeechRecognition'" crash.
+ * Safely inspects native modules directly from runtime global registries without calling
+ * throwing requireNativeModule macros. If the native module is not compiled in the running APK,
+ * it returns null without triggering any fatal crashes or red screen errors.
  */
 
-let rawModule = null;
-try {
-  rawModule = requireOptionalNativeModule('ExpoSpeechRecognition');
-} catch (e) {
-  rawModule = null;
-}
+const getRawNativeModule = () => {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis?.expo?.modules?.ExpoSpeechRecognition) {
+      return globalThis.expo.modules.ExpoSpeechRecognition;
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof global !== 'undefined' && global?.expo?.modules?.ExpoSpeechRecognition) {
+      return global.expo.modules.ExpoSpeechRecognition;
+    }
+  } catch (_) {}
+
+  try {
+    if (NativeModules && NativeModules.ExpoSpeechRecognition) {
+      return NativeModules.ExpoSpeechRecognition;
+    }
+  } catch (_) {}
+
+  return null;
+};
+
+const rawModule = getRawNativeModule();
 
 export const isNativeSpeechRecognitionAvailable = Boolean(
   rawModule && typeof rawModule.start === 'function'
