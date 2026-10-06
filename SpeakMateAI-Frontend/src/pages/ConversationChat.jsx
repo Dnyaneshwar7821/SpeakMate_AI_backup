@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 
 import ROUTES from "../constants/routes";
 import { aiService, chatService } from "../services/appServices";
-import { generateDynamicCoachingResponse, cleanDialogueText } from "../utils/aiConversationEngine";
+import { generateDynamicCoachingResponse, cleanDialogueText, getDynamicContextualHints } from "../utils/aiConversationEngine";
 import { AvatarCanvas } from "../components/avatar/AvatarCanvas";
 import { speakGlobalText, stopSpeaking } from "../utils/speechHelper";
 import { useAuth } from "../context/AuthContext";
@@ -12,58 +12,78 @@ import { useToast } from "../context/ToastContext";
 import { recordChatMessage } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 
-// Dynamic contextual suggestion generator matching mobile app
-const getModeHints = (modeParam, lastAiMsg) => {
-  const m = (modeParam || "").toLowerCase();
-  const text = ((lastAiMsg?.message || "") + " " + (lastAiMsg?.followUpQuestion || "")).toLowerCase();
+// Dynamic AI contextual hint generator according to live chat history
+const generateAiHints = async ({ mode, messages, sessionId, level = "Intermediate", turnSalt = 0 }) => {
+  const lastAiMsg = [...messages].reverse().find((m) => m.sender === "ai" || m.role === "assistant");
+  const lastAiText = (lastAiMsg?.message || "").trim();
+  const lastUserMsg = [...messages].reverse().find((m) => m.sender === "user");
+  const lastUserText = (lastUserMsg?.message || "").trim();
+  const turnCount = messages.filter((m) => m.sender === "user").length;
 
-  if (text.includes("name") || text.includes("who are you") || text.includes("introduce")) {
-    return [
-      "Hi! Nice to meet you. I'm excited to practice English!",
-      "Hello! I'm here to build my speaking confidence and fluency.",
-      "Could you tell me a little about yourself as well?"
-    ];
+  // 1. Try remote chatService.getHints if remote session exists and not forcing salt
+  if (sessionId && !String(sessionId).startsWith("sim_") && turnSalt === 0) {
+    try {
+      const remoteHints = await chatService.getHints(sessionId);
+      if (Array.isArray(remoteHints) && remoteHints.length >= 2) {
+        const cleaned = remoteHints
+          .map((h) => cleanDialogueText(h).replace(/^["']|["']$/g, "").trim())
+          .filter((h) => h.length > 3);
+        if (cleaned.length >= 2) return cleaned;
+      }
+    } catch (err) {
+      console.warn("Backend getHints attempt failed, falling back to direct AI generation:", err);
+    }
   }
-  if (text.includes("hobby") || text.includes("free time") || text.includes("weekend") || text.includes("do for fun")) {
-    return [
-      "In my free time, I really enjoy reading and listening to music.",
-      "I love going for walks outdoors and trying new food.",
-      "What are popular weekend activities you recommend?"
-    ];
+
+  // 2. Direct AI Chat Generation using Groq / LLM
+  try {
+    const prompt = `You are an expert English conversation tutor observing a live practice chat.
+Mode/Scenario: "${mode || 'General English'}"
+Student Level: ${level || 'Intermediate'}
+Tutor's latest message to the student: "${lastAiText || 'Hello! What would you like to practice today?'}"
+${lastUserText ? `Student previously said: "${lastUserText}"` : ''}
+Session turn: ${turnCount}
+Seed: ${Date.now() + turnSalt}
+
+Task: Give EXACTLY 3 distinct, fresh, natural speaking responses the student could say next right now in this exact moment:
+- Suggestion 1: Short & direct response (3-6 words)
+- Suggestion 2: Natural, polite conversational elaboration
+- Suggestion 3: A curious follow-up question or perspective
+
+Return ONLY a valid JSON array of 3 strings. Example:
+["Yes, I'd really love that.", "That sounds great, I usually prefer taking the train.", "What would you recommend doing instead?"]
+No other text, markdown blocks, code fencing, or explanation.`;
+
+    const res = await aiService.chat(prompt);
+    const rawContent = res?.response || res?.message || res;
+    if (rawContent && typeof rawContent === "string") {
+      let parsed = null;
+      const jsonMatch = rawContent.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch (e) {}
+      }
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        parsed = rawContent
+          .split("\n")
+          .map((line) => line.replace(/^[\s*\-•\d.)\]"]+|[\s"']+$|^\s*(Suggestion|Option|Hint)\s*\d*[:\-.]?\s*/gi, "").trim())
+          .filter((line) => line.length > 5 && !line.startsWith("{") && !line.startsWith("["));
+      }
+      if (Array.isArray(parsed) && parsed.length >= 2) {
+        const cleaned = parsed
+          .slice(0, 3)
+          .map((h) => cleanDialogueText(String(h)).replace(/^["']|["']$/g, "").trim())
+          .filter((h) => h.length > 3 && !h.toLowerCase().includes("json"));
+        if (cleaned.length >= 2) return cleaned;
+      }
+    }
+  } catch (aiErr) {
+    console.warn("Direct AI hint generation failed, using dynamic contextual fallback:", aiErr);
   }
-  if (text.includes("how are you") || text.includes("how was your day") || text.includes("how is it going")) {
-    return [
-      "I'm doing great, thank you! How has your day been?",
-      "Everything is going well! Ready for today's practice.",
-      "It's been a busy day, but I'm excited to learn."
-    ];
-  }
-  if (text.includes("why") && (text.includes("learn") || text.includes("english") || text.includes("practice"))) {
-    return [
-      "I want to communicate fluently for my career and global travel.",
-      "To express myself naturally and connect with people worldwide.",
-      "What is your best tip for speaking more like a native?"
-    ];
-  }
-  if (m.includes("interview") || text.includes("strength") || text.includes("experience") || text.includes("career")) {
-    return [
-      "My greatest strength is my problem-solving ability and adaptability.",
-      "I have strong experience collaborating across cross-functional teams.",
-      "Could you give me feedback on my professional tone?"
-    ];
-  }
-  if (m.includes("travel") || text.includes("trip") || text.includes("hotel") || text.includes("flight")) {
-    return [
-      "Could you help me with checking in at the hotel and asking for recommendations?",
-      "I'd like to book a flight ticket and ask about baggage allowance.",
-      "What are the best local attractions to visit?"
-    ];
-  }
-  return [
-    "Could you provide an example of how to use that in daily conversation?",
-    "How can I rephrase my previous sentence to sound more native?",
-    "Let's move on to the next topic to practice speaking."
-  ];
+
+  // 3. Dynamic Contextual Smart Generator fallback
+  return getDynamicContextualHints(mode, lastAiText, turnCount, turnSalt);
 };
 
 // Conversational Voice Activity Thresholds (Matches Speaking Practice)
@@ -100,7 +120,9 @@ export function ConversationChat() {
   const toast = useToast();
   const [chatLevel] = useState(user?.schoolGrade || user?.englishLevel || "Intermediate");
   const [hints, setHints] = useState([]);
+  const [showHints, setShowHints] = useState(false);
   const [loadingHints, setLoadingHints] = useState(false);
+  const lastHintsTurnRef = useRef(-1);
   const [speechSpeed, setSpeechSpeed] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -396,16 +418,39 @@ export function ConversationChat() {
     }
   };
 
-  const handleFetchHints = async () => {
+  const handleToggleHints = async (forceRefresh = false) => {
+    if (showHints && !forceRefresh) {
+      setShowHints(false);
+      return;
+    }
+
+    setShowHints(true);
+
+    const currentTurn = messages.filter((m) => m.sender === "user").length;
+
+    // If hints are already loaded for this turn and not forcing a refresh, keep them
+    if (!forceRefresh && hints.length >= 2 && lastHintsTurnRef.current === currentTurn) {
+      return;
+    }
+
     setLoadingHints(true);
     try {
-      const data = await chatService.getHints(sessionId).catch(() => [
-        "Could you explain the grammar rules for present perfect tense?",
-        "How can I sound more natural in professional emails?",
-      ]);
-      setHints(data || []);
-    } catch (e) {
-      console.warn("Fetch hints error:", e);
+      const turnSalt = forceRefresh ? Math.floor(Math.random() * 10000) + 1 : 0;
+      const dynamicHints = await generateAiHints({
+        mode,
+        messages,
+        sessionId,
+        level: chatLevel,
+        turnSalt,
+      });
+
+      setHints(dynamicHints);
+      lastHintsTurnRef.current = currentTurn;
+    } catch (err) {
+      console.warn("Hint generation error:", err);
+      const lastAi = [...messages].reverse().find((m) => m.sender === "ai");
+      setHints(getDynamicContextualHints(mode, lastAi?.message, currentTurn, Math.floor(Math.random() * 100)));
+      lastHintsTurnRef.current = currentTurn;
     } finally {
       setLoadingHints(false);
     }
@@ -555,7 +600,9 @@ export function ConversationChat() {
     setCurrentTranscript("");
     accumulatedTranscriptRef.current = "";
     interimTranscriptRef.current = "";
+    setShowHints(false);
     setHints([]);
+    lastHintsTurnRef.current = -1;
     setEvaluating(true);
 
     const userMsg = {
@@ -759,11 +806,19 @@ export function ConversationChat() {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={handleFetchHints}
+              onClick={() => handleToggleHints(false)}
               disabled={loadingHints}
-              className="px-2.5 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-400 text-[11px] font-extrabold transition-all"
+              className={`px-2.5 py-1 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                showHints
+                  ? "bg-[#6c63ff] text-white border-[#6c63ff] shadow-md shadow-[#6c63ff]/30"
+                  : isDark
+                  ? "bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-500/40 text-indigo-300"
+                  : "bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700"
+              }`}
+              title="Toggle AI Hints according to chat"
             >
-              💡 {loadingHints ? "..." : "AI Hint"}
+              <span>💡</span>
+              <span>{loadingHints ? "..." : "AI Hint"}</span>
             </button>
 
             <button
@@ -900,33 +955,84 @@ export function ConversationChat() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Dynamic AI Smart Suggestions Tray */}
-        {(() => {
-          const lastAi = [...messages].reverse().find((m) => m.sender === "ai" || m.role === "assistant");
-          const activeHints = hints.length > 0 ? hints : getModeHints(mode, lastAi);
-          return (
-            <div className={`p-2.5 border-t flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none ${
-              isDark ? "border-white/10 bg-slate-800/40" : "border-slate-200 bg-slate-50"
-            }`}>
-              <span className="text-[10px] font-black text-[#6c63ff] shrink-0 flex items-center gap-1">
-                💡 Suggestions:
-              </span>
-              {activeHints.map((hint, idx) => (
+        {/* Dynamic AI Smart Suggestions Drawer (Only shown on AI Hint click) */}
+        {showHints && (
+          <div className={`p-2.5 sm:px-3 border-t shrink-0 transition-all animate-in fade-in duration-200 ${
+            isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200 shadow-xs"
+          }`}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs">💡</span>
+                <span className={`text-[11px] font-bold tracking-wide truncate ${
+                  isDark ? "text-slate-200" : "text-slate-800"
+                }`}>
+                  Suggested Responses
+                </span>
+                <span className="hidden sm:inline text-[10px] text-slate-400 font-normal">
+                  — click any response to send
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
-                  key={idx}
-                  onClick={() => handleSendMessage(hint)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold shrink-0 transition-all border shadow-sm ${
+                  type="button"
+                  onClick={() => handleToggleHints(true)}
+                  disabled={loadingHints}
+                  className={`p-1 px-2 rounded-lg text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer border ${
                     isDark
-                      ? "bg-slate-700/60 hover:bg-[#6c63ff] hover:text-white text-slate-200 border-white/10"
-                      : "bg-white hover:bg-[#6c63ff] hover:text-white text-slate-700 border-slate-200"
+                      ? "text-slate-300 border-white/10 hover:bg-slate-800 hover:text-white"
+                      : "text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
                   }`}
+                  title="Generate 3 fresh AI suggestions"
                 >
-                  {hint}
+                  <span className={loadingHints ? "animate-spin inline-block" : ""}>↻</span>
+                  <span>New Hints</span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setShowHints(false)}
+                  className={`p-1 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                    isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-800 hover:bg-slate-100"
+                  }`}
+                  title="Close Suggestions"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-          );
-        })()}
+
+            {loadingHints ? (
+              <div className="flex items-center gap-2 py-1.5 text-xs font-semibold text-[#6c63ff] animate-pulse">
+                <span className="h-2 w-2 rounded-full bg-[#6c63ff] animate-ping" />
+                <span>Generating fresh suggestions according to chat...</span>
+              </div>
+            ) : hints.length > 0 ? (
+              <div className="overflow-x-auto pb-1 flex items-center gap-2 scroll-smooth scrollbar-thin">
+                {hints.map((hint, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setShowHints(false);
+                      handleSendMessage(hint);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all border shadow-xs whitespace-nowrap cursor-pointer active:scale-95 ${
+                      isDark
+                        ? "bg-slate-800/80 text-slate-200 border-white/10 hover:border-[#6c63ff] hover:bg-[#6c63ff] hover:text-white"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:border-[#6c63ff] hover:bg-[#6c63ff] hover:text-white"
+                    }`}
+                    title={`Click to send: "${hint}"`}
+                  >
+                    {hint}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="py-1 text-xs text-slate-400 flex items-center gap-2">
+                <span>Click "New Hints" to generate responses.</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Integrated Text Input Bar & Voice Wave */}
         <div className={`p-3.5 border-t shrink-0 space-y-2 ${
@@ -978,7 +1084,7 @@ export function ConversationChat() {
 
             <input
               type="text"
-              placeholder={isListening ? "Listening to your voice..." : "Type response to tutor (or click suggestion above)..."}
+              placeholder={isListening ? "Listening to your voice..." : "Type response to tutor..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={evaluating}
