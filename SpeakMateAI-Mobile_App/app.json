@@ -61,6 +61,13 @@
           "microphonePermission": "Allow SpeakMate AI to access your microphone for speech practice."
         }
       ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow SpeakMate AI to access your microphone for speech practice.",
+          "speechRecognitionPermission": "Allow SpeakMate AI to recognize your speech in real time."
+        }
+      ],
       "./plugins/withCleartextTraffic.js"
     ],
     "runtimeVersion": {

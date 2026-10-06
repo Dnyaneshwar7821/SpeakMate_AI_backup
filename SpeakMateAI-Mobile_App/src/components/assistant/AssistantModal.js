@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { VoiceRecorder } from '../../utils/audioRecorder';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -42,6 +42,37 @@ import {
 import MessageBubble from './MessageBubble';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const NORMAL_SILENCE_THRESHOLD = 3000;
+const INCOMPLETE_SILENCE_THRESHOLD = 4500;
+
+const INCOMPLETE_CONNECTORS = [
+  'because', 'and', 'or', 'but', 'so', 'if', 'that', 'which', 'who', 'whom',
+  'whose', 'although', 'though', 'even though', 'while', 'whereas', 'since',
+  'unless', 'until', 'as', 'to', 'for', 'with', 'about', 'like', 'such as',
+  'in order to', 'so that', 'after', 'before', 'when', 'whenever', 'where',
+  'wherever', 'whether', 'than', 'as well as', 'both', 'either', 'neither',
+  'not only', 'also', 'furthermore', 'moreover', 'however', 'therefore',
+  'besides', 'meanwhile', 'actually', 'basically', 'honestly', 'well', 'um',
+  'uh', 'i mean', 'you know', 'at', 'by', 'from', 'in', 'into', 'of', 'off',
+  'on', 'onto', 'out', 'over', 'through', 'toward', 'towards', 'under',
+  'upon', 'within', 'without'
+];
+
+function isIncompleteSentence(text) {
+  if (!text) return false;
+  const cleaned = text.trim().toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, '');
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return false;
+  const lastWord = words[words.length - 1];
+  const lastTwoWords = words.length >= 2 ? `${words[words.length - 2]} ${lastWord}` : '';
+  const lastThreeWords = words.length >= 3 ? `${words[words.length - 3]} ${words[words.length - 2]} ${lastWord}` : '';
+  return (
+    INCOMPLETE_CONNECTORS.includes(lastWord) ||
+    INCOMPLETE_CONNECTORS.includes(lastTwoWords) ||
+    INCOMPLETE_CONNECTORS.includes(lastThreeWords)
+  );
+}
 
 function cleanTextForSpeech(text) {
   if (!text) return '';
@@ -160,19 +191,104 @@ export function AssistantModal({
     };
   }, []);
 
-  const recordingRef = useRef(null);
   const isRecordingRef = useRef(false);
-  const speechDetectedRef = useRef(false);
-  const silenceTimerRef = useRef(0);
-  const initialSilenceTimerRef = useRef(0);
+  const silenceTimerRef = useRef(null);
   const stoppingRef = useRef(false);
   const recordingSessionIdRef = useRef(0);
   const startingRef = useRef(false);
+  const accumulatedTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
+  const isSendingRef = useRef(false);
 
-  const SILENCE_THRESHOLD_MS = 3200; // 3.2s post-speech silence auto-stop
-  const INITIAL_SILENCE_THRESHOLD_MS = 8000; // 8s initial silence before user speaks
-  const MAX_RECORDING_DURATION_MS = 300000; // 5 minutes hard limit
-  const METERING_SPEECH_THRESHOLD = -48; // dB volume threshold for speech detection
+  // Continuous Streaming Speech-to-Text Listener
+  useEffect(() => {
+    const subResult = ExpoSpeechRecognitionModule.addListener('result', (event) => {
+      if (!isRecordingRef.current || isSendingRef.current) return;
+
+      const results = event.results || [];
+      let finalChunk = '';
+      let interim = '';
+
+      for (let i = 0; i < results.length; i++) {
+        const item = results[i];
+        if (item.isFinal) {
+          finalChunk += (item.transcript || '') + ' ';
+        } else {
+          interim += (item.transcript || '');
+        }
+      }
+
+      if (finalChunk) {
+        accumulatedTranscriptRef.current += finalChunk;
+      }
+      interimTranscriptRef.current = interim;
+
+      const full = `${accumulatedTranscriptRef.current} ${interim}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      setDraft(full);
+
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      if (full.length >= 2) {
+        const activeSessionId = recordingSessionIdRef.current;
+        const threshold = isIncompleteSentence(full)
+          ? INCOMPLETE_SILENCE_THRESHOLD
+          : NORMAL_SILENCE_THRESHOLD;
+
+        silenceTimerRef.current = setTimeout(() => {
+          if (
+            recordingSessionIdRef.current === activeSessionId &&
+            !isSendingRef.current &&
+            isRecordingRef.current
+          ) {
+            stopRecordingAndSend();
+          }
+        }, threshold);
+      }
+    });
+
+    const subError = ExpoSpeechRecognitionModule.addListener('error', (event) => {
+      console.warn('[SpeechRecognition] AssistantModal notice:', event?.error || event);
+      if (event?.error === 'no-speech') return;
+      if (event?.error === 'not-allowed') {
+        isRecordingRef.current = false;
+        setIsRecording(false);
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      }
+    });
+
+    const subEnd = ExpoSpeechRecognitionModule.addListener('end', () => {
+      if (isRecordingRef.current && !isSendingRef.current) {
+        try {
+          ExpoSpeechRecognitionModule.start({
+            lang: 'en-US',
+            continuous: true,
+            interimResults: true,
+          });
+        } catch (_) {}
+      }
+    });
+
+    return () => {
+      subResult.remove();
+      subError.remove();
+      subEnd.remove();
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
+    };
+  }, []);
 
   const welcomeText = WELCOME_TEXT_BY_ROLE[role] || WELCOME_TEXT_BY_ROLE[DEFAULT_ROLE];
   const quickSuggestions = QUICK_SUGGESTIONS_BY_ROLE[role] || [];
@@ -285,18 +401,12 @@ export function AssistantModal({
     VoiceService.stop();
     setSpeakingMessageId(null);
 
-    if (recordingRef.current || isRecordingRef.current) {
-      stoppingRef.current = true;
+    if (isRecordingRef.current) {
       isRecordingRef.current = false;
       setIsRecording(false);
       try {
-        if (recordingRef.current) {
-          recordingRef.current.setOnRecordingStatusUpdate(null);
-          recordingRef.current.stopAndUnloadAsync().catch(() => {});
-        }
+        ExpoSpeechRecognitionModule.stop();
       } catch (_) {}
-      recordingRef.current = null;
-      stoppingRef.current = false;
     }
 
     onClose?.();
@@ -307,18 +417,12 @@ export function AssistantModal({
       VoiceService.stop();
       setSpeakingMessageId(null);
 
-      if (recordingRef.current || isRecordingRef.current) {
-        stoppingRef.current = true;
+      if (isRecordingRef.current) {
         isRecordingRef.current = false;
         setIsRecording(false);
         try {
-          if (recordingRef.current) {
-            recordingRef.current.setOnRecordingStatusUpdate(null);
-            recordingRef.current.stopAndUnloadAsync().catch(() => {});
-          }
+          ExpoSpeechRecognitionModule.stop();
         } catch (_) {}
-        recordingRef.current = null;
-        stoppingRef.current = false;
       }
     }
     return () => {
@@ -370,41 +474,85 @@ export function AssistantModal({
   };
 
   const stopRecordingAndSend = async () => {
-    if (stoppingRef.current) return;
+    if (stoppingRef.current || isSendingRef.current) return;
     stoppingRef.current = true;
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
     isRecordingRef.current = false;
     setIsRecording(false);
 
     try {
-      const rec = recordingRef.current;
-      if (!rec) {
-        stoppingRef.current = false;
+      ExpoSpeechRecognitionModule.stop();
+    } catch (_) {}
+
+    const finalSpoken = `${accumulatedTranscriptRef.current} ${interimTranscriptRef.current}`
+      .replace(/\s+/g, ' ')
+      .trim() || draft.replace(/\s+/g, ' ').trim();
+
+    accumulatedTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
+
+    if (!finalSpoken || finalSpoken.length < 2) {
+      stoppingRef.current = false;
+      return;
+    }
+
+    isSendingRef.current = true;
+    try {
+      setDraft('');
+      await handleSend(finalSpoken);
+    } catch (err) {
+      console.warn('[AssistantModal] Speech to text error:', err);
+      Alert.alert('Voice Input Failed', 'Could not process audio.');
+    } finally {
+      stoppingRef.current = false;
+      isSendingRef.current = false;
+    }
+  };
+
+  const startRecording = async () => {
+    if (startingRef.current || isRecordingRef.current || isSendingRef.current) return;
+    startingRef.current = true;
+
+    try {
+      VoiceService.stop();
+      setSpeakingMessageId(null);
+
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!granted?.granted) {
+        Alert.alert('Microphone Permission', 'Please allow microphone access to speak to the assistant.');
+        startingRef.current = false;
         return;
       }
 
-      const uri = await rec.stop();
-      recordingRef.current = null;
+      recordingSessionIdRef.current += 1;
+      accumulatedTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
+      setDraft('');
+      isRecordingRef.current = true;
+      setIsRecording(true);
 
-      if (!uri) throw new Error('No audio recorded');
-
-      const res = await speechService.speechToText({
-        uri,
-        name: 'assistant_voice.m4a',
-        type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+      ExpoSpeechRecognitionModule.start({
+        lang: 'en-US',
+        continuous: true,
+        interimResults: true,
       });
-
-      if (res && res.transcript && res.transcript.trim()) {
-        const transcribed = res.transcript.trim();
-        setDraft(transcribed);
-        handleSend(transcribed);
-      } else {
-        Alert.alert('Silence Detected', 'Could not hear any speech. Please try speaking again.');
-      }
     } catch (err) {
-      console.warn('[AssistantModal] Speech to text error:', err);
-      Alert.alert('Voice Input Failed', 'Could not process audio. Please check your network connection.');
+      console.warn('[AssistantModal] Start recording error:', err);
+      Alert.alert('Microphone Error', 'Could not start speech recognition.');
+      isRecordingRef.current = false;
+      setIsRecording(false);
     } finally {
-      stoppingRef.current = false;
+      startingRef.current = false;
     }
   };
 
@@ -414,75 +562,7 @@ export function AssistantModal({
     if (isRecording || isRecordingRef.current) {
       await stopRecordingAndSend();
     } else {
-      if (startingRef.current || isRecordingRef.current) return;
-      startingRef.current = true;
-
-      try {
-        // Stop any active speech playback before starting microphone recording
-        VoiceService.stop();
-        setSpeakingMessageId(null);
-
-        const granted = await VoiceRecorder.requestPermissions();
-        if (!granted) {
-          Alert.alert('Microphone Permission', 'Please allow microphone access to speak to the assistant.');
-          startingRef.current = false;
-          return;
-        }
-
-        if (recordingRef.current) {
-          try {
-            await recordingRef.current.stop();
-          } catch (_) {}
-          recordingRef.current = null;
-        }
-
-        const currentSessionId = ++recordingSessionIdRef.current;
-        speechDetectedRef.current = false;
-        silenceTimerRef.current = 0;
-        initialSilenceTimerRef.current = 0;
-        stoppingRef.current = false;
-
-        const newRec = new VoiceRecorder((status) => {
-          if (!status.isRecording || stoppingRef.current || recordingSessionIdRef.current !== currentSessionId) return;
-
-          // 5-minute hard limit
-          if (status.durationMillis && status.durationMillis >= MAX_RECORDING_DURATION_MS) {
-            stopRecordingAndSend();
-            return;
-          }
-
-          // Voice Activity Detection
-          const metering = status.metering;
-          if (metering !== undefined && metering !== null) {
-            if (metering > METERING_SPEECH_THRESHOLD) {
-              speechDetectedRef.current = true;
-              silenceTimerRef.current = 0;
-            } else if (speechDetectedRef.current) {
-              silenceTimerRef.current += 250;
-              if (silenceTimerRef.current >= SILENCE_THRESHOLD_MS) {
-                stopRecordingAndSend();
-              }
-            } else {
-              initialSilenceTimerRef.current += 250;
-              if (initialSilenceTimerRef.current >= INITIAL_SILENCE_THRESHOLD_MS) {
-                stopRecordingAndSend();
-              }
-            }
-          }
-        });
-
-        await newRec.start();
-        recordingRef.current = newRec;
-        isRecordingRef.current = true;
-        setIsRecording(true);
-      } catch (err) {
-        console.warn('[AssistantModal] Start recording error:', err);
-        Alert.alert('Microphone Error', 'Could not start microphone recording.');
-        isRecordingRef.current = false;
-        setIsRecording(false);
-      } finally {
-        startingRef.current = false;
-      }
+      await startRecording();
     }
   };
 

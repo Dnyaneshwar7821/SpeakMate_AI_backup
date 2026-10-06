@@ -27,7 +27,7 @@ if (Platform.OS === 'android' && !global.nativeFabricUIManager && UIManager.setL
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { VoiceRecorder } from '../../utils/audioRecorder';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { COLORS } from '../../constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { chatService, speechService, settingsService, profileService } from '../../services/appServices';
@@ -435,6 +435,37 @@ const getModeHints = (modeParam, lastAiMsg) => {
   ];
 };
 
+const NORMAL_SILENCE_THRESHOLD = 3000;
+const INCOMPLETE_SILENCE_THRESHOLD = 4500;
+
+const INCOMPLETE_CONNECTORS = [
+  'because', 'and', 'or', 'but', 'so', 'if', 'that', 'which', 'who', 'whom',
+  'whose', 'although', 'though', 'even though', 'while', 'whereas', 'since',
+  'unless', 'until', 'as', 'to', 'for', 'with', 'about', 'like', 'such as',
+  'in order to', 'so that', 'after', 'before', 'when', 'whenever', 'where',
+  'wherever', 'whether', 'than', 'as well as', 'both', 'either', 'neither',
+  'not only', 'also', 'furthermore', 'moreover', 'however', 'therefore',
+  'besides', 'meanwhile', 'actually', 'basically', 'honestly', 'well', 'um',
+  'uh', 'i mean', 'you know', 'at', 'by', 'from', 'in', 'into', 'of', 'off',
+  'on', 'onto', 'out', 'over', 'through', 'toward', 'towards', 'under',
+  'upon', 'within', 'without'
+];
+
+function isIncompleteSentence(text) {
+  if (!text) return false;
+  const cleaned = text.trim().toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, '');
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return false;
+  const lastWord = words[words.length - 1];
+  const lastTwoWords = words.length >= 2 ? `${words[words.length - 2]} ${lastWord}` : '';
+  const lastThreeWords = words.length >= 3 ? `${words[words.length - 3]} ${words[words.length - 2]} ${lastWord}` : '';
+  return (
+    INCOMPLETE_CONNECTORS.includes(lastWord) ||
+    INCOMPLETE_CONNECTORS.includes(lastTwoWords) ||
+    INCOMPLETE_CONNECTORS.includes(lastThreeWords)
+  );
+}
+
 export default function ConversationChatScreen({ navigation, route }) {
   const { sessionId, mode, title } = route.params || {};
 
@@ -486,7 +517,6 @@ export default function ConversationChatScreen({ navigation, route }) {
 
   const flatListRef = useRef(null);
   const isInitialMount = useRef(true);
-  const recordingRef = useRef(null);
   const wasSpeakingOnPause = useRef(false);
 
   const handleScrollToIndexFailed = (info) => {
@@ -541,14 +571,108 @@ export default function ConversationChatScreen({ navigation, route }) {
     return () => clearTimeout(scrollTimer);
   }, [messages]);
 
-  // VAD / Silence Auto-Stop refs & Session Token
-  const speechDetectedRef = useRef(false);
-  const silenceTimerRef = useRef(0);
-  const initialSilenceTimerRef = useRef(0);
+  // Live Speech Recognition & Silence Auto-Stop refs & Session Token
+  const [currentTranscript, setCurrentTranscript] = useState('');
+  const silenceTimerRef = useRef(null);
   const stoppingRef = useRef(false);
   const startingRef = useRef(false);
   const isRecordingRef = useRef(false);
   const recordingSessionIdRef = useRef(0);
+  const accumulatedTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
+  const isSendingRef = useRef(false);
+
+  // Speech Recognition Event Listeners (Continuous Streaming Speech-to-Text)
+  useEffect(() => {
+    const subResult = ExpoSpeechRecognitionModule.addListener('result', (event) => {
+      if (!isRecordingRef.current || isSendingRef.current) return;
+
+      const results = event.results || [];
+      let finalChunk = '';
+      let interim = '';
+
+      for (let i = 0; i < results.length; i++) {
+        const item = results[i];
+        if (item.isFinal) {
+          finalChunk += (item.transcript || '') + ' ';
+        } else {
+          interim += (item.transcript || '');
+        }
+      }
+
+      if (finalChunk) {
+        accumulatedTranscriptRef.current += finalChunk;
+      }
+      interimTranscriptRef.current = interim;
+
+      const full = `${accumulatedTranscriptRef.current} ${interim}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      setCurrentTranscript(full);
+
+      // Reset silence timer on every speech event
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      // Arm auto-send timer when speech has been detected (>= 2 chars)
+      if (full.length >= 2) {
+        const activeSessionId = recordingSessionIdRef.current;
+        const threshold = isIncompleteSentence(full)
+          ? INCOMPLETE_SILENCE_THRESHOLD
+          : NORMAL_SILENCE_THRESHOLD;
+
+        silenceTimerRef.current = setTimeout(() => {
+          if (
+            recordingSessionIdRef.current === activeSessionId &&
+            !isSendingRef.current &&
+            isRecordingRef.current
+          ) {
+            stopRecordingAndSend();
+          }
+        }, threshold);
+      }
+    });
+
+    const subError = ExpoSpeechRecognitionModule.addListener('error', (event) => {
+      console.warn('[SpeechRecognition] error notice:', event?.error || event);
+      if (event?.error === 'no-speech') return;
+      if (event?.error === 'not-allowed') {
+        isRecordingRef.current = false;
+        setRecording(false);
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      }
+    });
+
+    const subEnd = ExpoSpeechRecognitionModule.addListener('end', () => {
+      if (isRecordingRef.current && !isSendingRef.current) {
+        try {
+          ExpoSpeechRecognitionModule.start({
+            lang: 'en-US',
+            continuous: true,
+            interimResults: true,
+          });
+        } catch (_) {}
+      }
+    });
+
+    return () => {
+      subResult.remove();
+      subError.remove();
+      subEnd.remove();
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
+    };
+  }, []);
 
   // Auto-collapse top avatar on keyboard show and smoothly lift chat input bar
   useEffect(() => {
@@ -729,12 +853,9 @@ export default function ConversationChatScreen({ navigation, route }) {
 
     return () => {
       VoiceService.stop();
-      if (recordingRef.current) {
-        try {
-          recordingRef.current.stop().catch(() => {});
-        } catch (_) {}
-        recordingRef.current = null;
-      }
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
     };
   }, []);
 
@@ -777,13 +898,10 @@ export default function ConversationChatScreen({ navigation, route }) {
       setMenuVisible(false);
       Keyboard.dismiss();
 
-      if (recordingRef.current || isRecordingRef.current) {
+      if (isRecordingRef.current) {
         try {
-          if (recordingRef.current) {
-            recordingRef.current.stop().catch(() => {});
-          }
+          ExpoSpeechRecognitionModule.stop();
         } catch (_) {}
-        recordingRef.current = null;
         isRecordingRef.current = false;
         setRecording(false);
       }
@@ -1074,68 +1192,41 @@ export default function ConversationChatScreen({ navigation, route }) {
   };
 
   const startRecording = async () => {
+    if (startingRef.current || isRecordingRef.current || isSendingRef.current) return;
+    startingRef.current = true;
+
     try {
       VoiceService.stop();
       setIsSpeaking(false);
 
-      const granted = await VoiceRecorder.requestPermissions();
-      if (!granted) {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!granted?.granted) {
         Alert.alert('Microphone Access Denied', 'Please allow microphone access to use voice chat.');
+        startingRef.current = false;
         return;
       }
 
-      if (recordingRef.current) {
-        try {
-          await recordingRef.current.stop();
-        } catch (_) {}
-        recordingRef.current = null;
-      }
-
-      const currentSessionId = ++recordingSessionIdRef.current;
-      speechDetectedRef.current = false;
-      silenceTimerRef.current = 0;
-      initialSilenceTimerRef.current = 0;
-      stoppingRef.current = false;
-
-      const SILENCE_THRESHOLD_MS = 3200; // 3.2s post-speech silence auto-stop (allows natural thinking pauses without premature cutoff)
-      const INITIAL_SILENCE_THRESHOLD_MS = 8000; // 8s initial silence before user speaks
-      const MAX_RECORDING_DURATION_MS = 300000; // 5 minutes generous hard limit for long speech
-      const METERING_SPEECH_THRESHOLD = -48; // dB volume threshold for speech detection (higher sensitivity for soft speaking)
-
-      const recorder = new VoiceRecorder((status) => {
-        if (!status.isRecording || stoppingRef.current || recordingSessionIdRef.current !== currentSessionId) return;
-
-        // Hard maximum duration enforcement (5 minutes)
-        if (status.durationMillis && status.durationMillis >= MAX_RECORDING_DURATION_MS) {
-          stopRecordingAndSend();
-          return;
-        }
-
-        const metering = status.metering ?? -100;
-        if (metering > METERING_SPEECH_THRESHOLD) {
-          speechDetectedRef.current = true;
-          silenceTimerRef.current = 0;
-        } else if (speechDetectedRef.current) {
-          silenceTimerRef.current += 250;
-          if (silenceTimerRef.current >= SILENCE_THRESHOLD_MS) { // 3.2s silence auto stop
-            stopRecordingAndSend();
-          }
-        } else {
-          initialSilenceTimerRef.current += 250;
-          if (initialSilenceTimerRef.current >= INITIAL_SILENCE_THRESHOLD_MS) {
-            stopRecordingAndSend();
-          }
-        }
-      });
-
-      await recorder.start();
-      recordingRef.current = recorder;
+      recordingSessionIdRef.current += 1;
+      accumulatedTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
+      setCurrentTranscript('');
       isRecordingRef.current = true;
       setRecording(true);
       setStatusText('Listening');
+
+      ExpoSpeechRecognitionModule.start({
+        lang: 'en-US',
+        continuous: true,
+        interimResults: true,
+      });
     } catch (err) {
-      console.warn('Voice chat recording start failed:', err);
-      Alert.alert('Microphone error', 'Could not initialize recording. Please try again.');
+      console.warn('[SpeechRecognition] Voice chat recording start failed:', err);
+      Alert.alert('Speech Recognition Error', 'Could not initialize speech recognition. Please check permissions.');
       isRecordingRef.current = false;
       setRecording(false);
       setStatusText('Waiting for Response');
@@ -1145,43 +1236,42 @@ export default function ConversationChatScreen({ navigation, route }) {
   };
 
   const stopRecordingAndSend = async () => {
-    if (stoppingRef.current) return;
+    if (stoppingRef.current || isSendingRef.current) return;
     stoppingRef.current = true;
-    isRecordingRef.current = false;
 
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    isRecordingRef.current = false;
     setRecording(false);
     setStatusText('Thinking');
+
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (_) {}
+
+    const finalSpoken = `${accumulatedTranscriptRef.current} ${interimTranscriptRef.current}`
+      .replace(/\s+/g, ' ')
+      .trim() || currentTranscript.replace(/\s+/g, ' ').trim();
+
+    accumulatedTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
+    setCurrentTranscript('');
+
+    if (!finalSpoken || finalSpoken.length < 2) {
+      setStatusText('Waiting for Response');
+      stoppingRef.current = false;
+      return;
+    }
+
+    isSendingRef.current = true;
     setLoading(true);
 
     try {
-      const rec = recordingRef.current;
-      if (!rec) {
-        setLoading(false);
-        setStatusText('Waiting for Response');
-        stoppingRef.current = false;
-        return;
-      }
-
-      const uri = await rec.stop();
-      recordingRef.current = null;
-
-      await VoiceRecorder.resetAudioMode();
-
-      if (!uri) throw new Error('Recording URI not found');
-
-      const res = await speechService.speechToText({
-        uri,
-        name: 'chat_recording.m4a',
-        type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-      });
-
-      if (res && res.transcript && res.transcript.trim()) {
-        setInputText(res.transcript.trim());
-        handleSendMessage(res.transcript.trim());
-      } else {
-        Alert.alert('Silence Detected', 'Could not hear any speech. Please try speaking again.');
-        setStatusText('Waiting for Response');
-      }
+      setInputText(finalSpoken);
+      await handleSendMessage(finalSpoken);
     } catch (err) {
       console.warn('Voice chat transcription failed:', err);
       Alert.alert('Transcription Failed', 'Make sure you have an active internet connection.');
@@ -1189,6 +1279,7 @@ export default function ConversationChatScreen({ navigation, route }) {
     } finally {
       setLoading(false);
       stoppingRef.current = false;
+      isSendingRef.current = false;
     }
   };
 
@@ -1290,7 +1381,7 @@ export default function ConversationChatScreen({ navigation, route }) {
     : evaluating
     ? '✨ Tutor thinking...'
     : recording
-    ? '✨ Tutor listening...'
+    ? '🎙️ Listening... speak or tap mic to send'
     : '✨ Tap mic to speak';
 
   const keyExtractor = useCallback((item) => String(item.id), []);
@@ -1472,8 +1563,17 @@ export default function ConversationChatScreen({ navigation, route }) {
           )}
 
           {recording && (
-            <View style={styles.voiceWaveBox}>
-              <VoiceWaveBars isRecording={recording} />
+            <View style={styles.liveTranscriptBar}>
+              <View style={styles.liveTranscriptIndicator}>
+                <View style={styles.liveTranscriptPulseDot} />
+                <Text style={styles.liveTranscriptLabel}>LIVE TRANSCRIPT</Text>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <VoiceWaveBars isRecording={recording} />
+                </View>
+              </View>
+              <Text style={styles.liveTranscriptText} numberOfLines={2} ellipsizeMode="tail">
+                {currentTranscript ? `"${currentTranscript}"` : 'Listening to your voice...'}
+              </Text>
             </View>
           )}
         </View>
@@ -1803,6 +1903,41 @@ const styles = StyleSheet.create({
   controlsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   controlBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   controlText: { fontSize: 11, fontWeight: '700', color: '#9CA3AF' },
+  // Live Streaming Transcript Box
+  liveTranscriptBar: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(30, 27, 75, 0.85)',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.45)',
+  },
+  liveTranscriptIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  liveTranscriptPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  liveTranscriptLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#A5B4FC',
+    letterSpacing: 0.5,
+  },
+  liveTranscriptText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFF',
+    lineHeight: 18,
+  },
   voiceWaveBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // Input row

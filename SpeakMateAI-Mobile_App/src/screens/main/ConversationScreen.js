@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Speech from 'expo-speech';
-import { VoiceRecorder } from '../../utils/audioRecorder';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { speechService, speakingService, settingsService, profileService } from '../../services/appServices';
 import { COLORS } from '../../constants/colors';
@@ -35,6 +35,24 @@ import AIAvatar from '../../components/common/AIAvatar';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel } from '../../config/AvatarCatalog';
 import JumpingDotsIndicator from '../../components/common/JumpingDotsIndicator';
 import LevelSegmentedControl from '../../components/common/LevelSegmentedControl';
+
+// ── Voice Activity Timing & Hesitation Thresholds (Web Parity) ────────────────
+const NORMAL_SILENCE_THRESHOLD = 3000; // 3.0s: comfortable complete-thought pause
+const INCOMPLETE_SILENCE_THRESHOLD = 4500; // 4.5s: extra hesitation tolerance for connectors
+
+const INCOMPLETE_CONNECTORS = new Set([
+  "and", "because", "but", "or", "so", "that", "to", "with", "like",
+  "if", "when", "while", "although", "since", "for"
+]);
+
+const isIncompleteSentence = (text) => {
+  if (!text || typeof text !== "string") return false;
+  const clean = text.trim().toLowerCase().replace(/[.,!?;:]+$/, "").trim();
+  if (!clean) return false;
+  const words = clean.split(/\s+/);
+  const lastWord = words[words.length - 1];
+  return INCOMPLETE_CONNECTORS.has(lastWord);
+};
 
 // ── Animated Message Bubble Component ────────────────────────────────────────
 const AnimatedMessageBubble = React.memo(function AnimatedMessageBubble({ item, isUser, formatDisplayMessage }) {
@@ -332,16 +350,16 @@ export default function ConversationScreen({ navigation, route }) {
     };
   }, []); // Run ONLY on unmount
 
-  // VAD / Silence Auto-Stop refs & Session Token
-  const speechDetectedRef = useRef(false);
-  const silenceTimerRef = useRef(0);
-  const initialSilenceTimerRef = useRef(0);
+  // Live Speech Recognition & Silence Auto-Stop refs & Session Token
+  const [currentTranscript, setCurrentTranscript] = useState('');
+  const silenceTimerRef = useRef(null);
   const stoppingRef = useRef(false);
   const startingRef = useRef(false);
   const isRecordingRef = useRef(false);
   const recordingSessionIdRef = useRef(0);
-  const isUserPausingRef = useRef(false);
-  const [isUserPausing, setIsUserPausing] = useState(false);
+  const accumulatedTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
+  const isSendingRef = useRef(false);
 
   // Auto-collapse top avatar on keyboard show to maximize chat view
   useEffect(() => {
@@ -512,12 +530,9 @@ export default function ConversationScreen({ navigation, route }) {
 
     return () => {
       VoiceService.stop();
-      if (recordingRef.current) {
-        try {
-          recordingRef.current.stop().catch(() => {});
-        } catch (_) {}
-        recordingRef.current = null;
-      }
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
     };
   }, []); // Run only once on mount
 
@@ -558,13 +573,10 @@ export default function ConversationScreen({ navigation, route }) {
       setStatusText('Waiting for Response');
       updateIsPaused(true);
 
-      if (recordingRef.current || isRecordingRef.current) {
+      if (isRecordingRef.current) {
         try {
-          if (recordingRef.current) {
-            recordingRef.current.stop().catch(() => {});
-          }
+          ExpoSpeechRecognitionModule.stop();
         } catch (_) {}
-        recordingRef.current = null;
         isRecordingRef.current = false;
         setIsRecording(false);
       }
@@ -1022,90 +1034,134 @@ export default function ConversationScreen({ navigation, route }) {
     }
   };
 
-  // ── Recording Handling (expo-audio with 3.2s Silence Auto-Stop VAD & Race-Protection) ──────
-  const SILENCE_THRESHOLD_MS = 3200; // 3.2s post-speech silence auto-stop (allows natural thinking pauses without premature cutoff)
-  const INITIAL_SILENCE_THRESHOLD_MS = 8000; // 8s initial silence before user speaks
-  const MAX_RECORDING_DURATION_MS = 300000; // 5 minutes generous limit for uninterrupted long speech
-  const METERING_SPEECH_THRESHOLD = -48; // dB volume threshold for speech detection (higher sensitivity for soft speaking)
+  // ── Speech Recognition Event Listeners (Continuous Streaming Speech-to-Text) ──
+  useEffect(() => {
+    const subResult = ExpoSpeechRecognitionModule.addListener('result', (event) => {
+      if (!isRecordingRef.current || isSendingRef.current) return;
+
+      const results = event.results || [];
+      let finalChunk = '';
+      let interim = '';
+
+      for (let i = 0; i < results.length; i++) {
+        const item = results[i];
+        if (item.isFinal) {
+          finalChunk += (item.transcript || '') + ' ';
+        } else {
+          interim += (item.transcript || '');
+        }
+      }
+
+      if (finalChunk) {
+        accumulatedTranscriptRef.current += finalChunk;
+      }
+      interimTranscriptRef.current = interim;
+
+      const full = `${accumulatedTranscriptRef.current} ${interim}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      setCurrentTranscript(full);
+
+      // Reset silence timer on every speech event
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      // Arm auto-send timer when speech has been detected (>= 2 chars)
+      if (full.length >= 2) {
+        const activeSessionId = recordingSessionIdRef.current;
+        const threshold = isIncompleteSentence(full)
+          ? INCOMPLETE_SILENCE_THRESHOLD
+          : NORMAL_SILENCE_THRESHOLD;
+
+        silenceTimerRef.current = setTimeout(() => {
+          if (
+            recordingSessionIdRef.current === activeSessionId &&
+            !isSendingRef.current &&
+            isRecordingRef.current
+          ) {
+            stopRecordingAndSend();
+          }
+        }, threshold);
+      }
+    });
+
+    const subError = ExpoSpeechRecognitionModule.addListener('error', (event) => {
+      console.warn('[SpeechRecognition] error notice:', event?.error || event);
+      if (event?.error === 'no-speech') return;
+      if (event?.error === 'not-allowed') {
+        isRecordingRef.current = false;
+        setIsRecording(false);
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      }
+    });
+
+    const subEnd = ExpoSpeechRecognitionModule.addListener('end', () => {
+      if (isRecordingRef.current && !isSendingRef.current) {
+        try {
+          ExpoSpeechRecognitionModule.start({
+            lang: 'en-US',
+            continuous: true,
+            interimResults: true,
+          });
+        } catch (_) {}
+      }
+    });
+
+    return () => {
+      subResult.remove();
+      subError.remove();
+      subEnd.remove();
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
+    };
+  }, []);
 
   const startRecording = async () => {
-    if (startingRef.current || isRecordingRef.current) return;
+    if (startingRef.current || isRecordingRef.current || isPaused || isSendingRef.current) return;
     startingRef.current = true;
 
     try {
-      // Stop any AI speech immediately
       VoiceService.stop();
       setIsSpeaking(false);
 
-      const granted = await VoiceRecorder.requestPermissions();
-      if (!granted) {
-        Alert.alert('Microphone Access Denied', 'Please grant microphone permissions to speak with your AI tutor.');
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!granted?.granted) {
+        Alert.alert('Microphone Access Denied', 'Please grant microphone and speech recognition permissions to speak with your AI tutor.');
         startingRef.current = false;
         return;
       }
 
-      if (recordingRef.current) {
-        try {
-          await recordingRef.current.stop();
-        } catch (_) {}
-        recordingRef.current = null;
-      }
-
-      const currentSessionId = ++recordingSessionIdRef.current;
-      speechDetectedRef.current = false;
-      silenceTimerRef.current = 0;
-      initialSilenceTimerRef.current = 0;
-      stoppingRef.current = false;
-      isUserPausingRef.current = false;
-      setIsUserPausing(false);
-
-      const recorder = new VoiceRecorder((status) => {
-        if (!status.isRecording || stoppingRef.current || recordingSessionIdRef.current !== currentSessionId) return;
-
-        // Hard maximum duration enforcement (5 minutes)
-        if (status.durationMillis && status.durationMillis >= MAX_RECORDING_DURATION_MS) {
-          stopRecordingAndSend();
-          return;
-        }
-
-        const metering = status.metering ?? -100;
-        // User speaking detected if metering > METERING_SPEECH_THRESHOLD (-48 dB)
-        if (metering > METERING_SPEECH_THRESHOLD) {
-          speechDetectedRef.current = true;
-          silenceTimerRef.current = 0;
-          if (isUserPausingRef.current) {
-            isUserPausingRef.current = false;
-            setIsUserPausing(false);
-          }
-        } else if (speechDetectedRef.current) {
-          // User spoke and is now taking a pause
-          if (!isUserPausingRef.current) {
-            isUserPausingRef.current = true;
-            setIsUserPausing(true);
-          }
-          silenceTimerRef.current += 250;
-          if (silenceTimerRef.current >= SILENCE_THRESHOLD_MS) {
-            // sustained silence after speaking -> user is done speaking -> auto stop and send
-            stopRecordingAndSend();
-          }
-        } else {
-          // Initial silence before speaking
-          initialSilenceTimerRef.current += 250;
-          if (initialSilenceTimerRef.current >= INITIAL_SILENCE_THRESHOLD_MS) {
-            // 8s initial silence -> Auto stop
-            stopRecordingAndSend();
-          }
-        }
-      });
-
-      await recorder.start();
-      recordingRef.current = recorder;
+      recordingSessionIdRef.current += 1;
+      accumulatedTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
+      setCurrentTranscript('');
       isRecordingRef.current = true;
       setIsRecording(true);
       setStatusText('Listening');
+
+      ExpoSpeechRecognitionModule.start({
+        lang: 'en-US',
+        continuous: true,
+        interimResults: true,
+      });
     } catch (error) {
-      console.warn('Failed to start recording:', error);
-      Alert.alert('Recording failed', 'Could not initialize microphone. Please check permissions.');
+      console.warn('[SpeechRecognition] Failed to start:', error);
+      Alert.alert('Speech Recognition Error', 'Could not initialize speech recognition. Please check permissions.');
       isRecordingRef.current = false;
       setIsRecording(false);
       setStatusText('Waiting for Response');
@@ -1115,55 +1171,49 @@ export default function ConversationScreen({ navigation, route }) {
   };
 
   const stopRecordingAndSend = async () => {
-    if (stoppingRef.current) return;
+    if (stoppingRef.current || isSendingRef.current) return;
     stoppingRef.current = true;
-    isRecordingRef.current = false;
-    isUserPausingRef.current = false;
-    setIsUserPausing(false);
 
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    isRecordingRef.current = false;
     setIsRecording(false);
-    setLoading(true);
     setStatusText('Thinking');
 
     try {
-      const recording = recordingRef.current;
-      if (!recording) {
-        setLoading(false);
-        setStatusText('Waiting for Response');
-        stoppingRef.current = false;
-        return;
-      }
+      ExpoSpeechRecognitionModule.stop();
+    } catch (_) {}
 
-      const uri = await recording.stop();
-      recordingRef.current = null;
+    const finalSpoken = `${accumulatedTranscriptRef.current} ${interimTranscriptRef.current}`
+      .replace(/\s+/g, ' ')
+      .trim() || currentTranscript.replace(/\s+/g, ' ').trim();
 
-      // Reset audio mode for normal speaker playback
-      await VoiceRecorder.resetAudioMode();
+    accumulatedTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
+    setCurrentTranscript('');
 
-      if (!uri) throw new Error('Recording URI missing');
+    if (!finalSpoken || finalSpoken.length < 2) {
+      setStatusText('Waiting for Response');
+      stoppingRef.current = false;
+      return;
+    }
 
-      // Send audio file to Whisper STT
-      const stt = await speechService.speechToText({
-        uri: uri,
-        name: 'recording.m4a',
-        type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-      });
+    isSendingRef.current = true;
+    setLoading(true);
 
-      if (!stt || !stt.transcript || !stt.transcript.trim()) {
-        Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Tap mic and try speaking again.');
-        setStatusText('Waiting for Response');
-        return;
-      }
-
-      // Send transcript to AI tutor for response & tips
-      await sendUserText(stt.transcript);
+    try {
+      await sendUserText(finalSpoken);
     } catch (error) {
-      console.warn('Transcription failed:', error);
+      console.warn('Sending spoken text failed:', error);
       Alert.alert('Transcription Failed', 'Make sure you have an active network connection and try again.');
       setStatusText('Waiting for Response');
     } finally {
       setLoading(false);
       stoppingRef.current = false;
+      isSendingRef.current = false;
     }
   };
 
@@ -1341,7 +1391,7 @@ export default function ConversationScreen({ navigation, route }) {
     : loading
     ? '✨ Processing speech...'
     : isRecording
-    ? (isUserPausing ? '👂 Listening... take your time (pause to send)' : '🎙️ Listening... speak as much as you\'d like')
+    ? '🎙️ Listening... speak or tap mic to send'
     : '✨ Tap mic to speak';
 
   // ── Feedback helpers (used in FlatList footer) ────────────────────────
@@ -1629,6 +1679,19 @@ export default function ConversationScreen({ navigation, route }) {
           </View>
         )}
       </View>
+
+      {/* ── Live Streaming Transcript Bubble ── */}
+      {isRecording && (
+        <View style={styles.liveTranscriptBar}>
+          <View style={styles.liveTranscriptIndicator}>
+            <View style={styles.liveTranscriptPulseDot} />
+            <Text style={styles.liveTranscriptLabel}>LIVE TRANSCRIPT</Text>
+          </View>
+          <Text style={styles.liveTranscriptText} numberOfLines={2} ellipsizeMode="tail">
+            {currentTranscript ? `"${currentTranscript}"` : 'Listening to your voice...'}
+          </Text>
+        </View>
+      )}
 
       {/* ── Bottom Controls ── */}
       <View style={styles.controlsBar}>
@@ -1980,6 +2043,42 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+
+  // Live Streaming Transcript Box
+  liveTranscriptBar: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(30, 27, 75, 0.85)',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.45)',
+  },
+  liveTranscriptIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  liveTranscriptPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  liveTranscriptLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#A5B4FC',
+    letterSpacing: 0.5,
+  },
+  liveTranscriptText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFF',
+    lineHeight: 18,
   },
 
   // Bottom controls
