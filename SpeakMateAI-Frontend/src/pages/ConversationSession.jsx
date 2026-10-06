@@ -228,8 +228,8 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
       {/* Expanded Unified Body */}
       {isExpanded && (
         <div className="divide-y divide-slate-100 dark:divide-white/5 animate-in fade-in duration-150">
-          {/* Hero Callout: Native Natural Phrasing */}
-          {hasBetter && (
+          {/* Hero Callout: Native Natural Phrasing OR Your Sentence is Correct */}
+          {hasBetter ? (
             <div
               className={`p-3.5 sm:p-4 transition-colors ${
                 isDark ? "bg-indigo-950/20" : "bg-indigo-50/40"
@@ -258,7 +258,27 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
                 "{betterSentence}"
               </p>
             </div>
-          )}
+          ) : isGrammarOk ? (
+            <div
+              className={`p-3.5 sm:p-4 transition-colors ${
+                isDark ? "bg-emerald-950/20" : "bg-emerald-50/50"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <span>✅</span>
+                  <span>Your Sentence is Correct</span>
+                </span>
+              </div>
+              <p
+                className={`text-xs sm:text-[13px] font-medium leading-relaxed ${
+                  isDark ? "text-emerald-200/90" : "text-emerald-800"
+                }`}
+              >
+                Great job! Your sentence is grammatically clear and natural.
+              </p>
+            </div>
+          ) : null}
 
           {/* Grammar Correction (Displayed when refinement is needed) */}
           {hasGrammar && !isGrammarOk && (
