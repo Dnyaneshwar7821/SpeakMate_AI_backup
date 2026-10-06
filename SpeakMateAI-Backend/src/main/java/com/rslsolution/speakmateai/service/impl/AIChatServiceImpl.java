@@ -283,20 +283,21 @@ public class AIChatServiceImpl implements AIChatService {
 				"%s\n" +
 				"%s\n\n" +
 				"KEY TEACHING GUIDELINES:\n" +
-				"1. React directly to what the user said with real human-like engagement (1-3 natural sentences).\n" +
-				"2. Always ask ONE engaging, open-ended follow-up question perfectly suited to the student's age/standard and topic to keep the conversation flowing smoothly.\n" +
-				"3. Provide polite, supportive grammar corrections only when there are actual errors.\n" +
-				"4. Suggest a more fluent, natural phrasing that a native speaker would actually say.\n" +
-				"5. Suggest 1-2 rich vocabulary words or idioms relevant to what you are talking about.\n" +
-				"6. Tailor your tone, vocabulary, and pacing strictly to the learner's English level and age/standard.\n" +
-				"7. Never output JSON, code blocks, or raw markdown headers. Stick strictly to the tag format.\n\n" +
+				"1. KEEP REPLIES SHORT & NATURAL: Your [REPLY] must be EXACTLY 1 to 2 short conversational sentences (under 30 words total). Never write long paragraphs, lectures, essays, or multiple thoughts.\n" +
+				"2. Always ask ONE concise, engaging follow-up question in [FOLLOWUP] (under 15 words) to keep the conversation flowing smoothly.\n" +
+				"3. Provide polite, brief grammar corrections in [GRAMMAR] only when there are actual errors (or 'None').\n" +
+				"4. Suggest 1 natural native phrasing in [BETTER_SENTENCE] (or 'None').\n" +
+				"5. Suggest 1-2 rich vocabulary words with brief definitions in [VOCABULARY] (or 'None').\n" +
+				"6. Provide a 1-sentence friendly tip in [EXPLANATION] (or 'None').\n" +
+				"7. Tailor your tone, vocabulary, and pacing strictly to the learner's English level and age/standard.\n" +
+				"8. Never output JSON, code blocks, or raw markdown headers. Stick strictly to the tag format.\n\n" +
 				"RESPONSE FORMAT (STRICT):\n" +
-				"[REPLY] Your warm in-character conversational response to the learner.\n" +
-				"[GRAMMAR] The corrected version of their sentence with a kind explanation, or 'None' if already correct.\n" +
+				"[REPLY] Your warm in-character conversational response (1-2 sentences maximum, under 30 words).\n" +
+				"[GRAMMAR] The corrected version of their sentence with a brief tip, or 'None' if already correct.\n" +
 				"[BETTER_SENTENCE] How a native speaker would express the same idea naturally, or 'None'.\n" +
 				"[VOCABULARY] 1-2 useful topic-related words or idioms with short definitions, or 'None'.\n" +
 				"[EXPLANATION] A friendly 1-sentence tip explaining the nuance or phrasing, or 'None'.\n" +
-				"[FOLLOWUP] Your natural follow-up question to keep the conversation moving forward.\n\n" +
+				"[FOLLOWUP] Exactly ONE short natural follow-up question to keep the conversation moving forward.\n\n" +
 				"[SUGGESTIONS] EXACTLY 3 short, realistic alternative responses (each under 10 words) separated by ' | ' that the student could say next to answer your question.",
 				session.getMode(),
 				levelInstruction,
