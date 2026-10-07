@@ -20,7 +20,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { settingsService, onboardingService, profileService } from '../../services/appServices';
 import { VoiceService, VOICE_PROFILES } from '../../services/VoiceService';
-import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache } from '../../utils/dashboardCache';
 import { captureCurrentUserPreferences } from '../../utils/userPreferences';
