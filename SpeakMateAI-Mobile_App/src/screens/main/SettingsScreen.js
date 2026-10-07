@@ -23,7 +23,7 @@ import { VoiceService, VOICE_PROFILES } from '../../services/VoiceService';
 import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache } from '../../utils/dashboardCache';
-import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice } from '../../config/AvatarCatalog';
+import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { NotificationHelper } from '../../services/NotificationHelper';
 
 const AGE_OPTIONS = [
@@ -140,13 +140,16 @@ export default function SettingsScreen({ navigation }) {
         AsyncStorage.getItem('speakmate_daily_reminder'),
       ]);
       if (savedType) setAccountType(savedType);
-      const effectiveAvatarModel = savedAvatarModel || getCachedAvatarModel();
+      const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
+      let effectiveAvatarModel = savedAvatarModel || getCachedAvatarModel();
+      if (!effectiveAvatarModel && effectiveVoice) {
+        effectiveAvatarModel = resolveAvatarFromVoice(effectiveVoice, onboardingVoice).model;
+      }
       if (effectiveAvatarModel) {
         setCurrentAvatarModel(effectiveAvatarModel);
         setCachedAvatarModel(effectiveAvatarModel);
         savedAvatarRef.current = effectiveAvatarModel;
       }
-      const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
       const initialAgeGroup = onboardingData?.ageGroup || user?.ageGroup || 'Professional';
       const initialLanguage = settings?.language || defaults.language;
       const effAutoPlay = savedAutoPlay !== null ? savedAutoPlay === 'true' : (settings?.autoPlayAudio ?? false);

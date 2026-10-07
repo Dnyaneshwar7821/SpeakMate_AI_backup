@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { speakGlobalText, VOICE_PROFILES, ACCENT_LIST } from "../utils/speechHelper";
+import { speakGlobalText, VOICE_PROFILES, ACCENT_LIST, resolveAvatarFromVoice } from "../utils/speechHelper";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { settingsService, onboardingService, profileService } from "../services/appServices";
 import { getAvatarById } from "../config/AvatarCatalog";
@@ -69,16 +69,19 @@ export function Settings() {
     "Friendly";
 
   const [currentModelKey, setCurrentModelKey] = useState(() => {
-    return (localStorage.getItem("speakmate_avatar_model") || "haru").toLowerCase();
+    const saved = localStorage.getItem("speakmate_avatar_model");
+    if (saved) return saved.toLowerCase();
+    const voice = localStorage.getItem("speakmate_ai_voice") || "Default";
+    return resolveAvatarFromVoice(voice, onboardingVoiceStyle).model.toLowerCase();
   });
 
   useEffect(() => {
     const unsub = EventBus.on(AVATAR_EVENTS.GENDER_CHANGED, (data) => {
-      const chosen = data?.model || data?.gender || localStorage.getItem("speakmate_avatar_model") || "haru";
+      const chosen = data?.model || data?.gender || localStorage.getItem("speakmate_avatar_model") || resolveAvatarFromVoice(localStorage.getItem("speakmate_ai_voice"), onboardingVoiceStyle).model;
       setCurrentModelKey(chosen.toLowerCase());
     });
     return () => unsub();
-  }, []);
+  }, [onboardingVoiceStyle]);
 
   const activeAvatar = getAvatarById(currentModelKey);
   const isHaruOrChitose = currentModelKey === "haru" || currentModelKey === "chitose";

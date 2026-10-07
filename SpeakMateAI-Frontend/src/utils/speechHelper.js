@@ -1556,6 +1556,35 @@ export const mapVoiceCodeToModel = (code) => {
   return null;
 };
 
+export const resolveAvatarFromVoice = (voiceCode, onboardingVoiceStyle = "Friendly") => {
+  if (!voiceCode) {
+    const style = String(onboardingVoiceStyle || "").toLowerCase();
+    const isMaleStyle = style === "professional" || style === "calm" || (style.includes("male") && !style.includes("female"));
+    return { model: isMaleStyle ? "chitose" : "haru", gender: isMaleStyle ? "male" : "female" };
+  }
+
+  // 1. Direct character signature voice match
+  const charModel = mapVoiceCodeToModel(voiceCode);
+  if (charModel) {
+    const isFemale = charModel === "shizuku" || charModel === "haru";
+    return { model: charModel, gender: isFemale ? "female" : "male" };
+  }
+
+  // 2. Regional human voices (US Male, IN Male, UK Female, etc.)
+  const vc = String(voiceCode).toLowerCase();
+  if (vc.includes("male") && !vc.includes("female")) {
+    return { model: "chitose", gender: "male" };
+  }
+  if (vc.includes("female")) {
+    return { model: "haru", gender: "female" };
+  }
+
+  // 3. Fallback to onboarding voice style if 'Default'
+  const style = String(onboardingVoiceStyle || "").toLowerCase();
+  const isMaleStyle = style === "professional" || style === "calm" || (style.includes("male") && !style.includes("female"));
+  return { model: isMaleStyle ? "chitose" : "haru", gender: isMaleStyle ? "male" : "female" };
+};
+
 export const getSavedVoiceSettings = (overrideVoiceCode = null, overrideModel = null) => {
   const hasOverride = Boolean(overrideVoiceCode || overrideModel);
   const currentAvatarModel = hasOverride

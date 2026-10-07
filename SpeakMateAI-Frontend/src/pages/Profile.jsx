@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { authService } from "../services/authService";
-import { profileService, subscriptionService, onboardingService } from "../services/appServices";
+import { profileService, subscriptionService, onboardingService, settingsService } from "../services/appServices";
 import { getLiveProgressStats, syncBackendProgress } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { AVATAR_LIST, getAvatarById } from "../config/AvatarCatalog";
@@ -293,6 +293,12 @@ export function Profile() {
     localStorage.setItem("speakmate_voice_pitch", String(pitch));
 
     EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender, model });
+
+    settingsService.update({ aiVoice: voiceCode }).catch(() => {});
+    onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
+    if (updateUser) {
+      updateUser({ preferredVoice: voiceCode, aiVoice: voiceCode });
+    }
 
     playAvatarPreview(entry);
 

@@ -3,6 +3,8 @@ import { authService } from "../services/authService";
 import { subscriptionService } from "../services/appServices";
 import { setLogoutCallback } from "../services/api";
 import { syncBackendProgress } from "../utils/progressTracker";
+import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
+import { resolveAvatarFromVoice } from "../utils/speechHelper";
 
 const AuthContext = createContext(null);
 
@@ -89,6 +91,15 @@ export function AuthProvider({ children }) {
         localStorage.setItem("speakmate_ai_voice", voicePref);
         localStorage.setItem("speakmate_selected_voice", voicePref);
         localStorage.setItem("speakmate_voice_code", voicePref);
+
+        // Derive and restore avatar model + gender on login or session restore
+        const existingModel = localStorage.getItem("speakmate_avatar_model");
+        if (!existingModel) {
+          const resolved = resolveAvatarFromVoice(voicePref);
+          localStorage.setItem("speakmate_avatar_model", resolved.model);
+          localStorage.setItem("speakmate_voice_gender", resolved.gender);
+          EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender: resolved.gender, model: resolved.model });
+        }
       }
 
       const goalMins = parseInt(userData.dailyGoalMinutes || userData.dailyGoal || userData.commitment, 10);

@@ -14,7 +14,7 @@ import { TomPuppet } from './TomPuppet';
 import { TeacherPuppet } from './TeacherPuppet';
 import { MaleTeacherPuppet } from './MaleTeacherPuppet';
 import { DEFAULT_AVATAR_CONFIG } from '../../config/AvatarConfig';
-import { getCurrentVoiceGender } from '../../utils/speechHelper';
+import { getCurrentVoiceGender, resolveAvatarFromVoice } from '../../utils/speechHelper';
 import { EventBus, AVATAR_EVENTS } from '../../services/live2d/EventBus';
 
 import { useLipSync } from '../../hooks/useLipSync';
@@ -59,7 +59,7 @@ function AvatarCanvasInner({ model, modelPath, onModelLoaded, onError, className
   const modelRef = useRef(null);
   const [modelInstance, setModelInstance] = useState(null);
   const [activeModelKey, setActiveModelKey] = useState(() => {
-    return model || localStorage.getItem('speakmate_avatar_model') || getCurrentVoiceGender() || 'haru';
+    return model || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || getCurrentVoiceGender() || 'haru';
   });
 
   // Automatic Lip-Sync & Viseme Hook
@@ -73,7 +73,7 @@ function AvatarCanvasInner({ model, modelPath, onModelLoaded, onError, className
 
   useEffect(() => {
     const unsubGender = EventBus.on(AVATAR_EVENTS.GENDER_CHANGED, (data) => {
-      const chosen = data?.model || data?.gender || model || localStorage.getItem('speakmate_avatar_model') || 'haru';
+      const chosen = data?.model || data?.gender || model || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || 'haru';
       setActiveModelKey(chosen);
     });
     return () => unsubGender();
@@ -333,7 +333,7 @@ function AvatarCanvasInner({ model, modelPath, onModelLoaded, onError, className
 
 export function AvatarCanvas(props) {
   const [currentModel, setCurrentModel] = useState(() => {
-    return props.model || localStorage.getItem('speakmate_avatar_model') || getCurrentVoiceGender() || 'haru';
+    return props.model || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || getCurrentVoiceGender() || 'haru';
   });
 
   useEffect(() => {
@@ -342,7 +342,7 @@ export function AvatarCanvas(props) {
 
   useEffect(() => {
     const unsub = EventBus.on(AVATAR_EVENTS.GENDER_CHANGED, (data) => {
-      const chosen = data?.model || data?.gender || props.model || localStorage.getItem('speakmate_avatar_model') || 'haru';
+      const chosen = data?.model || data?.gender || props.model || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || 'haru';
       setCurrentModel(chosen);
     });
     return () => unsub();
@@ -350,7 +350,7 @@ export function AvatarCanvas(props) {
 
   return (
     <AvatarErrorBoundary>
-      <AvatarCanvasInner {...props} />
+      <AvatarCanvasInner model={currentModel} {...props} />
     </AvatarErrorBoundary>
   );
 }

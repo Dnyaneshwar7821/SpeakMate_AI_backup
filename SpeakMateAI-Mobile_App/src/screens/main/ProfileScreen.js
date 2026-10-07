@@ -21,7 +21,7 @@ import { AppButton, AppInput, Card, Screen, StateView } from '../../components/u
 import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
-import { profileService } from '../../services/appServices';
+import { profileService, settingsService } from '../../services/appServices';
 import { authService } from '../../services/authService';
 import { getDisplayName } from '../../utils/format';
 import { validateName, NAME_VALIDATION_ERROR, normalizeEmail, isValidEmail } from '../../utils/validation';
@@ -508,6 +508,10 @@ export default function ProfileScreen({ navigation }) {
       await AsyncStorage.setItem('speakmate_ai_voice', voiceCode);
       await AsyncStorage.setItem('speakmate_voice_code', voiceCode);
       await AsyncStorage.setItem('speakmate_voice_pitch', String(pitch));
+
+      if (voiceCode) {
+        settingsService.update({ aiVoice: voiceCode }).catch(() => {});
+      }
 
       showToast('Tutor Updated ✓', 'success', `${entry.emoji} ${entry.name} (${entry.badge}) is active!`);
     } catch (e) {}

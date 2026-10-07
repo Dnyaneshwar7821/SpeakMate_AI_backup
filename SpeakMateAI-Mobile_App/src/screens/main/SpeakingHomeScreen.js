@@ -26,7 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { speakingService, onboardingService } from '../../services/appServices';
 import { COLORS } from '../../constants/colors';
 import LevelSegmentedControl from '../../components/common/LevelSegmentedControl';
-import { getCachedAvatarModel } from '../../config/AvatarCatalog';
+import { getCachedAvatarModel, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { DashboardCache } from '../../utils/dashboardCache';
 
 // ─── Age-Wise Scenarios Data (10 scenarios per age group) ───────────────────
@@ -357,6 +357,7 @@ export default function SpeakingHomeScreen({ navigation }) {
   const [selectedGrade, setSelectedGrade] = useState(() => user?.schoolGrade || '1st Std');
   const [userAgeGroup, setUserAgeGroup] = useState(() => user?.ageGroup || 'Professional');
   const [accountType, setAccountType] = useState(() => user?.accountType || (user?.schoolGrade ? 'STUDENT' : 'INDIVIDUAL_USER'));
+  const [activeAvatarModel, setActiveAvatarModel] = useState(() => getCachedAvatarModel() || 'haru');
 
   // Immediate cached disk read on first load
   useEffect(() => {
@@ -411,6 +412,22 @@ export default function SpeakingHomeScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
+      const cached = getCachedAvatarModel();
+      if (cached) {
+        setActiveAvatarModel(cached);
+      } else {
+        AsyncStorage.getItem('speakmate_avatar_model').then((saved) => {
+          if (saved) {
+            setActiveAvatarModel(saved);
+            setCachedAvatarModel(saved);
+          } else {
+            AsyncStorage.getItem('speakmate_ai_voice').then((v) => {
+              const res = resolveAvatarFromVoice(v);
+              setActiveAvatarModel(res.model);
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     }, [])
   );
 
@@ -428,7 +445,7 @@ export default function SpeakingHomeScreen({ navigation }) {
       : parseInt(String(scenario?.xp || '10').replace(/\D/g, ''), 10) || 10;
 
     const effectiveDifficulty = scenario?.difficulty || (accountType === 'STUDENT' ? selectedGrade : 'Intermediate');
-    const activeAvatar = getCachedAvatarModel() || 'haru';
+    const activeAvatar = getCachedAvatarModel() || activeAvatarModel || 'haru';
 
     // INSTANT NAVIGATION (0ms delay) - Opens ConversationScreen right away without any card loader!
     navigation.navigate('Conversation', {

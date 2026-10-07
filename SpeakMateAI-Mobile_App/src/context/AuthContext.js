@@ -16,6 +16,7 @@ import { DashboardCache, CurriculumCache } from "../utils/dashboardCache";
 import { normalizeGradeKey } from "../constants/masterCurriculum";
 import { dashboardService } from "../services/appServices";
 import { subscriptionService } from "../services/subscriptionService";
+import { setCachedAvatarModel, resolveAvatarFromVoice } from "../config/AvatarCatalog";
 
 export const AuthContext = createContext();
 
@@ -55,8 +56,25 @@ export const AuthProvider = ({ children }) => {
           CurriculumCache.setAccountType(userData.accountType);
         }
       }
-      if (userData.preferredAccent || userData.aiVoice) {
-        await AsyncStorage.setItem('speakmate_ai_voice', userData.preferredAccent || userData.aiVoice);
+      if (userData.preferredAccent) {
+        await AsyncStorage.setItem('speakmate_voice_accent', userData.preferredAccent);
+      }
+      const voicePref = userData.aiVoice || userData.preferredVoice;
+      if (voicePref) {
+        await AsyncStorage.setItem('speakmate_ai_voice', voicePref);
+        await AsyncStorage.setItem('speakmate_selected_voice', voicePref);
+        await AsyncStorage.setItem('speakmate_voice_code', voicePref);
+
+        // Derive and restore avatar model + gender on mobile login / session restore
+        const existingModel = await AsyncStorage.getItem('speakmate_avatar_model');
+        if (!existingModel) {
+          const resolved = resolveAvatarFromVoice(voicePref);
+          await AsyncStorage.setItem('speakmate_avatar_model', resolved.model);
+          await AsyncStorage.setItem('speakmate_voice_gender', resolved.gender);
+          setCachedAvatarModel(resolved.model);
+        } else {
+          setCachedAvatarModel(existingModel);
+        }
       }
     } catch (e) {
       console.warn("Mobile syncUserProfile warning:", e);
@@ -291,6 +309,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (_) {}
 
+      setCachedAvatarModel(null);
       setToken(null);
       setUser(null);
       setOnboardingCompletedState(false);
