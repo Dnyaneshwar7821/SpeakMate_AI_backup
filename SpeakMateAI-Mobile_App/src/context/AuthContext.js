@@ -17,11 +17,6 @@ import { normalizeGradeKey } from "../constants/masterCurriculum";
 import { dashboardService } from "../services/appServices";
 import { subscriptionService } from "../services/subscriptionService";
 import { setCachedAvatarModel, resolveAvatarFromVoice } from "../config/AvatarCatalog";
-import {
-  getUserPreferences,
-  applyUserPreferences,
-  captureCurrentUserPreferences,
-} from "../utils/userPreferences";
 
 export const AuthContext = createContext();
 
@@ -36,15 +31,6 @@ export const AuthProvider = ({ children }) => {
   const syncUserProfile = useCallback(async (userData) => {
     if (!userData) return;
     try {
-      // 1. Rehydrate all user preferences (avatar, voice, speech rate, theme, module state)
-      const email = (userData.email || "").toLowerCase().trim();
-      if (email) {
-        const savedPrefs = await getUserPreferences(email);
-        if (savedPrefs) {
-          await applyUserPreferences(savedPrefs);
-        }
-      }
-
       const rawGrd = userData.schoolGrade || userData.standard || userData.grade;
       if (rawGrd) {
         const normalized = typeof normalizeGradeKey === 'function' ? normalizeGradeKey(rawGrd) : String(rawGrd);
@@ -79,7 +65,7 @@ export const AuthProvider = ({ children }) => {
         await AsyncStorage.setItem('speakmate_selected_voice', voicePref);
         await AsyncStorage.setItem('speakmate_voice_code', voicePref);
 
-        // Derive and restore avatar model + gender ONLY if no existing model
+        // Derive and restore avatar model + gender on mobile login / session restore
         const existingModel = await AsyncStorage.getItem('speakmate_avatar_model');
         if (!existingModel) {
           const resolved = resolveAvatarFromVoice(voicePref);
@@ -87,11 +73,6 @@ export const AuthProvider = ({ children }) => {
           await AsyncStorage.setItem('speakmate_voice_gender', resolved.gender);
           setCachedAvatarModel(resolved.model);
         } else {
-          setCachedAvatarModel(existingModel);
-        }
-      } else {
-        const existingModel = await AsyncStorage.getItem('speakmate_avatar_model');
-        if (existingModel) {
           setCachedAvatarModel(existingModel);
         }
       }
@@ -293,17 +274,7 @@ export const AuthProvider = ({ children }) => {
       clearAuthToken();
       DashboardCache.clearMemory();
 
-      let email = (user?.email || "").toLowerCase().trim();
-      if (!email) {
-        try {
-          const rawStored = await AsyncStorage.getItem(STORAGE_KEYS.user);
-          if (rawStored) email = (JSON.parse(rawStored)?.email || "").toLowerCase().trim();
-        } catch (_) {}
-      }
-      if (email) {
-        await captureCurrentUserPreferences(email);
-      }
-
+      const email = (user?.email || "").toLowerCase();
       await SecureStore.deleteItemAsync(STORAGE_KEYS.token);
       await AsyncStorage.removeItem(STORAGE_KEYS.user);
       await AsyncStorage.removeItem(STORAGE_KEYS.onboardingCompleted);

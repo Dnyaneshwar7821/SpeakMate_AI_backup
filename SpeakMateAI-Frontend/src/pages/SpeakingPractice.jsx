@@ -8,7 +8,6 @@ import { useModal } from "../context/ModalContext";
 import { useToast } from "../context/ToastContext";
 import { warmupSpeechAutoplay } from "../utils/speechHelper";
 import { getLiveProgressStats } from "../utils/progressTracker";
-import { saveUserPreferences } from "../utils/userPreferences";
 
 // ─── Age-Wise Scenarios Data (10 scenarios per age group) ───────────────────
 const AGE_SCENARIOS = {
@@ -244,9 +243,7 @@ export function SpeakingPractice() {
 
   const [history, setHistory] = useState(() => getCachedSpeakingHistory(user?.email));
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState(
-    () => localStorage.getItem("speakmate_last_speaking_category") || "All"
-  );
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
   const [selectedGrade, setSelectedGrade] = useState(
     () => user?.schoolGrade || localStorage.getItem("speakmate_school_grade") || "1st Std"
@@ -346,26 +343,8 @@ export function SpeakingPractice() {
     return matchesCategory && matchesSearch;
   });
 
-  const handleSelectCategory = (cat) => {
-    setSelectedCategory(cat);
-    localStorage.setItem("speakmate_last_speaking_category", cat);
-    if (user?.email) {
-      saveUserPreferences(user.email, { lastSpeakingCategory: cat });
-    }
-  };
-
   const handleStartScenario = (scenario) => {
     warmupSpeechAutoplay();
-    localStorage.setItem("speakmate_last_speaking_scenario", scenario.id);
-    localStorage.setItem("speakmate_last_speaking_category", selectedCategory);
-    localStorage.setItem("speakmate_last_speaking_grade", selectedGrade);
-    if (user?.email) {
-      saveUserPreferences(user.email, {
-        lastSpeakingScenario: scenario.id,
-        lastSpeakingCategory: selectedCategory,
-        lastSpeakingGrade: selectedGrade,
-      });
-    }
     const cleanScn = (scenario.title || "").replace(/\b(conversation|practice|session)\b/gi, "").trim();
     const scnLabel = cleanScn ? `${cleanScn} ` : "";
     const defaultGreeting = scenario.desc
@@ -468,7 +447,7 @@ export function SpeakingPractice() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
-              onClick={() => handleSelectCategory(cat)}
+              onClick={() => setSelectedCategory(cat)}
               className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black shrink-0 transition-all active:scale-95 ${
                 selectedCategory === cat
                   ? "bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] text-white shadow-md shadow-[#6C63FF]/25 scale-102"

@@ -1,16 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { authService } from "../services/authService";
-import { subscriptionService, settingsService } from "../services/appServices";
+import { subscriptionService } from "../services/appServices";
 import { setLogoutCallback } from "../services/api";
 import { syncBackendProgress } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { resolveAvatarFromVoice } from "../utils/speechHelper";
-import {
-  getUserPreferences,
-  saveUserPreferences,
-  captureCurrentUserPreferences,
-  applyUserPreferences,
-} from "../utils/userPreferences";
 
 const AuthContext = createContext(null);
 
@@ -46,15 +40,6 @@ export function AuthProvider({ children }) {
   const syncUserProfile = (userData) => {
     if (!userData) return;
     try {
-      // 1. Rehydrate all user-scoped preferences (avatar, voice, speech rate, theme, module state)
-      const userEmail = userData.email || user?.email;
-      if (userEmail) {
-        const savedPrefs = getUserPreferences(userEmail);
-        if (savedPrefs) {
-          applyUserPreferences(savedPrefs);
-        }
-      }
-
       const isStudentUser = Boolean(
         (userData.accountType === "STUDENT" ||
         userData.isSchoolStudent ||
@@ -72,13 +57,13 @@ export function AuthProvider({ children }) {
       const effectiveGrade = userData.schoolGrade || (userData.standard ? (userData.standard.toLowerCase().includes("std") ? userData.standard : `${userData.standard}th Std`) : null);
       if (effectiveGrade && isStudentUser) {
         localStorage.setItem("speakmate_school_grade", effectiveGrade);
-      } else if (!isStudentUser) {
+      } else {
         localStorage.removeItem("speakmate_school_grade");
       }
 
       if (userData.standard && isStudentUser) {
         localStorage.setItem("speakmate_standard", userData.standard);
-      } else if (!isStudentUser) {
+      } else {
         localStorage.removeItem("speakmate_standard");
       }
 
@@ -107,20 +92,14 @@ export function AuthProvider({ children }) {
         localStorage.setItem("speakmate_selected_voice", voicePref);
         localStorage.setItem("speakmate_voice_code", voicePref);
 
-        // Derive avatar model + gender ONLY if no customized model exists
+        // Derive and restore avatar model + gender on login or session restore
         const existingModel = localStorage.getItem("speakmate_avatar_model");
         if (!existingModel) {
           const resolved = resolveAvatarFromVoice(voicePref);
           localStorage.setItem("speakmate_avatar_model", resolved.model);
           localStorage.setItem("speakmate_voice_gender", resolved.gender);
+          EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender: resolved.gender, model: resolved.model });
         }
-      }
-
-      // Guarantee Live2D canvas and components receive the active avatar model
-      const activeModel = localStorage.getItem("speakmate_avatar_model");
-      const activeGender = localStorage.getItem("speakmate_voice_gender") || (activeModel === "chitose" ? "male" : "female");
-      if (activeModel) {
-        EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender: activeGender, model: activeModel });
       }
 
       const goalMins = parseInt(userData.dailyGoalMinutes || userData.dailyGoal || userData.commitment, 10);
@@ -132,35 +111,6 @@ export function AuthProvider({ children }) {
         window.dispatchEvent(new CustomEvent("speakmate_age_group_changed", { detail: { ageGroup: cleanAge } }));
       }
       window.dispatchEvent(new CustomEvent("speakmate_settings_updated", { detail: { ...userData, ageGroup: cleanAge || userData.ageGroup } }));
-
-      // 2. Asynchronously sync cloud settings to augment preferences without blocking
-      settingsService.get().then((cloudSettings) => {
-        if (!cloudSettings) return;
-        const updates = {};
-        if (cloudSettings.darkMode !== undefined && cloudSettings.darkMode !== null) {
-          const explicitTheme = localStorage.getItem("speakmate_theme");
-          if (!explicitTheme) {
-            const nextTheme = cloudSettings.darkMode ? "dark" : "light";
-            localStorage.setItem("speakmate_theme", nextTheme);
-            localStorage.setItem("speakmate_theme_explicit", "true");
-            document.documentElement.setAttribute("data-theme", nextTheme);
-            document.documentElement.classList.toggle("dark", Boolean(cloudSettings.darkMode));
-            updates.theme = nextTheme;
-            updates.themeExplicit = "true";
-          }
-        }
-        if (cloudSettings.autoPlayAudio !== undefined && cloudSettings.autoPlayAudio !== null) {
-          localStorage.setItem("speakmate_autoplay_audio", String(cloudSettings.autoPlayAudio));
-          updates.autoplayAudio = cloudSettings.autoPlayAudio;
-        }
-        if (cloudSettings.soundEffects !== undefined && cloudSettings.soundEffects !== null) {
-          localStorage.setItem("speakmate_sound_effects", String(cloudSettings.soundEffects));
-          updates.soundEffects = cloudSettings.soundEffects;
-        }
-        if (userEmail && Object.keys(updates).length > 0) {
-          saveUserPreferences(userEmail, updates);
-        }
-      }).catch(() => {});
     } catch (e) {
       console.warn("syncUserProfile warning:", e);
     }
@@ -168,27 +118,10 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     try {
-      const storedUser = localStorage.getItem(STORAGE_KEYS.user);
-      let emailToPreserve = user?.email;
-      if (!emailToPreserve && storedUser) {
-        try {
-          emailToPreserve = JSON.parse(storedUser)?.email;
-        } catch (_) {}
-      }
-      if (emailToPreserve) {
-        captureCurrentUserPreferences(emailToPreserve);
-      }
-
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (
-          key &&
-          key.startsWith("speakmate_") &&
-          key !== "speakmate_admin_session" &&
-          !key.startsWith("speakmate_user_prefs_") &&
-          !key.startsWith("speakmate_onboarding_done_")
-        ) {
+        if (key && key.startsWith("speakmate_") && key !== "speakmate_admin_session") {
           keysToRemove.push(key);
         }
       }
@@ -208,7 +141,7 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
     setOnboardingCompleted(false);
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     setLogoutCallback(logout);

@@ -28,7 +28,6 @@ import { COLORS } from '../../constants/colors';
 import LevelSegmentedControl from '../../components/common/LevelSegmentedControl';
 import { getCachedAvatarModel, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { DashboardCache } from '../../utils/dashboardCache';
-import { saveUserPreferences } from '../../utils/userPreferences';
 
 // ─── Age-Wise Scenarios Data (10 scenarios per age group) ───────────────────
 
@@ -373,22 +372,7 @@ export default function SpeakingHomeScreen({ navigation }) {
         } catch {}
       }
     }).catch(() => {});
-
-    AsyncStorage.getItem('speakmate_last_speaking_category').then((c) => {
-      if (c) setSelectedCategory(c);
-    }).catch(() => {});
-    AsyncStorage.getItem('speakmate_last_speaking_grade').then((g) => {
-      if (g) setSelectedGrade(g);
-    }).catch(() => {});
   }, []);
-
-  const handleSelectCategory = (cat) => {
-    setSelectedCategory(cat);
-    AsyncStorage.setItem('speakmate_last_speaking_category', cat).catch(() => {});
-    if (user?.email) {
-      saveUserPreferences(user.email, { lastSpeakingCategory: cat }).catch(() => {});
-    }
-  };
 
   // Sync profile when user updates
   useEffect(() => {
@@ -462,21 +446,6 @@ export default function SpeakingHomeScreen({ navigation }) {
 
     const effectiveDifficulty = scenario?.difficulty || (accountType === 'STUDENT' ? selectedGrade : 'Intermediate');
     const activeAvatar = getCachedAvatarModel() || activeAvatarModel || 'haru';
-
-    AsyncStorage.setItem('speakmate_last_speaking_scenario', scenario?.id || scenarioName).catch(() => {});
-    if (selectedCategory) {
-      AsyncStorage.setItem('speakmate_last_speaking_category', selectedCategory).catch(() => {});
-    }
-    if (selectedGrade) {
-      AsyncStorage.setItem('speakmate_last_speaking_grade', selectedGrade).catch(() => {});
-    }
-    if (user?.email) {
-      saveUserPreferences(user.email, {
-        lastSpeakingScenario: scenario?.id || scenarioName,
-        lastSpeakingCategory: selectedCategory,
-        lastSpeakingGrade: selectedGrade,
-      }).catch(() => {});
-    }
 
     // INSTANT NAVIGATION (0ms delay) - Opens ConversationScreen right away without any card loader!
     navigation.navigate('Conversation', {
@@ -603,7 +572,7 @@ export default function SpeakingHomeScreen({ navigation }) {
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
             key={cat}
-            onPress={() => handleSelectCategory(cat)}
+            onPress={() => setSelectedCategory(cat)}
             style={[
               styles.catTab, 
               { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: isDark ? 1 : 0 }, 
