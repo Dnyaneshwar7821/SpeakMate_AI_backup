@@ -243,7 +243,7 @@ export function SpeakingPractice() {
 
   const [history, setHistory] = useState(() => getCachedSpeakingHistory(user?.email));
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState(() => localStorage.getItem("speakmate_speaking_category") || "All");
 
   const [selectedGrade, setSelectedGrade] = useState(
     () => user?.schoolGrade || localStorage.getItem("speakmate_school_grade") || "1st Std"
@@ -447,7 +447,10 @@ export function SpeakingPractice() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => {
+                setSelectedCategory(cat);
+                localStorage.setItem("speakmate_speaking_category", cat);
+              }}
               className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black shrink-0 transition-all active:scale-95 ${
                 selectedCategory === cat
                   ? "bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] text-white shadow-md shadow-[#6C63FF]/25 scale-102"

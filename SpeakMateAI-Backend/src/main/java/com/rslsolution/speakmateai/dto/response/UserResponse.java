@@ -59,6 +59,8 @@ public class UserResponse {
 
 	private String preferredVoice;
 
+	private String aiVoice;
+
 	private String preferredAccent;
 
 	private String ageGroup;
@@ -125,6 +127,9 @@ public class UserResponse {
 	public String getPreferredVoice() { return preferredVoice; }
 	public void setPreferredVoice(String preferredVoice) { this.preferredVoice = preferredVoice; }
 
+	public String getAiVoice() { return aiVoice; }
+	public void setAiVoice(String aiVoice) { this.aiVoice = aiVoice; }
+
 	public String getPreferredAccent() { return preferredAccent; }
 	public void setPreferredAccent(String preferredAccent) { this.preferredAccent = preferredAccent; }
 
@@ -181,6 +186,7 @@ public class UserResponse {
 		private String learningGoal;
 		private Integer dailyGoalMinutes;
 		private String preferredVoice;
+		private String aiVoice;
 		private String preferredAccent;
 		private String ageGroup;
 		private String schoolGrade;
@@ -210,6 +216,7 @@ public class UserResponse {
 		public UserResponseBuilder learningGoal(String learningGoal) { this.learningGoal = learningGoal; return this; }
 		public UserResponseBuilder dailyGoalMinutes(Integer dailyGoalMinutes) { this.dailyGoalMinutes = dailyGoalMinutes; return this; }
 		public UserResponseBuilder preferredVoice(String preferredVoice) { this.preferredVoice = preferredVoice; return this; }
+		public UserResponseBuilder aiVoice(String aiVoice) { this.aiVoice = aiVoice; return this; }
 		public UserResponseBuilder preferredAccent(String preferredAccent) { this.preferredAccent = preferredAccent; return this; }
 		public UserResponseBuilder ageGroup(String ageGroup) { this.ageGroup = ageGroup; return this; }
 		public UserResponseBuilder schoolGrade(String schoolGrade) { this.schoolGrade = schoolGrade; return this; }
@@ -240,6 +247,7 @@ public class UserResponse {
             obj.setLearningGoal(learningGoal);
             obj.setDailyGoalMinutes(dailyGoalMinutes);
             obj.setPreferredVoice(preferredVoice);
+            obj.setAiVoice(aiVoice);
             obj.setPreferredAccent(preferredAccent);
             obj.setAgeGroup(ageGroup);
             obj.setSchoolGrade(schoolGrade);

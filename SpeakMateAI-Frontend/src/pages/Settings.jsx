@@ -7,6 +7,7 @@ import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { settingsService, onboardingService, profileService } from "../services/appServices";
 import { getAvatarById } from "../config/AvatarCatalog";
 import { CurriculumCache } from "../utils/curriculumCache";
+import { saveUserPreferenceField } from "../utils/userPreferences";
 
 const LANGUAGE_OPTIONS = [
   { code: "English", label: "English", native: "English", flag: "🇺🇸" },
@@ -173,6 +174,12 @@ export function Settings() {
     onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
     if (updateUser) {
       updateUser({ preferredVoice: voiceCode });
+    }
+
+    if (user?.email) {
+      saveUserPreferenceField(user.email, 'avatarModel', model);
+      saveUserPreferenceField(user.email, 'aiVoice', voiceCode);
+      saveUserPreferenceField(user.email, 'voiceGender', gender);
     }
     window.dispatchEvent(new CustomEvent("speakmate_settings_updated", {
       detail: { preferredVoice: voiceCode, aiVoice: voiceCode, ...(newAccent ? { preferredAccent: newAccent } : {}) }

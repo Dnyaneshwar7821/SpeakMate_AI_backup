@@ -13,6 +13,7 @@ import ROUTES from "../constants/routes";
 import { speakGlobalText } from "../utils/speechHelper";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { getEnglishLevelLabel } from "../utils/formatters";
+import { saveUserPreferenceField } from "../utils/userPreferences";
 
 
 const PRESET_AVATARS = [
@@ -298,6 +299,13 @@ export function Profile() {
     onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
     if (updateUser) {
       updateUser({ preferredVoice: voiceCode, aiVoice: voiceCode });
+    }
+
+    if (user?.email) {
+      saveUserPreferenceField(user.email, 'avatarModel', model);
+      saveUserPreferenceField(user.email, 'aiVoice', voiceCode);
+      saveUserPreferenceField(user.email, 'voiceGender', gender);
+      saveUserPreferenceField(user.email, 'voicePitch', pitch);
     }
 
     playAvatarPreview(entry);

@@ -30,6 +30,7 @@ import { DashboardCache, CurriculumCache } from '../../utils/dashboardCache';
 import { AVATAR_LIST, getAvatarById, setCachedAvatarModel, getCachedAvatarModel, getAvatarByVoice } from '../../config/AvatarCatalog';
 import { prepareAvatarAsync, isImageUri, AVATAR_CATEGORIES, PRESET_EMOJI_AVATARS } from '../../utils/imageUtils';
 import { VoiceService } from '../../services/VoiceService';
+import { saveUserPreferenceField } from '../../utils/userPreferences';
 
 const PRESET_AVATARS = PRESET_EMOJI_AVATARS;
 
@@ -511,6 +512,13 @@ export default function ProfileScreen({ navigation }) {
 
       if (voiceCode) {
         settingsService.update({ aiVoice: voiceCode }).catch(() => {});
+      }
+
+      if (user?.email) {
+        saveUserPreferenceField(user.email, 'avatarModel', model);
+        saveUserPreferenceField(user.email, 'aiVoice', voiceCode);
+        saveUserPreferenceField(user.email, 'voiceGender', gender);
+        saveUserPreferenceField(user.email, 'voicePitch', pitch);
       }
 
       showToast('Tutor Updated ✓', 'success', `${entry.emoji} ${entry.name} (${entry.badge}) is active!`);

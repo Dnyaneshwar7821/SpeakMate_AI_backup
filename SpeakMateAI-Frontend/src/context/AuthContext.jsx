@@ -5,6 +5,7 @@ import { setLogoutCallback } from "../services/api";
 import { syncBackendProgress } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { resolveAvatarFromVoice } from "../utils/speechHelper";
+import { captureCurrentUserPreferences, restoreUserPreferences } from "../utils/userPreferences";
 
 const AuthContext = createContext(null);
 
@@ -94,7 +95,12 @@ export function AuthProvider({ children }) {
 
         // Derive and restore avatar model + gender on login or session restore
         const existingModel = localStorage.getItem("speakmate_avatar_model");
-        if (!existingModel) {
+        if (existingModel) {
+          EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, {
+            gender: localStorage.getItem("speakmate_voice_gender") || "female",
+            model: existingModel,
+          });
+        } else {
           const resolved = resolveAvatarFromVoice(voicePref);
           localStorage.setItem("speakmate_avatar_model", resolved.model);
           localStorage.setItem("speakmate_voice_gender", resolved.gender);
@@ -118,10 +124,21 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     try {
+      const email = user?.email || "";
+      if (email) {
+        captureCurrentUserPreferences(email);
+      }
+
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith("speakmate_") && key !== "speakmate_admin_session") {
+        if (
+          key &&
+          key.startsWith("speakmate_") &&
+          key !== "speakmate_admin_session" &&
+          !key.startsWith("speakmate_user_prefs_") &&
+          !key.startsWith("speakmate_onboarding_done_")
+        ) {
           keysToRemove.push(key);
         }
       }
@@ -171,6 +188,9 @@ export function AuthProvider({ children }) {
         if (storedUser) {
           try {
             parsedUser = JSON.parse(storedUser);
+            if (parsedUser && parsedUser.email) {
+              restoreUserPreferences(parsedUser.email);
+            }
             setUser(parsedUser);
             syncUserProfile(parsedUser);
           } catch (e) { }
@@ -338,12 +358,15 @@ export function AuthProvider({ children }) {
         localStorage.setItem(STORAGE_KEYS.token, response.token);
         setToken(response.token);
         if (response.user) {
+          const userEmail = (response.user?.email || credentials.email || "").toLowerCase();
+          if (userEmail) {
+            restoreUserPreferences(userEmail);
+          }
+
           syncUserProfile(response.user);
           localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(response.user));
           setUser(response.user);
           syncBackendProgress(response.user).catch(() => {});
-
-          const userEmail = (response.user?.email || credentials.email || "").toLowerCase();
           const isDone = Boolean(response.user?.onboardingCompleted);
 
           setOnboardingCompleted(isDone);

@@ -488,6 +488,15 @@ export default function LessonsScreen({ navigation }) {
     setRecommended(fresh.curriculum.slice(0, 5));
   }, [user?.id, user?.schoolGrade, user?.standard, user?.ageGroup, user?.accountType, user?.role]);
 
+  useEffect(() => {
+    AsyncStorage.getItem('speakmate_lessons_active_tab').then((tab) => {
+      if (tab) setActiveTab(tab);
+    }).catch(() => {});
+    AsyncStorage.getItem('speakmate_lessons_category').then((cat) => {
+      if (cat) setSelectedCategory(cat);
+    }).catch(() => {});
+  }, []);
+
   // ── Load data ──────────────────────────────────────────────────────
   const loadAll = useCallback(async (silent = false) => {
     if (!silent && lessons.length === 0) setLoading(true);
@@ -900,6 +909,7 @@ export default function LessonsScreen({ navigation }) {
   // ── Filter by tab/category ─────────────────────────────────────────
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab);
+    AsyncStorage.setItem('speakmate_lessons_active_tab', tab).catch(() => {});
     if (searchText.trim()) {
       executeLocalSearch(searchText, selectedCategory, tab);
     } else {
@@ -910,6 +920,11 @@ export default function LessonsScreen({ navigation }) {
   const handleCategoryPress = useCallback((catName) => {
     const next = selectedCategory === catName ? null : catName;
     setSelectedCategory(next);
+    if (next) {
+      AsyncStorage.setItem('speakmate_lessons_category', next).catch(() => {});
+    } else {
+      AsyncStorage.removeItem('speakmate_lessons_category').catch(() => {});
+    }
     if (searchText.trim()) {
       executeLocalSearch(searchText, next, activeTab);
     } else {

@@ -361,6 +361,10 @@ export default function SpeakingHomeScreen({ navigation }) {
 
   // Immediate cached disk read on first load
   useEffect(() => {
+    AsyncStorage.getItem('speakmate_speaking_category').then((savedCat) => {
+      if (savedCat) setSelectedCategory(savedCat);
+    }).catch(() => {});
+
     AsyncStorage.getItem(SPEAKING_HISTORY_KEY).then((raw) => {
       if (raw) {
         try {
@@ -572,7 +576,10 @@ export default function SpeakingHomeScreen({ navigation }) {
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
             key={cat}
-            onPress={() => setSelectedCategory(cat)}
+            onPress={() => {
+              setSelectedCategory(cat);
+              AsyncStorage.setItem('speakmate_speaking_category', cat).catch(() => {});
+            }}
             style={[
               styles.catTab, 
               { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: isDark ? 1 : 0 }, 

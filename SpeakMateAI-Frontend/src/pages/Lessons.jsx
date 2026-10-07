@@ -112,8 +112,8 @@ export function Lessons() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState(urlSearchQuery);
   const [searchResults, setSearchResults] = useState(null);
-  const [activeTab, setActiveTab] = useState("All");
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("speakmate_lessons_active_tab") || "All");
+  const [selectedCategory, setSelectedCategory] = useState(() => localStorage.getItem("speakmate_lessons_category") || null);
 
   // Distinct categories computed strictly from user's profile lessons
   const categories = useMemo(() => {
@@ -419,7 +419,10 @@ export function Lessons() {
           {DIFFICULTY_TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                localStorage.setItem("speakmate_lessons_active_tab", tab);
+              }}
               className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black shrink-0 transition-all active:scale-95 ${
                 activeTab === tab
                   ? "bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] text-white shadow-md shadow-[#6C63FF]/25 scale-102"
@@ -525,7 +528,15 @@ export function Lessons() {
             {categories.slice(0, 12).map((cat) => (
               <div
                 key={cat.name}
-                onClick={() => setSelectedCategory(selectedCategory === cat.name ? null : cat.name)}
+                onClick={() => {
+                  const next = selectedCategory === cat.name ? null : cat.name;
+                  setSelectedCategory(next);
+                  if (next) {
+                    localStorage.setItem("speakmate_lessons_category", next);
+                  } else {
+                    localStorage.removeItem("speakmate_lessons_category");
+                  }
+                }}
                 className={`p-4 rounded-2xl border shadow-sm cursor-pointer transition-all text-center space-y-1 ${
                   selectedCategory === cat.name
                     ? "bg-gradient-to-br from-[#6C63FF] to-[#8B5CF6] border-[#6C63FF] text-white shadow-xl scale-102"

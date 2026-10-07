@@ -843,6 +843,19 @@ public class UserServiceImpl implements UserService {
 					.orElse(null);
 		}
 
+		String effectiveVoice = user.getPreferredVoice();
+		if (settingsRepository != null) {
+			try {
+				var optSettings = settingsRepository.findByUser(user);
+				if (optSettings.isPresent()) {
+					String sVoice = optSettings.get().getAiVoice();
+					if (sVoice != null && !sVoice.isBlank()) {
+						effectiveVoice = sVoice;
+					}
+				}
+			} catch (Exception e) {}
+		}
+
 		return UserResponse.builder().id(user.getId()).firstName(user.getFirstName()).lastName(user.getLastName())
 				.email(user.getEmail()).role(user.getRole()).avatar(user.getAvatar()).active(user.isActive())
 				.isPro(isPro).subscriptionPlan(subPlan)
@@ -850,7 +863,8 @@ public class UserServiceImpl implements UserService {
 				.onboardingCompleted(isCompleted)
 				.authProvider(user.getAuthProvider()).nativeLanguage(user.getNativeLanguage())
 				.englishLevel(effectiveLevel).learningGoal(user.getLearningGoal())
-				.dailyGoalMinutes(user.getDailyGoalMinutes()).preferredVoice(user.getPreferredVoice())
+				.dailyGoalMinutes(user.getDailyGoalMinutes()).preferredVoice(effectiveVoice)
+				.aiVoice(effectiveVoice)
 				.preferredAccent(user.getPreferredAccent()).ageGroup(effectiveAge).schoolGrade(effectiveGrade)
 				.standard(user.getStandard()).interests(user.getInterests())
 				.schoolId(user.getSchoolId()).schoolName(resolvedSchoolName).isSchoolStudent(isStudent)

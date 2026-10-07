@@ -25,6 +25,7 @@ import { COLORS } from '../../constants/colors';
 import { DashboardCache } from '../../utils/dashboardCache';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { NotificationHelper } from '../../services/NotificationHelper';
+import { saveUserPreferenceField } from '../../utils/userPreferences';
 
 const AGE_OPTIONS = [
   { code: 'Kids', label: 'Kids (6-12) 🎈', desc: 'Simple words, fun stories & high encouragement' },
@@ -257,6 +258,12 @@ export default function SettingsScreen({ navigation }) {
         setCachedAvatarModel(targetModel);
         setCurrentAvatarModel(targetModel);
         savedAvatarRef.current = targetModel;
+
+        if (user?.email) {
+          saveUserPreferenceField(user.email, 'avatarModel', targetModel);
+          saveUserPreferenceField(user.email, 'aiVoice', form.aiVoice);
+          saveUserPreferenceField(user.email, 'voiceGender', targetGender);
+        }
       }
 
       // 3. Sync Age Group via Profile Service, Onboarding Service, AuthContext & AsyncStorage
@@ -399,7 +406,7 @@ export default function SettingsScreen({ navigation }) {
                     {activeAvatar.emoji} {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'}) •{' '}
                     {isCharacterAvatar
                       ? `${activeAvatar.name} Signature Voice`
-                      : OnboardingVoiceService.isSystemDefault(form.aiVoice)
+                      : (OnboardingVoiceService?.isSystemDefault ? OnboardingVoiceService.isSystemDefault(form.aiVoice) : (form.aiVoice === 'Default' || !form.aiVoice))
                       ? 'System Default'
                       : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
                   </Text>

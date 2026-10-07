@@ -87,6 +87,8 @@ public class SettingsServiceImpl implements SettingsService {
 		}
 		if (request.getAiVoice() != null && !request.getAiVoice().isBlank()) {
 			settings.setAiVoice(request.getAiVoice());
+			user.setPreferredVoice(request.getAiVoice());
+			userRepository.save(user);
 		}
 		settings.setSoundEffects(request.getSoundEffects() != null ? request.getSoundEffects() : settings.getSoundEffects());
 		settings.setAutoPlayAudio(request.getAutoPlayAudio() != null ? request.getAutoPlayAudio() : settings.getAutoPlayAudio());
