@@ -14,6 +14,7 @@ import { speakGlobalText } from "../utils/speechHelper";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { saveUserPreferenceField } from "../utils/userPreferences";
 import { setActiveTutorFromAvatar, getActiveTutorSync } from "../services/ActiveTutorService";
+import { getEnglishLevelLabel } from "../utils/formatters";
 
 
 const PRESET_AVATARS = [
