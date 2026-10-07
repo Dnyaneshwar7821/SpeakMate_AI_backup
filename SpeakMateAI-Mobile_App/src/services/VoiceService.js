@@ -181,19 +181,35 @@ const DIRECT_VOICE_GENDERS = {
   // Female
   'en-us-x-sfg-local': 'female',
   'en-us-x-sfg-network': 'female',
+  'en-us-x-sfg': 'female',
+  'en-us-x-iol-local': 'female',
+  'en-us-x-iol-network': 'female',
+  'en-us-x-iol': 'female',
+  'en-us-x-iom-local': 'female',
+  'en-us-x-iom-network': 'female',
+  'en-us-x-iom': 'female',
   'en-us-x-rgf-local': 'female',
   'en-us-x-rgf-network': 'female',
+  'en-us-x-rgf': 'female',
   // Male
-  'en-us-x-iom-local': 'male',
-  'en-us-x-iom-network': 'male',
-  'en-us-x-iol-local': 'male',
-  'en-us-x-iol-network': 'male',
-  'en-us-x-tpf-local': 'male',
-  'en-us-x-tpf-network': 'male',
   'en-us-x-iog-local': 'male',
   'en-us-x-iog-network': 'male',
+  'en-us-x-iog': 'male',
+  'en-us-x-tpf-local': 'male',
+  'en-us-x-tpf-network': 'male',
+  'en-us-x-tpf': 'male',
   'en-us-x-tpc-local': 'male',
   'en-us-x-tpc-network': 'male',
+  'en-us-x-tpc': 'male',
+  'en-us-x-tpd-local': 'male',
+  'en-us-x-tpd-network': 'male',
+  'en-us-x-tpd': 'male',
+  'en-us-x-iod-local': 'male',
+  'en-us-x-iod-network': 'male',
+  'en-us-x-iod': 'male',
+  'en-us-x-iob-local': 'male',
+  'en-us-x-iob-network': 'male',
+  'en-us-x-iob': 'male',
   
   // UK (British)
   // Female
@@ -217,27 +233,37 @@ const DIRECT_VOICE_GENDERS = {
 
   // AU (Australian)
   // Female
-  'en-au-x-aub-local': 'female',
-  'en-au-x-aub-network': 'female',
+  'en-au-x-aum-local': 'female',
+  'en-au-x-aum-network': 'female',
+  'en-au-x-aum': 'female',
   'en-au-x-auc-local': 'female',
   'en-au-x-auc-network': 'female',
+  'en-au-x-auc': 'female',
   'en-au-x-auf-local': 'female',
   'en-au-x-auf-network': 'female',
+  'en-au-x-auf': 'female',
   'en-au-x-aug-local': 'female',
   'en-au-x-aug-network': 'female',
+  'en-au-x-aug': 'female',
   'en-au-x-cta-local': 'female',
   'en-au-x-cta-network': 'female',
+  'en-au-x-cta': 'female',
   'en-au-x-ctc-local': 'female',
   'en-au-x-ctc-network': 'female',
+  'en-au-x-ctc': 'female',
   // Male
-  'en-au-x-aum-local': 'male',
-  'en-au-x-aum-network': 'male',
+  'en-au-x-aub-local': 'male',
+  'en-au-x-aub-network': 'male',
+  'en-au-x-aub': 'male',
   'en-au-x-aud-local': 'male',
   'en-au-x-aud-network': 'male',
+  'en-au-x-aud': 'male',
   'en-au-x-ctb-local': 'male',
   'en-au-x-ctb-network': 'male',
+  'en-au-x-ctb': 'male',
   'en-au-x-ctd-local': 'male',
   'en-au-x-ctd-network': 'male',
+  'en-au-x-ctd': 'male',
 
   // IN (Indian)
   // Female
@@ -300,7 +326,8 @@ const isFemalePattern = (id, name, voiceGender) => {
     'david', 'daniel', 'george', 'alex', 'bruce', 'tom', 'fred', 'oliver', 'rishi',
     'ravi', 'prabhat', 'aaron', 'guy', 'mister', 'mike', 'james', 'mark', 'paul',
     'richard', 'robert', 'stephen', 'william', 'russell', 'neel', 'lee', 'male', 'man',
-    'tpf', 'iog', 'iol', 'iom', 'tpc', 'gbc', 'gbd', 'rjs', 'aud', 'aum', 'ctb', 'ctd', 'ind', 'inc', 'inb', 'end', 'ene', 'enf', 'cab', 'cac'
+    '#male', 'male_',
+    'tpf', 'iog', 'tpc', 'tpd', 'iod', 'iob', 'gbc', 'gbd', 'rjs', 'aub', 'aud', 'ctb', 'ctd', 'ind', 'inc', 'inb', 'end', 'ene', 'enf', 'cab', 'cac'
   ];
   if (maleKeywords.some(k => combined.includes(k))) {
     return false;
@@ -312,7 +339,8 @@ const isFemalePattern = (id, name, voiceGender) => {
     'kate', 'serena', 'nicky', 'alice', 'allison', 'joanna', 'ivy', 'kendra', 'kimberly',
     'salli', 'emma', 'amy', 'jessa', 'claire', 'vicki', 'lekha', 'veena', 'heera', 'zira',
     'hazel', 'zosia', 'zoe', 'susan', 'aria', 'jenny', 'natasha', 'female', 'woman',
-    'sfg', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aub', 'auc', 'auf', 'aug',
+    '#female', 'female_',
+    'sfg', 'iol', 'iom', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aum', 'auc', 'auf', 'aug',
     'cta', 'ctc', 'inf', 'ing', 'inm', 'cbf', 'ena', 'enc', 'caa', 'cad'
   ];
   if (femaleKeywords.some(k => combined.includes(k))) {
@@ -766,9 +794,9 @@ export const VoiceService = {
     const isIndian = gs.includes('in') || gs.includes('indian');
     const isMale = gs.includes('male') && !gs.includes('female');
 
-    // For IN Male specifically:
+    // 1. For IN Male specifically:
     if (isIndian && isMale) {
-      // 1. Look for explicit Indian male voice
+      // Look for explicit Indian male voice
       const indianMale = availableVoices.find(v => {
         const id = (v.identifier || '').toLowerCase();
         const name = (v.name || '').toLowerCase();
@@ -778,7 +806,7 @@ export const VoiceService = {
       });
       if (indianMale) return indianMale.identifier;
 
-      // 2. If no Indian male voice installed, select confirmed English male voice (never a female voice)
+      // If no Indian male voice installed, select confirmed English male voice (never a female voice)
       const confirmedEnglishMale = availableVoices.find(v => {
         const id = (v.identifier || '').toLowerCase();
         const name = (v.name || '').toLowerCase();
@@ -787,12 +815,122 @@ export const VoiceService = {
       if (confirmedEnglishMale) return confirmedEnglishMale.identifier;
     }
 
+    const isAmerican = gs.includes('us') || gs.includes('american');
+    const isAustralian = gs.includes('au') || gs.includes('australian');
+
+    // 2. For US Male specifically:
+    if (isAmerican && isMale) {
+      // Prioritize confirmed Google TTS & system US male voices
+      const US_MALE_KEYS = ['iog', 'tpf', 'tpc', 'tpd', 'iod', 'iob', 'david', 'alex', 'guy', 'male'];
+      for (const key of US_MALE_KEYS) {
+        const usMaleVoice = availableVoices.find(v => {
+          const id = (v.identifier || '').toLowerCase();
+          const name = (v.name || '').toLowerCase();
+          const lang = (v.language || '').toLowerCase().replace('_', '-');
+          const isUS = lang.startsWith('en-us') || lang === 'en';
+          const isMaleVoice = !isFemalePattern(id, name, v.gender);
+          return isUS && isMaleVoice && (id.includes(key) || name.includes(key));
+        });
+        if (usMaleVoice) return usMaleVoice.identifier;
+      }
+
+      // Any confirmed US male voice
+      const anyUSMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
+        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        return lang.startsWith('en-us') && !isFemalePattern(id, name, v.gender);
+      });
+      if (anyUSMale) return anyUSMale.identifier;
+
+      // Confirmed English male voice from any region rather than picking a female voice
+      const anyConfirmedMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
+        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        return lang.startsWith('en') && !isFemalePattern(id, name, v.gender);
+      });
+      if (anyConfirmedMale) return anyConfirmedMale.identifier;
+    }
+
+    // 3. For US Female specifically:
+    if (isAmerican && !isMale) {
+      const US_FEMALE_KEYS = ['sfg', 'iol', 'iom', 'rgf', 'samantha', 'victoria', 'karen', 'zira', 'jenny', 'female'];
+      for (const key of US_FEMALE_KEYS) {
+        const usFemVoice = availableVoices.find(v => {
+          const id = (v.identifier || '').toLowerCase();
+          const name = (v.name || '').toLowerCase();
+          const lang = (v.language || '').toLowerCase().replace('_', '-');
+          const isUS = lang.startsWith('en-us') || lang === 'en';
+          const isFemVoice = isFemalePattern(id, name, v.gender);
+          return isUS && isFemVoice && (id.includes(key) || name.includes(key));
+        });
+        if (usFemVoice) return usFemVoice.identifier;
+      }
+
+      const anyUSFemale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
+        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        return lang.startsWith('en-us') && isFemalePattern(id, name, v.gender);
+      });
+      if (anyUSFemale) return anyUSFemale.identifier;
+    }
+
+    // 4. For AU Male specifically (aub, aud, ctb, ctd):
+    if (isAustralian && isMale) {
+      const AU_MALE_KEYS = ['aub', 'aud', 'ctb', 'ctd', 'russell', 'william', 'male'];
+      for (const key of AU_MALE_KEYS) {
+        const auMaleVoice = availableVoices.find(v => {
+          const id = (v.identifier || '').toLowerCase();
+          const name = (v.name || '').toLowerCase();
+          const lang = (v.language || '').toLowerCase().replace('_', '-');
+          const isAU = lang.startsWith('en-au') || name.includes('australia');
+          const isMaleVoice = !isFemalePattern(id, name, v.gender);
+          return isAU && isMaleVoice && (id.includes(key) || name.includes(key));
+        });
+        if (auMaleVoice) return auMaleVoice.identifier;
+      }
+
+      const anyAUMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
+        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        return (lang.startsWith('en-au') || name.includes('australia')) && !isFemalePattern(id, name, v.gender);
+      });
+      if (anyAUMale) return anyAUMale.identifier;
+    }
+
+    // 5. For AU Female specifically (aum, auc, auf, aug, cta, ctc):
+    if (isAustralian && !isMale) {
+      const AU_FEMALE_KEYS = ['aum', 'auc', 'auf', 'aug', 'cta', 'ctc', 'natasha', 'catherine', 'karen', 'female'];
+      for (const key of AU_FEMALE_KEYS) {
+        const auFemVoice = availableVoices.find(v => {
+          const id = (v.identifier || '').toLowerCase();
+          const name = (v.name || '').toLowerCase();
+          const lang = (v.language || '').toLowerCase().replace('_', '-');
+          const isAU = lang.startsWith('en-au') || name.includes('australia');
+          const isFemVoice = isFemalePattern(id, name, v.gender);
+          return isAU && isFemVoice && (id.includes(key) || name.includes(key));
+        });
+        if (auFemVoice) return auFemVoice.identifier;
+      }
+
+      const anyAUFemale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
+        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        return (lang.startsWith('en-au') || name.includes('australia')) && isFemalePattern(id, name, v.gender);
+      });
+      if (anyAUFemale) return anyAUFemale.identifier;
+    }
+
     const targetGender = isMale ? 'male' : 'female';
 
     let targetLocale = 'en-us';
     if      (isBritish)                                      targetLocale = 'en-gb';
     else if (isIndian)                                       targetLocale = 'en-in';
-    else if (gs.includes('au') || gs.includes('australian')) targetLocale = 'en-au';
+    else if (isAustralian)                                   targetLocale = 'en-au';
     else if (gs.includes('ca') || gs.includes('canadian'))   targetLocale = 'en-ca';
 
     const mapping = VoiceService.findBestVoice(availableVoices, targetLocale, targetGender);
