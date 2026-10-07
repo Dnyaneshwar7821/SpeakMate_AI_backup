@@ -10,22 +10,6 @@ import { CurriculumCache } from "../utils/curriculumCache";
 
 const LANGUAGE_OPTIONS = [
   { code: "English", label: "English", native: "English", flag: "🇺🇸" },
-  { code: "Spanish", label: "Spanish", native: "Español", flag: "🇪🇸" },
-  { code: "French", label: "French", native: "Français", flag: "🇫🇷" },
-  { code: "German", label: "German", native: "Deutsch", flag: "🇩🇪" },
-  { code: "Japanese", label: "Japanese", native: "日本語", flag: "🇯🇵" },
-  { code: "Chinese", label: "Chinese", native: "中文", flag: "🇨🇳" },
-  { code: "Italian", label: "Italian", native: "Italiano", flag: "🇮🇹" },
-  { code: "Portuguese", label: "Portuguese", native: "Português", flag: "🇵🇹" },
-  { code: "Russian", label: "Russian", native: "Русский", flag: "🇷🇺" },
-  { code: "Korean", label: "Korean", native: "한국어", flag: "🇰🇷" },
-  { code: "Hindi", label: "Hindi", native: "हिन्दी", flag: "🇮🇳" },
-  { code: "Arabic", label: "Arabic", native: "العربية", flag: "🇦🇪" },
-  { code: "Dutch", label: "Dutch", native: "Nederlands", flag: "🇳🇱" },
-  { code: "Turkish", label: "Turkish", native: "Türkçe", flag: "🇹🇷" },
-  { code: "Vietnamese", label: "Vietnamese", native: "Tiếng Việt", flag: "🇻🇳" },
-  { code: "Swedish", label: "Swedish", native: "Svenska", flag: "🇸🇪" },
-  { code: "Polish", label: "Polish", native: "Polski", flag: "🇵🇱" },
 ];
 
 const AGE_OPTIONS = [
@@ -59,7 +43,6 @@ export function Settings() {
   const [selectedVoice, setSelectedVoice] = useState(() => localStorage.getItem("speakmate_ai_voice") || "Default");
   const [selectedAgeGroup, setSelectedAgeGroup] = useState(() => normalizeAgeGroup(user?.ageGroup || localStorage.getItem("speakmate_age_group") || "Professional"));
   const [dailyGoal, setDailyGoal] = useState(() => localStorage.getItem("speakmate_daily_goal") || "15 min");
-  const [selectedLang, setSelectedLang] = useState(() => localStorage.getItem("speakmate_app_language") || "English");
   const [speechSpeed, setSpeechSpeed] = useState(() => parseFloat(localStorage.getItem("speakmate_voice_speed") || "1.0"));
 
   useEffect(() => {
@@ -69,9 +52,7 @@ export function Settings() {
   }, [user?.ageGroup]);
 
   const [showVoiceModal, setShowVoiceModal] = useState(false);
-  const [showLangModal, setShowLangModal] = useState(false);
   const [showPersonaModal, setShowPersonaModal] = useState(false);
-  const [langSearch, setLangSearch] = useState("");
   const [playingVoice, setPlayingVoice] = useState(null);
 
   const [reminders, setReminders] = useState(() => localStorage.getItem("speakmate_daily_reminder") !== "false");
@@ -214,14 +195,7 @@ export function Settings() {
     toast.success(`Daily goal updated to ${goal} ✓`);
   };
 
-  const handleSelectLanguage = (langCode) => {
-    setSelectedLang(langCode);
-    setShowLangModal(false);
-    localStorage.setItem("speakmate_app_language", langCode);
-    settingsService.update({ language: langCode }).catch(() => {});
-    window.dispatchEvent(new CustomEvent("speakmate_settings_updated", { detail: { language: langCode } }));
-    toast.success(`App language set to ${langCode} ✓`);
-  };
+
 
   const handleSelectAgeGroup = (val) => {
     if (isStudent) {
@@ -280,9 +254,7 @@ export function Settings() {
     toast.success(next ? "Auto-play spoken audio enabled ✓" : "Auto-play audio disabled (Replay buttons still work)");
   };
 
-  const filteredLanguages = LANGUAGE_OPTIONS.filter((l) =>
-    l.label.toLowerCase().includes(langSearch.toLowerCase()) || l.native.toLowerCase().includes(langSearch.toLowerCase())
-  );
+
 
   const studentPersona = useMemo(() => ({
     label: `School Student Standard`,
@@ -438,19 +410,17 @@ export function Settings() {
                   Language
                 </span>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
-                  {selectedLang}
+                  English
                 </span>
               </div>
-              <h2 className="text-base font-black text-[var(--text-primary)] mt-1 truncate">App Translation Language</h2>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">UI prompts, hints, and feedback</p>
+              <h2 className="text-base font-black text-[var(--text-primary)] mt-1 truncate">App Language</h2>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-medium">UI prompts, hints, and speech practice</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowLangModal(true)}
-            className="px-5 py-3 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[#6C63FF] hover:bg-[#6C63FF] hover:text-white text-xs font-black transition-all shrink-0 active:scale-95 shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto text-center"
-          >
-            Change Language 🌐
-          </button>
+          <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-black flex items-center gap-2 shrink-0 self-start sm:self-auto shadow-xs">
+            <span className="text-base">🇺🇸</span>
+            <span>English</span>
+          </div>
         </div>
       </div>
 
@@ -758,57 +728,7 @@ export function Settings() {
         document.body
       )}
 
-      {/* ── 17 APP LANGUAGES MODAL (PORTALED TO BODY) ── */}
-      {showLangModal && createPortal(
-        <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setShowLangModal(false)}
-        >
-          <div
-            className="max-w-2xl w-full glass-card p-6 sm:p-8 rounded-3xl shadow-2xl border border-[var(--border-default)] space-y-4 max-h-[85vh] overflow-y-auto bg-[var(--bg-surface)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-3">
-              <h3 className="font-black text-lg text-[var(--text-primary)]">Select App Language 🌐</h3>
-              <button
-                onClick={() => setShowLangModal(false)}
-                className="px-3 py-1 rounded-xl bg-[var(--bg-elevated)] text-xs font-black text-[var(--text-primary)] hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
-              >
-                ✕ Close
-              </button>
-            </div>
 
-            <input
-              type="text"
-              placeholder="Search language..."
-              value={langSearch}
-              onChange={(e) => setLangSearch(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] text-xs font-semibold text-[var(--text-primary)]"
-            />
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-80 overflow-y-auto">
-              {filteredLanguages.map((lang) => (
-                <button
-                  key={lang.code}
-                  onClick={() => handleSelectLanguage(lang.code)}
-                  className={`p-3 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                    selectedLang === lang.code
-                      ? "bg-[#6C63FF] text-white border-[#6C63FF]"
-                      : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-default)] hover:border-[#6C63FF]/50"
-                  }`}
-                >
-                  <span className="text-xl">{lang.flag}</span>
-                  <div>
-                    <p className="text-xs font-black leading-tight">{lang.label}</p>
-                    <p className="text-[10px] opacity-75">{lang.native}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* ── TARGET PERSONA POPUP MODAL (PORTALED TO BODY) ── */}
       {showPersonaModal && !isStudent && createPortal(
