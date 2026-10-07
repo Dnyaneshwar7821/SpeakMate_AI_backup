@@ -26,6 +26,7 @@ import {
 } from '../../services/appServices';
 import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { VoiceService } from '../../services/VoiceService';
+import { setActiveTutorFromSystemDefault } from '../../services/ActiveTutorService';
 import { PrimaryButton, ErrorMessage } from '../../components/auth';
 import { prepareAvatarAsync, AVATAR_CATEGORIES } from '../../utils/imageUtils';
 import { DashboardCache, CurriculumCache } from '../../utils/dashboardCache';
@@ -504,6 +505,7 @@ export default function OnboardingScreen({ navigation }) {
       try {
         const systemVoiceId = selectSystemVoice('female');
         await OnboardingVoiceService.save(aiVoice || 'Friendly', systemVoiceId);
+        await setActiveTutorFromSystemDefault();
       } catch (voiceErr) {
         console.warn('Voice save failed:', voiceErr);
       }

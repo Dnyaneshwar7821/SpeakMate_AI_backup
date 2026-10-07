@@ -27,6 +27,7 @@ import { speakingService, onboardingService } from '../../services/appServices';
 import { COLORS } from '../../constants/colors';
 import LevelSegmentedControl from '../../components/common/LevelSegmentedControl';
 import { getCachedAvatarModel, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
+import { getActiveTutorSync } from '../../services/ActiveTutorService';
 import { DashboardCache } from '../../utils/dashboardCache';
 
 // ─── Age-Wise Scenarios Data (10 scenarios per age group) ───────────────────
@@ -416,21 +417,12 @@ export default function SpeakingHomeScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-      const cached = getCachedAvatarModel();
-      if (cached) {
-        setActiveAvatarModel(cached);
+      const canonical = getActiveTutorSync();
+      if (canonical?.avatarModel) {
+        setActiveAvatarModel(canonical.avatarModel);
       } else {
-        AsyncStorage.getItem('speakmate_avatar_model').then((saved) => {
-          if (saved) {
-            setActiveAvatarModel(saved);
-            setCachedAvatarModel(saved);
-          } else {
-            AsyncStorage.getItem('speakmate_ai_voice').then((v) => {
-              const res = resolveAvatarFromVoice(v);
-              setActiveAvatarModel(res.model);
-            }).catch(() => {});
-          }
-        }).catch(() => {});
+        const cached = getCachedAvatarModel();
+        if (cached) setActiveAvatarModel(cached);
       }
     }, [])
   );

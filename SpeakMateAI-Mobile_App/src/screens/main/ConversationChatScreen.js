@@ -35,6 +35,7 @@ import { chatService, speechService, settingsService, profileService } from '../
 import { VoiceService } from '../../services/VoiceService';
 import AIAvatar from '../../components/common/AIAvatar';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel } from '../../config/AvatarCatalog';
+import { getActiveTutorSync, getActiveTutorAsync } from '../../services/ActiveTutorService';
 import JumpingDotsIndicator from '../../components/common/JumpingDotsIndicator';
 import LevelSegmentedControl from '../../components/common/LevelSegmentedControl';
 
@@ -764,7 +765,8 @@ export default function ConversationChatScreen({ navigation, route }) {
           AsyncStorage.getItem('speakmate_voice_gender'),
           AsyncStorage.getItem('speakmate_avatar_model'),
         ]);
-        const effectiveVoice = savedVoice || settings?.aiVoice || (savedGender === 'male' ? 'US Male' : 'Default');
+        const canonicalTutor = getActiveTutorSync();
+        const effectiveVoice = canonicalTutor?.aiVoice || savedVoice || settings?.aiVoice || (savedGender === 'male' ? 'US Male' : 'Default');
         setPreferredVoice(effectiveVoice);
         if (onboardingVoice) {
           setOnboardingVoiceStyle(onboardingVoice);
@@ -781,8 +783,8 @@ export default function ConversationChatScreen({ navigation, route }) {
           (savedVoice && savedVoice.toLowerCase().includes('male'))
         );
 
-        // Prioritize explicit user selection (route param -> saved -> cache -> sensible default)
-        let resolvedModel = route.params?.avatarModel || savedAvatarModel || getCachedAvatarModel();
+        // Prioritize explicit user selection (route param -> canonical -> saved -> cache -> sensible default)
+        let resolvedModel = route.params?.avatarModel || canonicalTutor?.avatarModel || savedAvatarModel || getCachedAvatarModel();
         if (!resolvedModel) {
           if (isKids) {
             resolvedModel = 'robopaws';
@@ -901,16 +903,21 @@ export default function ConversationChatScreen({ navigation, route }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', async () => {
       try {
-        const [settings, voices, onboardingVoice, savedVoice, savedGender] = await Promise.all([
+        const [settings, voices, onboardingVoice, savedVoice, savedGender, canonicalTutor] = await Promise.all([
           settingsService.get().catch(() => null),
           VoiceService.getAvailableEnglishVoices(),
           AsyncStorage.getItem('speakmate_onboarding_voice'),
           AsyncStorage.getItem('speakmate_selected_voice'),
           AsyncStorage.getItem('speakmate_voice_gender'),
+          getActiveTutorAsync(),
         ]);
-        const effectiveVoice = savedVoice || settings?.aiVoice || (savedGender === 'male' ? 'US Male' : undefined);
+        const effectiveVoice = canonicalTutor?.aiVoice || savedVoice || settings?.aiVoice || (savedGender === 'male' ? 'US Male' : undefined);
         if (effectiveVoice) {
           setPreferredVoice(effectiveVoice);
+        }
+        if (!route.params?.avatarModel && canonicalTutor?.avatarModel) {
+          setSelectedAvatarModel(canonicalTutor.avatarModel);
+          setCachedAvatarModel(canonicalTutor.avatarModel);
         }
         if (voices && voices.length > 0) {
           setAvailableVoices(voices);

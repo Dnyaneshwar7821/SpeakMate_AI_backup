@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { grammarService, settingsService, progressService } from '../../services/appServices';
 import { VoiceService } from '../../services/VoiceService';
 import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
+import { getActiveTutorAsync } from '../../services/ActiveTutorService';
 import { COLORS } from '../../constants/colors';
 import {
   analyzeSentenceGrammarLocally,
@@ -215,6 +216,11 @@ export default function GrammarScreen() {
   };
 
   const getActiveVoiceType = async () => {
+    try {
+      const tutor = await getActiveTutorAsync();
+      if (tutor?.aiVoice) return tutor.aiVoice;
+    } catch {}
+
     try {
       const saved = await AsyncStorage.getItem('speakmate_selected_voice');
       if (saved) return saved;

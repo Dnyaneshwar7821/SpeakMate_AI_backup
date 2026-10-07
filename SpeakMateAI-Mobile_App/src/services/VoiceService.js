@@ -2,6 +2,7 @@ import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OnboardingVoiceService } from './OnboardingVoiceService';
 import { getAvatarById, getCachedAvatarModel } from '../config/AvatarCatalog';
+import { getActiveTutorSync } from './ActiveTutorService';
 
 export const VOICE_PROFILES = [
   { code: 'US Male', accent: 'American', locale: 'en-US', gender: 'male', label: 'American - Male' },
@@ -66,12 +67,12 @@ export const AVATAR_VOICE_PROFILES = {
     avatarId: 'haru',
     name: 'Teacher',
     category: 'human',
-    intendedGender: 'male',
+    intendedGender: 'female',
     voiceCode: 'Teacher',
     targetLocale: 'en-US',
     basePitch: 1.06,
     baseRate: 1.03,
-    preferredVoices: ['zarvox', 'fred', 'alex', 'daniel', 'tpc', 'tpf', 'iog', 'ind', 'male'],
+    preferredVoices: ['sfg', 'iol', 'rgf', 'samantha', 'victoria', 'karen', 'allison', 'female'],
   },
   chitose: {
     avatarId: 'chitose',
@@ -180,8 +181,8 @@ const DIRECT_VOICE_GENDERS = {
   // Female
   'en-us-x-sfg-local': 'female',
   'en-us-x-sfg-network': 'female',
-  'en-us-x-iom-local': 'female',
-  'en-us-x-iom-network': 'female',
+  'en-us-x-iom-local': 'male',
+  'en-us-x-iom-network': 'male',
   'en-us-x-iol-local': 'female',
   'en-us-x-iol-network': 'female',
   'en-us-x-rgf-local': 'female',
@@ -307,7 +308,7 @@ const isFemalePattern = (id, name, voiceGender) => {
     'kate', 'serena', 'nicky', 'alice', 'allison', 'joanna', 'ivy', 'kendra', 'kimberly',
     'salli', 'emma', 'amy', 'jessa', 'claire', 'vicki', 'lekha', 'veena', 'heera', 'zira',
     'hazel', 'zosia', 'zoe', 'susan', 'aria', 'jenny', 'natasha', 'female', 'woman',
-    'sfg', 'iom', 'iol', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aub', 'auc', 'auf', 'aug', 'aum',
+    'sfg', 'iol', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aub', 'auc', 'auf', 'aug', 'aum',
     'cta', 'ctc', 'inf', 'ing', 'inm', 'cbf', 'ena', 'enc'
   ];
   if (femaleKeywords.some(k => combined.includes(k))) {
@@ -480,12 +481,12 @@ export const VoiceService = {
         else if (id.includes('victoria') || name.includes('victoria')) score += 350;
         else if (id.includes('iol') || id.includes('iom') || id.includes('karen')) score += 250;
       } else if (charId === 'haru' || charId.includes('teacher')) {
-        // Clear, articulate teacher voice (switched from Doraemon)
-        if (id.includes('zarvox') || name.includes('zarvox') || id.includes('robot')) score += 500;
-        else if (id.includes('fred') || name.includes('fred')) score += 350;
-        else if (id.includes('tpc') || id.includes('tpf')) score += 250;
-        else if (id.includes('alex') || name.includes('alex')) score += 200;
-        else if (id.includes('daniel') || name.includes('daniel')) score += 180;
+        // Clear, articulate female teacher voice
+        if (id.includes('sfg') || name.includes('sfg')) score += 500;
+        else if (id.includes('samantha') || name.includes('samantha')) score += 400;
+        else if (id.includes('victoria') || name.includes('victoria')) score += 350;
+        else if (id.includes('iol') || id.includes('karen')) score += 250;
+        else if (id.includes('female')) score += 200;
       } else if (charId === 'chitose' || charId.includes('maleteacher')) {
         // Calm, patient, articulate Indian male teacher
         if (lang.startsWith('en-in') || id.includes('en-in') || name.includes('india')) score += 300;
@@ -547,8 +548,8 @@ export const VoiceService = {
     if (!voiceType) return 'female';
     const vt = String(voiceType).toLowerCase();
     if (vt === 'robopaws' || vt === 'robocat' || vt === 'robot' || vt === 'doraemon') return 'female';
-    if (vt === 'chitose') return 'male';
-    if (vt === 'haru' || vt === 'teacher') return 'male';
+    if (vt === 'chitose' || vt === 'maleteacher') return 'male';
+    if (vt === 'haru' || vt === 'teacher') return 'female';
     if (vt === 'male') return 'male';
     if (vt === 'female') return 'female';
     if (vt.includes('male') && !vt.includes('female')) return 'male';
@@ -782,12 +783,8 @@ export const VoiceService = {
       if (confirmedEnglishMale) return confirmedEnglishMale.identifier;
     }
 
-    let targetGender = 'female';
-    if (isMale) {
-      targetGender = (isBritish || isIndian) ? 'male' : 'female';
-    } else if (gs.includes('female')) {
-      targetGender = (isBritish || isIndian) ? 'female' : 'male';
-    }
+    const isMale = gs.includes('male') && !gs.includes('female');
+    const targetGender = isMale ? 'male' : 'female';
 
     let targetLocale = 'en-us';
     if      (isBritish)                                      targetLocale = 'en-gb';
@@ -1003,10 +1000,16 @@ export const VoiceService = {
     const cleanedText = VoiceService.sanitizeTextForSpeech(text);
     if (!cleanedText) return;
 
-    // 1. Resolve active avatar model (explicit param -> voiceType if avatar -> cached model -> AsyncStorage)
+    // 1. Resolve active avatar model (explicit param -> voiceType if avatar -> canonical state -> cached model -> AsyncStorage)
     let effectiveAvatarId = avatarId;
     if (!effectiveAvatarId && voiceType && AVATAR_VOICE_PROFILES[String(voiceType).toLowerCase()]) {
       effectiveAvatarId = voiceType;
+    }
+    if (!effectiveAvatarId) {
+      try {
+        const canonical = typeof getActiveTutorSync === 'function' ? getActiveTutorSync() : null;
+        if (canonical?.avatarModel) effectiveAvatarId = canonical.avatarModel;
+      } catch (_) {}
     }
     if (!effectiveAvatarId) {
       try {
@@ -1034,7 +1037,23 @@ export const VoiceService = {
     }
 
     // ── 3. Resolve user settings accent preference ───────────────────────────
-    let resolvedVoice = voiceType || avatarProfile.voiceCode;
+    let resolvedVoice = voiceType;
+    if (!resolvedVoice) {
+      try {
+        const canonical = typeof getActiveTutorSync === 'function' ? getActiveTutorSync() : null;
+        if (canonical?.aiVoice) resolvedVoice = canonical.aiVoice;
+      } catch (_) {}
+      if (!resolvedVoice) {
+        try {
+          const saved = await AsyncStorage.getItem('speakmate_ai_voice');
+          if (saved) resolvedVoice = saved;
+        } catch (_) {}
+      }
+    }
+    if (!resolvedVoice) {
+      resolvedVoice = avatarProfile.voiceCode;
+    }
+
     const isSysDefault = OnboardingVoiceService.isSystemDefault(resolvedVoice);
     let voiceConfig = null;
 

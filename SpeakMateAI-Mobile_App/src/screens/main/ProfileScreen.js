@@ -31,6 +31,7 @@ import { AVATAR_LIST, getAvatarById, setCachedAvatarModel, getCachedAvatarModel,
 import { prepareAvatarAsync, isImageUri, AVATAR_CATEGORIES, PRESET_EMOJI_AVATARS } from '../../utils/imageUtils';
 import { VoiceService } from '../../services/VoiceService';
 import { saveUserPreferenceField } from '../../utils/userPreferences';
+import { getActiveTutorAsync, getActiveTutorSync, setActiveTutorFromAvatar } from '../../services/ActiveTutorService';
 
 const PRESET_AVATARS = PRESET_EMOJI_AVATARS;
 
@@ -416,16 +417,9 @@ export default function ProfileScreen({ navigation }) {
         AsyncStorage.removeItem('speakmate_school_grade').catch(() => {});
       }
 
-      // Check: 1. savedAvatarModel from storage, 2. Global module cache, 3. Signature voice if character voice, 4. fallback by gender
-      const voiceAvatar = getAvatarByVoice(savedVoice);
-      let modelId = savedAvatarModel || getCachedAvatarModel() || (voiceAvatar ? voiceAvatar.id : null);
-      const isMaleVoice = savedGender === 'male' || (savedVoice && savedVoice.toLowerCase().includes('male') && !savedVoice.toLowerCase().includes('female'));
-
-      if (!modelId) {
-        modelId = isMaleVoice ? 'chitose' : 'haru';
-      }
-
-      const effectiveAvatar = getAvatarById(modelId);
+      // Check canonical active speaking tutor
+      const canonicalTutor = await getActiveTutorAsync();
+      const effectiveAvatar = getAvatarById(canonicalTutor.avatarModel);
       setSelectedAvatarId(effectiveAvatar.id);
       savedAvatarIdRef.current = effectiveAvatar.id;
       setTutorGender(effectiveAvatar.gender);
@@ -503,12 +497,8 @@ export default function ProfileScreen({ navigation }) {
     setTutorGender(gender);
     setCachedAvatarModel(model);
     try {
-      await AsyncStorage.setItem('speakmate_avatar_model', model);
-      await AsyncStorage.setItem('speakmate_voice_gender', gender);
-      await AsyncStorage.setItem('speakmate_selected_voice', voiceCode);
-      await AsyncStorage.setItem('speakmate_ai_voice', voiceCode);
-      await AsyncStorage.setItem('speakmate_voice_code', voiceCode);
-      await AsyncStorage.setItem('speakmate_voice_pitch', String(pitch));
+      // 1. Set canonical active tutor: avatar + own voice + AVATAR source
+      await setActiveTutorFromAvatar(model);
 
       if (voiceCode) {
         settingsService.update({ aiVoice: voiceCode }).catch(() => {});
@@ -517,6 +507,7 @@ export default function ProfileScreen({ navigation }) {
       if (user?.email) {
         saveUserPreferenceField(user.email, 'avatarModel', model);
         saveUserPreferenceField(user.email, 'aiVoice', voiceCode);
+        saveUserPreferenceField(user.email, 'selectionSource', 'AVATAR');
         saveUserPreferenceField(user.email, 'voiceGender', gender);
         saveUserPreferenceField(user.email, 'voicePitch', pitch);
       }
@@ -540,7 +531,8 @@ export default function ProfileScreen({ navigation }) {
         setForm(resetForm);
         setOriginalForm(resetForm);
       }
-      const cachedAvatar = getCachedAvatarModel();
+      const canonical = getActiveTutorSync();
+      const cachedAvatar = canonical?.avatarModel || getCachedAvatarModel();
       if (cachedAvatar) {
         setSelectedAvatarId(cachedAvatar);
         savedAvatarIdRef.current = cachedAvatar;

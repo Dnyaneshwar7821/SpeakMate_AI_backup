@@ -30,6 +30,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { lessonModuleService, settingsService, aiService, progressService, speechService } from '../../services/appServices';
 import { VoiceService } from '../../services/VoiceService';
+import { getActiveTutorAsync } from '../../services/ActiveTutorService';
 import { COLORS } from '../../constants/colors';
 import { findStandardLesson, getMasterclassForLesson } from '../../constants/standardLessons';
 import { CurriculumCache } from '../../utils/dashboardCache';
@@ -219,13 +220,14 @@ export default function LessonDetailScreen({ navigation, route }) {
   // ── Load ────────────────────────────────────────────────────────────
   const loadSettingsAndVoices = async () => {
     try {
-      const [s, voices, onboardingVoice, savedVoice] = await Promise.all([
+      const [s, voices, onboardingVoice, savedVoice, canonicalTutor] = await Promise.all([
         settingsService.get().catch(() => null),
         VoiceService.getAvailableEnglishVoices(),
         AsyncStorage.getItem('speakmate_onboarding_voice'),
         AsyncStorage.getItem('speakmate_selected_voice'),
+        getActiveTutorAsync(),
       ]);
-      const effectiveVoice = savedVoice || s?.aiVoice || 'Default';
+      const effectiveVoice = canonicalTutor?.aiVoice || savedVoice || s?.aiVoice || 'Default';
       setSettings({ ...s, aiVoice: effectiveVoice, onboardingVoice });
       setAvailableVoices(voices);
     } catch (e) {
@@ -242,14 +244,15 @@ export default function LessonDetailScreen({ navigation, route }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', async () => {
       try {
-        const [s, voices, onboardingVoice, savedVoice, savedSoundEffects] = await Promise.all([
+        const [s, voices, onboardingVoice, savedVoice, savedSoundEffects, canonicalTutor] = await Promise.all([
           settingsService.get().catch(() => null),
           VoiceService.getAvailableEnglishVoices(),
           AsyncStorage.getItem('speakmate_onboarding_voice'),
           AsyncStorage.getItem('speakmate_selected_voice'),
           AsyncStorage.getItem('speakmate_sound_effects'),
+          getActiveTutorAsync(),
         ]);
-        const effectiveVoice = savedVoice || s?.aiVoice || 'Default';
+        const effectiveVoice = canonicalTutor?.aiVoice || savedVoice || s?.aiVoice || 'Default';
         const effectiveSound = savedSoundEffects !== null ? savedSoundEffects === 'true' : (s?.soundEffects ?? true);
         setSettings({ ...s, aiVoice: effectiveVoice, onboardingVoice, soundEffects: effectiveSound });
         if (voices && voices.length > 0) {

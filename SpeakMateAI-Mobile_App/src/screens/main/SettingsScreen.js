@@ -26,6 +26,16 @@ import { DashboardCache } from '../../utils/dashboardCache';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { NotificationHelper } from '../../services/NotificationHelper';
 import { saveUserPreferenceField } from '../../utils/userPreferences';
+import {
+  getActiveTutorAsync,
+  getActiveTutorSync,
+  setActiveTutorFromRegional,
+  setActiveTutorFromSystemDefault,
+  setActiveTutorFromAvatar,
+  formatActiveVoiceLabel,
+  REGIONAL_VOICE_CODES,
+  SELECTION_SOURCE,
+} from '../../services/ActiveTutorService';
 
 const AGE_OPTIONS = [
   { code: 'Kids', label: 'Kids (6-12) 🎈', desc: 'Simple words, fun stories & high encouragement' },
@@ -141,8 +151,9 @@ export default function SettingsScreen({ navigation }) {
         AsyncStorage.getItem('speakmate_daily_reminder'),
       ]);
       if (savedType) setAccountType(savedType);
-      const effectiveVoice = savedVoice || settings?.aiVoice || defaults.aiVoice;
-      let effectiveAvatarModel = savedAvatarModel || getCachedAvatarModel();
+      const canonical = await getActiveTutorAsync();
+      const effectiveVoice = canonical.aiVoice || savedVoice || settings?.aiVoice || defaults.aiVoice;
+      let effectiveAvatarModel = canonical.avatarModel || savedAvatarModel || getCachedAvatarModel();
       if (!effectiveAvatarModel && effectiveVoice) {
         effectiveAvatarModel = resolveAvatarFromVoice(effectiveVoice, onboardingVoice).model;
       }
@@ -193,18 +204,30 @@ export default function SettingsScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       // 1. Immediately reset any unsaved in-memory draft on focus
+      const canonical = getActiveTutorSync();
+      if (canonical?.avatarModel) {
+        setCurrentAvatarModel(canonical.avatarModel);
+        savedAvatarRef.current = canonical.avatarModel;
+      } else {
+        const cachedAvatar = getCachedAvatarModel();
+        if (cachedAvatar) {
+          setCurrentAvatarModel(cachedAvatar);
+          savedAvatarRef.current = cachedAvatar;
+        }
+      }
+
       if (savedBaselineRef.current) {
         setForm((current) => ({
           ...current,
           language: savedBaselineRef.current.language,
-          aiVoice: savedBaselineRef.current.aiVoice,
+          aiVoice: canonical?.aiVoice || savedBaselineRef.current.aiVoice,
           ageGroup: savedBaselineRef.current.ageGroup,
         }));
-      }
-      const cachedAvatar = getCachedAvatarModel();
-      if (cachedAvatar) {
-        setCurrentAvatarModel(cachedAvatar);
-        savedAvatarRef.current = cachedAvatar;
+      } else if (canonical?.aiVoice) {
+        setForm((current) => ({
+          ...current,
+          aiVoice: canonical.aiVoice,
+        }));
       }
 
       load();
@@ -242,27 +265,31 @@ export default function SettingsScreen({ navigation }) {
         await setDarkMode(savedSettings.darkMode);
       }
 
-      // 2. Sync Voice and Avatar to AsyncStorage
+      // 2. Sync Voice and Avatar via Canonical ActiveTutorService
       if (form.aiVoice) {
-        await AsyncStorage.setItem('speakmate_selected_voice', form.aiVoice);
-        await AsyncStorage.setItem('speakmate_ai_voice', form.aiVoice);
+        let canonical;
+        if (form.aiVoice === 'Default') {
+          canonical = await setActiveTutorFromSystemDefault();
+        } else if (REGIONAL_VOICE_CODES.includes(form.aiVoice)) {
+          canonical = await setActiveTutorFromRegional(form.aiVoice);
+        } else {
+          const char = getAvatarByVoice(form.aiVoice);
+          if (char) {
+            canonical = await setActiveTutorFromAvatar(char.id);
+          } else {
+            canonical = getActiveTutorSync();
+          }
+        }
 
-        // Preserve character avatar model if a character voice or avatar is active!
-        // Only if a standard regional voice was selected, switch to chitose or haru.
-        const charAvatar = getAvatarByVoice(form.aiVoice) || (isCharacterAvatar ? activeAvatar : null);
-        const targetModel = charAvatar ? charAvatar.id : (isMaleTutor ? 'chitose' : 'haru');
-        const targetGender = charAvatar ? charAvatar.gender : (isMaleTutor ? 'male' : 'female');
-
-        await AsyncStorage.setItem('speakmate_voice_gender', targetGender);
-        await AsyncStorage.setItem('speakmate_avatar_model', targetModel);
-        setCachedAvatarModel(targetModel);
+        const targetModel = canonical.avatarModel;
         setCurrentAvatarModel(targetModel);
         savedAvatarRef.current = targetModel;
 
         if (user?.email) {
           saveUserPreferenceField(user.email, 'avatarModel', targetModel);
-          saveUserPreferenceField(user.email, 'aiVoice', form.aiVoice);
-          saveUserPreferenceField(user.email, 'voiceGender', targetGender);
+          saveUserPreferenceField(user.email, 'aiVoice', canonical.aiVoice);
+          saveUserPreferenceField(user.email, 'selectionSource', canonical.selectionSource);
+          saveUserPreferenceField(user.email, 'voiceGender', targetModel === 'chitose' ? 'male' : 'female');
         }
       }
 
@@ -343,20 +370,16 @@ export default function SettingsScreen({ navigation }) {
   if (!isStudent && form.ageGroup !== savedBaseline.ageGroup) pendingChanges.push('Age Group');
   const hasPendingChanges = pendingChanges.length > 0;
 
-  // Resolve active tutor avatar cleanly across all 10 avatars:
-  // 1. If form.aiVoice is a character's signature voice (e.g. 'Shizuka', 'Doraemon'), that avatar is active
-  // 2. If currentAvatarModel or the module cache is a character avatar (e.g. 'shizuku', 'robopaws', 'mao'), that avatar is active
-  // 3. Otherwise, resolve human coach (Male Teacher 'chitose' or Female Teacher 'haru') based on voice gender
-  const effectiveModel = currentAvatarModel || getCachedAvatarModel();
-  const avatarFromModel = effectiveModel ? getAvatarById(effectiveModel) : null;
-  const characterFromVoice = getAvatarByVoice(form.aiVoice);
-  const isMaleTutor = VoiceService.getAvatarGender(form.aiVoice, onboardingVoiceStyle) === 'male';
-  const activeAvatar = avatarFromModel
-    || characterFromVoice
-    || getAvatarById(isMaleTutor ? 'chitose' : 'haru')
-    || getAvatarById('haru');
+  // Resolve canonical active tutor cleanly across all 10 avatars
+  const canonicalState = getActiveTutorSync();
+  const effectiveModel = currentAvatarModel || canonicalState.avatarModel || getCachedAvatarModel();
+  const activeAvatar = getAvatarById(effectiveModel);
 
-  const isCharacterAvatar = activeAvatar.id !== 'haru' && activeAvatar.id !== 'chitose';
+  const currentSource = REGIONAL_VOICE_CODES.includes(form.aiVoice)
+    ? SELECTION_SOURCE.REGIONAL
+    : (form.aiVoice === 'Default' ? SELECTION_SOURCE.SYSTEM_DEFAULT : canonicalState.selectionSource);
+
+  const displayVoiceLabel = formatActiveVoiceLabel(form.aiVoice, activeAvatar.id, currentSource);
 
   // Filtered languages based on search query
   const filteredLanguages = LANGUAGE_OPTIONS.filter((lang) => 
@@ -400,12 +423,7 @@ export default function SettingsScreen({ navigation }) {
                     )}
                   </View>
                   <Text style={[styles.statusVoiceName, { color: labelColor }]} numberOfLines={1}>
-                    {activeAvatar.emoji} {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'}) •{' '}
-                    {isCharacterAvatar
-                      ? `${activeAvatar.name} Signature Voice`
-                      : (OnboardingVoiceService?.isSystemDefault ? OnboardingVoiceService.isSystemDefault(form.aiVoice) : (form.aiVoice === 'Default' || !form.aiVoice))
-                      ? 'System Default'
-                      : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
+                    {activeAvatar.emoji} {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'}) • {displayVoiceLabel}
                   </Text>
                 </View>
                 <View style={styles.waveContainer}>
@@ -523,11 +541,7 @@ export default function SettingsScreen({ navigation }) {
                   </View>
                 )}
                 <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">
-                  {isCharacterAvatar
-                    ? `${activeAvatar.name} Voice`
-                    : OnboardingVoiceService.isSystemDefault(form.aiVoice)
-                    ? 'System Default'
-                    : (VOICE_PROFILES.find((o) => o.code === form.aiVoice)?.label || form.aiVoice)}
+                  {displayVoiceLabel}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={sublabelColor} />
               </View>
@@ -927,7 +941,8 @@ export default function SettingsScreen({ navigation }) {
 
               <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScrollView}>
                 {VOICE_PROFILES.map((profile) => {
-                  const isSelected = form.aiVoice === profile.code;
+                  const isRegionalOrSysDefault = REGIONAL_VOICE_CODES.includes(form.aiVoice) || form.aiVoice === 'Default';
+                  const isSelected = isRegionalOrSysDefault && form.aiVoice === profile.code;
                   return (
                     <TouchableOpacity
                       key={profile.code}
@@ -938,24 +953,30 @@ export default function SettingsScreen({ navigation }) {
                       onPress={async () => {
                         update('aiVoice', profile.code);
 
-                        // Selecting a regional voice switches the draft active tutor to Male or Female Teacher
-                        const targetCoach = profile.gender === 'male' ? 'chitose' : 'haru';
-                        setCurrentAvatarModel(targetCoach);
+                        // Selecting a regional voice switches the active tutor to Male or Female Teacher
+                        let nextTutor;
+                        if (profile.code === 'Default') {
+                          nextTutor = await setActiveTutorFromSystemDefault();
+                        } else {
+                          nextTutor = await setActiveTutorFromRegional(profile.code);
+                        }
+
+                        setCurrentAvatarModel(nextTutor.avatarModel);
+                        savedAvatarRef.current = nextTutor.avatarModel;
 
                         // Direct UX: Play audio voice preview sample so user hears the accent immediately with teacher avatar
                         if (profile.code === 'Default') {
-                          // Load the exact saved onboarding voice config and play it
                           const onboardingConfig = await OnboardingVoiceService.load();
                           const previewMsg = `Hello! I am your ${onboardingConfig.style.toLowerCase()} English tutor.`;
                           VoiceService.speak(previewMsg, {
-                            avatarId: targetCoach,
+                            avatarId: nextTutor.avatarModel,
                             voiceType: 'Default',
                             availableVoices,
                           });
                         } else {
                           const previewMsg = `Hello! I'm your ${profile.accent} English tutor.`;
                           VoiceService.speak(previewMsg, {
-                            avatarId: targetCoach,
+                            avatarId: nextTutor.avatarModel,
                             voiceType: profile.code,
                             availableVoices,
                           });

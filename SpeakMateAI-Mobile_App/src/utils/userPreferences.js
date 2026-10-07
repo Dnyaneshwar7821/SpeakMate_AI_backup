@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCachedAvatarModel, setCachedAvatarModel, resolveAvatarFromVoice } from '../config/AvatarCatalog';
+import { resolveCanonicalTutor, setCanonicalState, STORAGE_KEYS as TUTOR_KEYS, SELECTION_SOURCE } from '../services/ActiveTutorService';
 
 export const USER_PREFS_PREFIX = 'speakmate_user_prefs_';
 
@@ -20,6 +21,7 @@ export async function captureCurrentUserPreferences(email) {
     const [
       avatarModel,
       aiVoice,
+      selectionSource,
       selectedVoice,
       voiceCode,
       voiceGender,
@@ -42,6 +44,7 @@ export async function captureCurrentUserPreferences(email) {
     ] = await Promise.all([
       AsyncStorage.getItem('speakmate_avatar_model'),
       AsyncStorage.getItem('speakmate_ai_voice'),
+      AsyncStorage.getItem('speakmate_selection_source'),
       AsyncStorage.getItem('speakmate_selected_voice'),
       AsyncStorage.getItem('speakmate_voice_code'),
       AsyncStorage.getItem('speakmate_voice_gender'),
@@ -64,14 +67,16 @@ export async function captureCurrentUserPreferences(email) {
     ]);
 
     const activeModel = avatarModel || getCachedAvatarModel();
-    const effectiveModel = activeModel || (aiVoice ? resolveAvatarFromVoice(aiVoice)?.model : null);
+    const activeVoice = aiVoice || selectedVoice || voiceCode;
+    const canonical = resolveCanonicalTutor(activeModel, activeVoice, selectionSource);
 
     const prefs = {
-      avatarModel: effectiveModel || null,
-      aiVoice: aiVoice || selectedVoice || voiceCode || null,
-      selectedVoice: selectedVoice || aiVoice || null,
-      voiceCode: voiceCode || aiVoice || null,
-      voiceGender: voiceGender || (effectiveModel ? resolveAvatarFromVoice(aiVoice)?.gender : null),
+      avatarModel: canonical.avatarModel,
+      aiVoice: canonical.aiVoice,
+      selectionSource: canonical.selectionSource,
+      selectedVoice: canonical.aiVoice,
+      voiceCode: canonical.aiVoice,
+      voiceGender: voiceGender || (canonical.avatarModel === 'chitose' ? 'male' : 'female'),
       voicePitch: voicePitch || null,
       voiceSpeed: voiceSpeed || null,
       voiceAccent: voiceAccent || null,
@@ -115,13 +120,25 @@ export async function restoreUserPreferences(email) {
 
     const itemsToSet = [];
 
-    if (prefs.avatarModel) {
-      itemsToSet.push(['speakmate_avatar_model', prefs.avatarModel]);
-      setCachedAvatarModel(prefs.avatarModel);
+    const canonical = resolveCanonicalTutor(
+      prefs.avatarModel,
+      prefs.aiVoice || prefs.selectedVoice,
+      prefs.selectionSource
+    );
+
+    if (canonical.avatarModel) {
+      itemsToSet.push(['speakmate_avatar_model', canonical.avatarModel]);
+      setCachedAvatarModel(canonical.avatarModel);
     }
-    if (prefs.aiVoice) itemsToSet.push(['speakmate_ai_voice', prefs.aiVoice]);
-    if (prefs.selectedVoice) itemsToSet.push(['speakmate_selected_voice', prefs.selectedVoice]);
-    if (prefs.voiceCode) itemsToSet.push(['speakmate_voice_code', prefs.voiceCode]);
+    if (canonical.aiVoice) {
+      itemsToSet.push(['speakmate_ai_voice', canonical.aiVoice]);
+      itemsToSet.push(['speakmate_selected_voice', canonical.aiVoice]);
+      itemsToSet.push(['speakmate_voice_code', canonical.aiVoice]);
+    }
+    if (canonical.selectionSource) {
+      itemsToSet.push(['speakmate_selection_source', canonical.selectionSource]);
+    }
+
     if (prefs.voiceGender) itemsToSet.push(['speakmate_voice_gender', prefs.voiceGender]);
     if (prefs.voicePitch) itemsToSet.push(['speakmate_voice_pitch', String(prefs.voicePitch)]);
     if (prefs.voiceSpeed) itemsToSet.push(['speakmate_voice_speed', String(prefs.voiceSpeed)]);
@@ -143,6 +160,8 @@ export async function restoreUserPreferences(email) {
     if (itemsToSet.length > 0) {
       await AsyncStorage.multiSet(itemsToSet);
     }
+
+    await setCanonicalState(canonical);
 
     return prefs;
   } catch (e) {

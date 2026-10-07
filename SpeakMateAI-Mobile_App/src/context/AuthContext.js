@@ -16,8 +16,9 @@ import { DashboardCache, CurriculumCache } from "../utils/dashboardCache";
 import { normalizeGradeKey } from "../constants/masterCurriculum";
 import { dashboardService } from "../services/appServices";
 import { subscriptionService } from "../services/subscriptionService";
-import { setCachedAvatarModel, resolveAvatarFromVoice } from "../config/AvatarCatalog";
+import { setCachedAvatarModel, resolveAvatarFromVoice, getCachedAvatarModel } from "../config/AvatarCatalog";
 import { captureCurrentUserPreferences, restoreUserPreferences } from "../utils/userPreferences";
+import { resolveCanonicalTutor, setCanonicalState, resetActiveTutorCache } from "../services/ActiveTutorService";
 
 export const AuthContext = createContext();
 
@@ -62,23 +63,20 @@ export const AuthProvider = ({ children }) => {
       }
       const voicePref = userData.aiVoice || userData.preferredVoice;
       if (voicePref) {
-        await AsyncStorage.setItem('speakmate_ai_voice', voicePref);
-        await AsyncStorage.setItem('speakmate_selected_voice', voicePref);
-        await AsyncStorage.setItem('speakmate_voice_code', voicePref);
-
-        // Derive and restore avatar model + gender on mobile login / session restore
+        // Derive and restore canonical tutor state without overriding explicit user choices
         let existingModel = await AsyncStorage.getItem('speakmate_avatar_model');
+        let existingSource = await AsyncStorage.getItem('speakmate_selection_source');
+        let existingVoice = await AsyncStorage.getItem('speakmate_ai_voice');
         if (!existingModel) {
           existingModel = getCachedAvatarModel();
         }
-        if (existingModel) {
-          setCachedAvatarModel(existingModel);
-        } else {
-          const resolved = resolveAvatarFromVoice(voicePref);
-          await AsyncStorage.setItem('speakmate_avatar_model', resolved.model);
-          await AsyncStorage.setItem('speakmate_voice_gender', resolved.gender);
-          setCachedAvatarModel(resolved.model);
-        }
+
+        const canonical = resolveCanonicalTutor(
+          existingModel,
+          existingVoice || voicePref,
+          existingSource
+        );
+        await setCanonicalState(canonical);
       }
     } catch (e) {
       console.warn("Mobile syncUserProfile warning:", e);
@@ -310,6 +308,7 @@ export const AuthProvider = ({ children }) => {
         'speakmate_account_type',
         'speakmate_ai_voice',
         'speakmate_avatar_model',
+        'speakmate_selection_source',
         'speakmate_selected_voice',
         'speakmate_voice_code',
         'speakmate_voice_gender',
@@ -330,6 +329,7 @@ export const AuthProvider = ({ children }) => {
       } catch (_) {}
 
       setCachedAvatarModel(null);
+      resetActiveTutorCache();
       setToken(null);
       setUser(null);
       setOnboardingCompletedState(false);

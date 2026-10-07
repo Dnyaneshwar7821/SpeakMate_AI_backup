@@ -34,6 +34,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { speechService, settingsService } from '../../services/appServices';
 import { VoiceService } from '../../services/VoiceService';
 import { getCachedAvatarModel } from '../../config/AvatarCatalog';
+import { getActiveTutorAsync } from '../../services/ActiveTutorService';
 import {
   DEFAULT_ROLE,
   QUICK_SUGGESTIONS_BY_ROLE,
@@ -125,21 +126,17 @@ export function AssistantModal({
     if (isOpen) {
       (async () => {
         try {
-          const [savedAvatar, savedVoice, savedSpeed, voices] = await Promise.all([
-            AsyncStorage.getItem('speakmate_avatar_model').catch(() => null),
-            AsyncStorage.getItem('speakmate_selected_voice').catch(() => null),
+          const [canonical, savedSpeed, voices] = await Promise.all([
+            getActiveTutorAsync(),
             AsyncStorage.getItem('speakmate_voice_speed').catch(() => null),
             VoiceService.getAvailableEnglishVoices().catch(() => []),
           ]);
-          const model = getCachedAvatarModel() || savedAvatar || 'haru';
-          setActiveAvatarModel(model);
-          setActiveVoiceCode(savedVoice);
-          if (savedVoice || savedSpeed) {
-            setUserVoiceSettings({
-              voice: savedVoice || 'Default',
-              speed: savedSpeed ? parseFloat(savedSpeed) : 1.0,
-            });
-          }
+          setActiveAvatarModel(canonical.avatarModel);
+          setActiveVoiceCode(canonical.aiVoice);
+          setUserVoiceSettings({
+            voice: canonical.aiVoice || 'Default',
+            speed: savedSpeed ? parseFloat(savedSpeed) : 1.0,
+          });
           if (voices && voices.length > 0) setAvailableVoices(voices);
         } catch (_) {}
       })();
@@ -389,28 +386,6 @@ export function AssistantModal({
     }
   }, [isOpen, messages, loading]);
 
-  // Load user voice preferences whenever modal opens
-  useEffect(() => {
-    if (isOpen) {
-      (async () => {
-        try {
-          const [savedVoice, savedGender, savedSpeed, settings] = await Promise.all([
-            AsyncStorage.getItem('speakmate_selected_voice'),
-            AsyncStorage.getItem('speakmate_voice_gender'),
-            AsyncStorage.getItem('speakmate_voice_speed'),
-            settingsService.get().catch(() => null),
-          ]);
-          const effectiveVoice =
-            savedVoice || settings?.aiVoice || (savedGender === 'male' ? 'IN Male' : 'IN Female');
-          const effectiveSpeed = savedSpeed ? parseFloat(savedSpeed) : 1.0;
-          setUserVoiceSettings({
-            voice: effectiveVoice || 'IN Female',
-            speed: effectiveSpeed || 1.0,
-          });
-        } catch (_) {}
-      })();
-    }
-  }, [isOpen]);
 
   // Master cleanup whenever modal closes or unmounts: stop STT and TTS completely
   const handleClose = () => {

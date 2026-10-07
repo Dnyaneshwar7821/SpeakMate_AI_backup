@@ -21,6 +21,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { vocabularyService, settingsService, progressService } from '../../services/appServices';
 import { VoiceService } from '../../services/VoiceService';
 import { getCachedAvatarModel } from '../../config/AvatarCatalog';
+import { getActiveTutorAsync, getActiveTutorSync } from '../../services/ActiveTutorService';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(width - 36, 400);
@@ -173,7 +174,7 @@ export default function VocabularyScreen() {
   // Settings & Voices
   const [settings, setSettings] = useState(null);
   const [availableVoices, setAvailableVoices] = useState([]);
-  const [activeAvatarModel, setActiveAvatarModel] = useState(() => getCachedAvatarModel() || 'haru');
+  const [activeAvatarModel, setActiveAvatarModel] = useState(() => getActiveTutorSync()?.avatarModel || getCachedAvatarModel() || 'haru');
 
   // 3D Flashcard State & Physics
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -201,24 +202,23 @@ export default function VocabularyScreen() {
   // Load User Profile & Calibrated Curriculums
   const loadUserData = async () => {
     try {
-      const [savedAccType, savedGrade, savedAgeGroup, s, voices, savedVoice, savedAvatar, savedAutoPlay, savedSoundEffects, backendWords] = await Promise.all([
+      const [savedAccType, savedGrade, savedAgeGroup, s, voices, canonicalTutor, savedAutoPlay, savedSoundEffects, backendWords] = await Promise.all([
         AsyncStorage.getItem('speakmate_account_type'),
         AsyncStorage.getItem('speakmate_school_grade'),
         AsyncStorage.getItem('speakmate_age_group'),
         settingsService.get().catch(() => null),
         VoiceService.getAvailableEnglishVoices(),
-        AsyncStorage.getItem('speakmate_selected_voice'),
-        AsyncStorage.getItem('speakmate_avatar_model'),
+        getActiveTutorAsync(),
         AsyncStorage.getItem('speakmate_auto_play_audio'),
         AsyncStorage.getItem('speakmate_sound_effects'),
         vocabularyService.all().catch(() => []),
       ]);
 
-      const effAvatar = getCachedAvatarModel() || savedAvatar || 'haru';
+      const effAvatar = canonicalTutor?.avatarModel || getCachedAvatarModel() || 'haru';
       setActiveAvatarModel(effAvatar);
 
       const effAccType = savedAccType || 'INDIVIDUAL_USER';
-      const effectiveVoice = savedVoice || s?.aiVoice || 'Default';
+      const effectiveVoice = canonicalTutor?.aiVoice || s?.aiVoice || 'Default';
       const effectiveAutoPlay = savedAutoPlay !== null ? savedAutoPlay === 'true' : (s?.autoPlayAudio ?? true);
       const effectiveSoundEffects = savedSoundEffects !== null ? savedSoundEffects === 'true' : (s?.soundEffects ?? true);
       setSettings({
