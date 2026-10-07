@@ -164,7 +164,208 @@ export function getDynamicContextualHints(scenario = "", lastAiText = "", turnIn
   const text = String(lastAiText || "").toLowerCase();
   const idx = Math.abs(turnIndex + salt);
 
-  // 1. Detect choice / preference questions ("would you like", "do you prefer", "which do you", etc.)
+  const isStudent = s.includes("std") || s.includes("school") || s.includes("grade") || s.includes("admission") || s.includes("student");
+
+  // 1. Check for specific question topics in tutor's latest sentence
+  if (text.includes("project") || text.includes("proud of") || text.includes("activity") || text.includes("accomplishment")) {
+    if (isStudent || s.includes("admission")) {
+      const studentProjects = [
+        [
+          "I recently coordinated a fundraiser for our local animal shelter.",
+          "I worked on an inter-school science exhibition model with classmates.",
+          "Could I share about an extracurricular event I organized?",
+        ],
+        [
+          "I led our team in building a renewable energy science model.",
+          "I organized a campus book donation drive that collected over 200 books.",
+          "Would you like to hear about our community outreach initiative?",
+        ],
+        [
+          "I helped design our school magazine and wrote an editorial piece.",
+          "I coordinated our robotics club entry for the regional science fair.",
+          "May I tell you about the environmental initiative I led?",
+        ],
+      ];
+      return studentProjects[idx % studentProjects.length];
+    } else {
+      const generalProjects = [
+        [
+          "I recently led a project that improved our team's delivery time.",
+          "I coordinated a cross-functional initiative that solved a key bottleneck.",
+          "Could I share how our team achieved a major milestone recently?",
+        ],
+        [
+          "I organized a successful community workshop that reached many participants.",
+          "I spearheaded a new initiative that significantly boosted collaboration.",
+          "Would you like me to walk you through our recent project achievements?",
+        ],
+      ];
+      return generalProjects[idx % generalProjects.length];
+    }
+  }
+
+  if (text.includes("challenge") || text.includes("difficult") || text.includes("obstacle") || text.includes("overcome") || text.includes("problem")) {
+    const challenges = [
+      [
+        "Delegating tasks and keeping everyone on schedule was the toughest part.",
+        "We overcame tight deadlines by prioritizing the most crucial deliverables.",
+        "How would you suggest balancing unexpected challenges in group projects?",
+      ],
+      [
+        "Keeping all team members motivated required frequent communication.",
+        "We resolved resource constraints by finding creative, alternative solutions.",
+        "What is the best way to handle shifting priorities under pressure?",
+      ],
+      [
+        "Managing different opinions was challenging, but open dialogue helped us succeed.",
+        "We broke down the complex problem into smaller, manageable steps.",
+        "Could you share how teams typically navigate similar roadblocks?",
+      ],
+    ];
+    return challenges[idx % challenges.length];
+  }
+
+  if (text.includes("conflict") || text.includes("disagree") || text.includes("resolve") || text.includes("misunderstanding")) {
+    const conflicts = [
+      [
+        "Two teammates disagreed on the design, so we combined the best of both ideas.",
+        "I scheduled a quick group meeting so every voice could be heard fairly.",
+        "We found common ground by focusing on our shared project goal.",
+      ],
+      [
+        "When opinions clashed, we evaluated both options based on objective criteria.",
+        "I listened patiently to both sides and suggested a practical compromise.",
+        "How do effective leaders usually mediate disagreements among peers?",
+      ],
+      [
+        "We resolved the issue by clarifying roles and aligning on next steps.",
+        "Clear, empathetic communication prevented misunderstandings from escalating.",
+        "Could you share tips for maintaining harmony during high-stakes projects?",
+      ],
+    ];
+    return conflicts[idx % conflicts.length];
+  }
+
+  if (text.includes("strength") || text.includes("quality") || text.includes("qualities") || text.includes("succeed") || text.includes("why should we")) {
+    if (isStudent || s.includes("admission")) {
+      const studentStrengths = [
+        [
+          "My strongest qualities are curiosity, discipline, and collaborative teamwork.",
+          "I stay organized under pressure and love taking on challenging assignments.",
+          "What qualities do you look for most in incoming students?",
+        ],
+        [
+          "I have strong analytical skills and genuinely enjoy problem solving.",
+          "I communicate clearly and always support my teammates to do their best.",
+          "How do successful students make the most of their time here?",
+        ],
+      ];
+      return studentStrengths[idx % studentStrengths.length];
+    } else {
+      const adultStrengths = [
+        [
+          "My greatest strengths are strategic problem solving and clear communication.",
+          "I thrive in dynamic environments and take pride in dependable execution.",
+          "What skills are most vital for excelling in this position?",
+        ],
+        [
+          "I bring a blend of technical expertise and empathetic collaboration.",
+          "I actively seek feedback and continuously refine my workflows.",
+          "How is long-term performance evaluated in this role?",
+        ],
+      ];
+      return adultStrengths[idx % adultStrengths.length];
+    }
+  }
+
+  if (text.includes("dream") || text.includes("future") || text.includes("goal") || text.includes("career") || text.includes("major") || text.includes("aspire")) {
+    const goals = [
+      [
+        "I aspire to study computer science and build innovative technologies.",
+        "I want to pursue environmental engineering to solve climate challenges.",
+        "What academic streams would best prepare me for this path?",
+      ],
+      [
+        "My goal is to enter medicine and contribute to community health.",
+        "I am passionate about literature and hope to pursue journalism or law.",
+        "What research opportunities do high school students have here?",
+      ],
+      [
+        "I aim to combine technology and design to create accessible tools.",
+        "I want to deepen my skills in mathematics and advanced sciences.",
+        "Could you tell me more about your campus mentorship programs?",
+      ],
+    ];
+    return goals[idx % goals.length];
+  }
+
+  // 2. High School & Academic Admission Interview
+  if (s.includes("admission") || (s.includes("interview") && isStudent)) {
+    const admissionPools = [
+      [
+        "Thank you for having me! I am really eager to join this school.",
+        "I'm drawn to your strong academic culture and diverse clubs.",
+        "Could you tell me what a typical day looks like for a freshman?",
+      ],
+      [
+        "I balance academics with sports and creative extracurriculars.",
+        "I believe this curriculum will challenge me to reach my potential.",
+        "What kinds of student leadership programs do you offer?",
+      ],
+      [
+        "I am enthusiastic about participating in debate and science competitions.",
+        "I value hands-on learning and collaborative team projects.",
+        "How does the faculty support students pursuing ambitious goals?",
+      ],
+    ];
+    return admissionPools[idx % admissionPools.length];
+  }
+
+  // 3. Primary Standards (1st - 3rd Std)
+  if (s.includes("std1") || s.includes("std2") || s.includes("std3") || s.includes("1st std") || s.includes("2nd std") || s.includes("3rd std") || s.includes("phonics")) {
+    const primaryPools = [
+      [
+        "Good morning, teacher! I am ready to speak.",
+        "My favorite color is blue and I love drawing animals.",
+        "Can we practice saying new words together?",
+      ],
+      [
+        "I finished my homework and helped tidy up our classroom.",
+        "I like playing with my toys and reading storybooks.",
+        "What is the next fun question, teacher?",
+      ],
+      [
+        "I am very happy today! Can we play a speaking game?",
+        "My favorite animal is a friendly puppy.",
+        "Thank you, teacher, that was very fun!",
+      ],
+    ];
+    return primaryPools[idx % primaryPools.length];
+  }
+
+  // 4. Debate & Oratory
+  if (s.includes("debate") || s.includes("speech") || s.includes("keynote") || s.includes("oratory") || s.includes("mun")) {
+    const debatePools = [
+      [
+        "I believe that evidence and clear logic support this viewpoint.",
+        "While that perspective is compelling, counter-arguments must be weighed.",
+        "What is the most persuasive evidence on this issue?",
+      ],
+      [
+        "Let's examine both the immediate and long-term consequences.",
+        "A balanced approach requires listening to diverse viewpoints.",
+        "How would you counter that rebuttal effectively?",
+      ],
+      [
+        "I propose a solution that addresses both core concerns.",
+        "Public discourse thrives when arguments remain respectful and fact-based.",
+        "May I elaborate on the primary justification for this stance?",
+      ],
+    ];
+    return debatePools[idx % debatePools.length];
+  }
+
+  // 5. Detect choice / preference questions
   if (
     text.includes("would you like") ||
     text.includes("do you want") ||
@@ -183,111 +384,12 @@ export function getDynamicContextualHints(scenario = "", lastAiText = "", turnIn
         "I usually lean toward the second option.",
         "Could you tell me a bit more about both?",
       ],
-      [
-        "I'm happy with whatever you recommend.",
-        "Let's go with that one, thank you!",
-        "What do most people usually choose?",
-      ],
     ];
     return choicePools[idx % choicePools.length];
   }
 
-  // 2. Detect explanatory / opinion questions ("how do you", "why do you", "what do you think", "can you tell me")
-  if (
-    text.includes("how do you") ||
-    text.includes("why do you") ||
-    text.includes("what do you think") ||
-    text.includes("how was your") ||
-    text.includes("tell me about") ||
-    text.includes("describe")
-  ) {
-    const explainPools = [
-      [
-        "In my experience, practice and patience make a big difference.",
-        "I really enjoy it because it helps me learn new things.",
-        "How would you personally approach a situation like this?",
-      ],
-      [
-        "I feel very positive about it overall.",
-        "There are both advantages and challenges to consider.",
-        "What is the most effective way to handle this?",
-      ],
-      [
-        "It was quite busy, but very productive!",
-        "I found it really interesting and learned a lot.",
-        "Can you share what native speakers typically do?",
-      ],
-    ];
-    return explainPools[idx % explainPools.length];
-  }
-
-  // 3. Opening greetings & introductions
-  if (
-    turnIndex === 0 ||
-    text.includes("name") ||
-    text.includes("introduce") ||
-    text.includes("welcome") ||
-    text.includes("hello") ||
-    text.includes("meet you")
-  ) {
-    const greetingPools = [
-      [
-        "Hi! I'm happy to practice English with you today.",
-        "Hello Coach! I'm ready to improve my conversational fluency.",
-        "Let's get started with today's speaking scenario!",
-      ],
-      [
-        "Good day! It's great to connect and practice.",
-        "I'm looking forward to working on my natural phrasing.",
-        "How has your day been going so far?",
-      ],
-      [
-        "Hello! I'm excited to dive into this scenario.",
-        "I'm eager to speak as naturally as possible.",
-        "What should our main conversational goal be today?",
-      ],
-    ];
-    return greetingPools[idx % greetingPools.length];
-  }
-
-  // 4. Restaurant / Cafe / Dining / Food
-  if (
-    s.includes("restaurant") ||
-    s.includes("cafe") ||
-    s.includes("food") ||
-    s.includes("order") ||
-    s.includes("dining") ||
-    s.includes("burger")
-  ) {
-    const diningPools = [
-      [
-        "I'd like to order a fresh cappuccino and a croissant, please.",
-        "Could you tell me what the chef's special dish is today?",
-        "Do you have any vegetarian or lighter options available?",
-      ],
-      [
-        "Could I please see the dessert or beverage menu?",
-        "Could you make this without extra dairy or spices?",
-        "How long does this dish usually take to prepare?",
-      ],
-      [
-        "Everything was delicious, thank you so much!",
-        "Could we have the check whenever you're ready, please?",
-        "Do you accept digital wallet or card payments?",
-      ],
-    ];
-    return diningPools[idx % diningPools.length];
-  }
-
-  // 5. Job Interview / Professional / Business
-  if (
-    s.includes("interview") ||
-    s.includes("job") ||
-    s.includes("career") ||
-    s.includes("experience") ||
-    s.includes("business") ||
-    s.includes("meeting")
-  ) {
+  // 6. Adult Job Interview (only when explicitly professional)
+  if (!isStudent && (s.includes("job") || s.includes("career") || s.includes("salary") || s.includes("business meeting") || s.includes("presentation skills"))) {
     const interviewPools = [
       [
         "I have worked on several collaborative projects where communication was key.",
@@ -308,14 +410,30 @@ export function getDynamicContextualHints(scenario = "", lastAiText = "", turnIn
     return interviewPools[idx % interviewPools.length];
   }
 
-  // 6. Travel / Hotel / Airport / Flight
-  if (
-    s.includes("travel") ||
-    s.includes("hotel") ||
-    s.includes("airport") ||
-    s.includes("flight") ||
-    s.includes("trip")
-  ) {
+  // 7. Restaurant / Cafe / Dining / Food / Canteen
+  if (s.includes("restaurant") || s.includes("cafe") || s.includes("food") || s.includes("canteen") || s.includes("burger")) {
+    const diningPools = [
+      [
+        "I'd like to order a fresh sandwich and water, please.",
+        "Could you tell me what the daily special is today?",
+        "Do you have any vegetarian options available?",
+      ],
+      [
+        "Could I please see the menu?",
+        "Could you make this without extra dairy or spices?",
+        "How long does this order usually take to prepare?",
+      ],
+      [
+        "Everything was delicious, thank you so much!",
+        "Could we have the check whenever you're ready, please?",
+        "Do you accept card or digital payments?",
+      ],
+    ];
+    return diningPools[idx % diningPools.length];
+  }
+
+  // 8. Travel / Hotel / Airport
+  if (s.includes("travel") || s.includes("hotel") || s.includes("airport") || s.includes("flight") || s.includes("tour")) {
     const travelPools = [
       [
         "Hi, I have a reservation under my name and would like to check in.",
@@ -327,48 +445,27 @@ export function getDynamicContextualHints(scenario = "", lastAiText = "", turnIn
         "Could you help me with the Wi-Fi connection in the lobby?",
         "What is the most convenient way to reach the city center?",
       ],
-      [
-        "Could you help arrange transportation for tomorrow morning?",
-        "Is it possible to request a late check-out?",
-        "Thank you so much for the helpful assistance!",
-      ],
     ];
     return travelPools[idx % travelPools.length];
   }
 
-  // 7. Shopping / Store
-  if (s.includes("shop") || s.includes("store") || s.includes("market") || s.includes("clothes")) {
-    const shoppingPools = [
-      [
-        "Excuse me, do you have this in a medium size?",
-        "Where are the fitting rooms located?",
-        "Is this item currently eligible for a discount?",
-      ],
-      [
-        "Do you carry this in other colors as well?",
-        "I'm just browsing for now, thank you!",
-        "What is your return policy if it doesn't fit?",
-      ],
-    ];
-    return shoppingPools[idx % shoppingPools.length];
-  }
-
-  // 8. General Conversation / Default
+  // 9. Dynamic synthesis from the scenario title
+  const cleanTitle = (scenario || "").replace(/\b(conversation|practice|session)\b/gi, "").trim() || "this scenario";
   const generalPools = [
     [
-      "That is very interesting! Could you tell me more about that?",
-      "How would a native speaker express this thought naturally?",
-      "I agree with that perspective. Let me explain my thoughts.",
+      `I'm really excited to practice ${cleanTitle} today.`,
+      `In my experience, consistent speaking practice makes discussing this much easier.`,
+      `What is the best way to approach this topic naturally?`,
     ],
     [
-      "I definitely see your point, and I'd like to add another detail.",
-      "That makes total sense to me. What should we explore next?",
-      "Could you give me a practical real-world example of that?",
+      `That makes total sense to me, and I'd like to share my thoughts.`,
+      `I completely agree with that perspective on ${cleanTitle}.`,
+      `How would a native speaker express that idea naturally?`,
     ],
     [
-      "That's a fresh way to look at it. I hadn't thought of that before.",
-      "I feel like consistent speaking practice makes this much easier.",
-      "What other aspects of this topic would you like to discuss?",
+      `I'm eager to learn more practical vocabulary for ${cleanTitle}.`,
+      `Practicing this scenario regularly is really boosting my confidence.`,
+      `What should our main conversational goal be for this session?`,
     ],
   ];
   return generalPools[idx % generalPools.length];

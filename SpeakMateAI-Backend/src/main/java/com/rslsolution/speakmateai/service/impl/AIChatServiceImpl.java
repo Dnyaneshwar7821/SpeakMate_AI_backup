@@ -492,21 +492,37 @@ public class AIChatServiceImpl implements AIChatService {
 
 		List<ChatMessage> history = chatMessageRepository.findBySessionOrderByCreatedAtAsc(session);
 
+		String lastAiMsg = "";
+		for (int i = history.size() - 1; i >= 0; i--) {
+			if ("assistant".equalsIgnoreCase(history.get(i).getSender()) || "ai".equalsIgnoreCase(history.get(i).getSender())) {
+				lastAiMsg = history.get(i).getMessage();
+				break;
+			}
+		}
+
 		// Build context for suggestions
 		List<GroqRequest.Message> groqMessages = new ArrayList<>();
 		String systemPrompt = String.format(
-				"You are an expert English tutor observing a live practice chat in mode: '%s'.\n" +
-				"Based on the conversation history, provide EXACTLY 3 short, natural, and distinct alternative responses the student could say next.\n" +
-				"Each suggestion must be a complete, realistic spoken sentence (under 10 words). DO NOT write 'Suggestion 1' or labels.\n" +
-				"YOU MUST RESPOND IN VALID JSON FORMAT ONLY. Do not wrap in ```json or markdown blocks.\n" +
-				"The JSON must have this exact structure:\n" +
+				"You are an expert English tutor observing a live practice chat in mode: '%s'.\n\n" +
+				"LATEST TUTOR MESSAGE / QUESTION:\n\"%s\"\n\n" +
+				"TASK:\n" +
+				"Based on what the tutor just asked or said, provide EXACTLY 3 short, natural, and distinct alternative responses the student could say next.\n" +
+				"1. Direct, realistic answer or reaction (5-10 words).\n" +
+				"2. Natural personal experience or polite elaboration (6-12 words).\n" +
+				"3. Thoughtful follow-up question or perspective (5-10 words).\n\n" +
+				"CRITICAL RULES:\n" +
+				"- Tailor each response directly to what the tutor said in the context of '%s'.\n" +
+				"- NEVER write 'Suggestion 1' or labels. Each must be an authentic spoken sentence.\n" +
+				"- YOU MUST RESPOND IN VALID JSON FORMAT ONLY. Do not wrap in ```json or markdown blocks.\n" +
 				"{\n" +
 				"  \"hints\": [\n" +
-				"    \"Could you please give me an example?\",\n" +
-				"    \"That sounds interesting, tell me more.\",\n" +
-				"    \"What should we focus on next?\"\n" +
+				"    \"First realistic response\",\n" +
+				"    \"Second realistic response\",\n" +
+				"    \"Third realistic response\"\n" +
 				"  ]\n" +
 				"}",
+				session.getMode(),
+				(lastAiMsg.isEmpty() ? "Hello! How can I help you practice today?" : lastAiMsg),
 				session.getMode()
 		);
 		groqMessages.add(new GroqRequest.Message("system", systemPrompt));
@@ -552,10 +568,13 @@ public class AIChatServiceImpl implements AIChatService {
 			// ignore and fallback
 		}
 
+		String modeName = (session.getMode() != null && !session.getMode().trim().isEmpty())
+				? session.getMode().trim()
+				: "our conversation";
 		return List.of(
-				"Could you please explain that in more detail?",
-				"That makes total sense, what do you recommend?",
-				"Could you give me another example?"
+				"I'd love to share my perspective on " + modeName + ".",
+				"In my experience, consistent speaking practice really helps.",
+				"What do native speakers typically recommend in this situation?"
 		);
 	}
 

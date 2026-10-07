@@ -17,7 +17,7 @@ import { useExpressions } from "../hooks/useExpressions";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 
 // Dynamic AI contextual hint generator: Never returns repetitive static responses
-const generateAiHints = async ({ scenario, messages, sessionId, level = "Intermediate", turnSalt = 0 }) => {
+const generateAiHints = async ({ scenario, scenarioDesc = "", messages, sessionId, level = "Intermediate", turnSalt = 0 }) => {
   const lastAiMsg = [...messages].reverse().find((m) => m.sender === "ai");
   const lastAiText = (lastAiMsg?.message || "").trim();
   const lastUserMsg = [...messages].reverse().find((m) => m.sender === "user");
@@ -43,17 +43,21 @@ const generateAiHints = async ({ scenario, messages, sessionId, level = "Interme
   try {
     const prompt = `You are an expert English conversation tutor observing a live speaking practice.
 Scenario: "${scenario || 'Daily Conversation'}"
-Student Level: ${level || 'Intermediate'}
+${scenarioDesc ? `Scenario Goal/Context: "${scenarioDesc}"` : ''}
+Student Level / Standard: ${level || 'Intermediate'}
 Tutor's latest message to the student: "${lastAiText || 'Hello! Welcome to our speaking practice.'}"
 ${lastUserText ? `Student previously said: "${lastUserText}"` : ''}
 Session turn: ${turnCount}
 Seed: ${Date.now() + turnSalt}
 
-Task: Give EXACTLY 3 distinct, fresh, natural speaking responses the student could say next right now in this exact moment:
-- Suggestion 1: Short & direct response (3-6 words)
-- Suggestion 2: Natural, polite conversational elaboration
-- Suggestion 3: A curious follow-up question or perspective
+Task: Give EXACTLY 3 distinct, fresh, natural speaking responses the student could say next to answer or respond to the tutor's latest message right now:
+- Suggestion 1: Direct, realistic answer or reaction to what the tutor said (5-10 words)
+- Suggestion 2: Natural, polite personal experience or elaboration (6-14 words)
+- Suggestion 3: A curious follow-up question or perspective (5-12 words)
 
+CRITICAL RULES:
+- Tailor each suggestion directly to what the tutor asked: "${lastAiText || ''}".
+- Do NOT use generic conversation filler or corporate job interview phrases unless relevant to this specific scenario.
 Return ONLY a valid JSON array of 3 strings. Example:
 ["Yes, I'd really love that.", "That sounds great, I usually prefer taking the train.", "What would you recommend doing instead?"]
 No other text, markdown blocks, code fencing, or explanation.`;
@@ -228,8 +232,8 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
       {/* Expanded Unified Body */}
       {isExpanded && (
         <div className="divide-y divide-slate-100 dark:divide-white/5 animate-in fade-in duration-150">
-          {/* Hero Callout: Your Sentence is Correct OR Better Natural Phrasing */}
-          {isGrammarOk ? (
+          {/* Primary Callout: Your Sentence is Correct */}
+          {isGrammarOk && (
             <div
               className={`p-3.5 sm:p-4 transition-colors ${
                 isDark ? "bg-emerald-950/20" : "bg-emerald-50/50"
@@ -249,7 +253,10 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
                 Great job! Your sentence is grammatically clear and natural.
               </p>
             </div>
-          ) : hasBetter ? (
+          )}
+
+          {/* Better Natural Phrasing / Native Expression */}
+          {hasBetter && (
             <div
               className={`p-3.5 sm:p-4 transition-colors ${
                 isDark ? "bg-indigo-950/20" : "bg-indigo-50/40"
@@ -258,7 +265,7 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#6c63ff] dark:text-[#A5B4FC] flex items-center gap-1.5">
                   <span>🚀</span>
-                  <span>Better Natural Phrasing</span>
+                  <span>{isGrammarOk ? "Native Expression" : "Better Natural Phrasing"}</span>
                 </span>
                 <button
                   type="button"
@@ -278,7 +285,7 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
                 "{stripQuotes(betterSentence)}"
               </p>
             </div>
-          ) : null}
+          )}
 
           {/* Grammar Correction (Displayed when refinement is needed) */}
           {hasGrammar && !isGrammarOk && (
@@ -708,8 +715,10 @@ export function ConversationSession() {
 
       // 2. Dynamically generate fresh hints using AI
       const turnSalt = forceRefresh ? Math.floor(Math.random() * 10000) + 1 : 0;
+      const scenarioDesc = location.state?.scenarioDesc || "";
       const dynamicHints = await generateAiHints({
         scenario,
+        scenarioDesc,
         messages,
         sessionId,
         level: chatLevel,

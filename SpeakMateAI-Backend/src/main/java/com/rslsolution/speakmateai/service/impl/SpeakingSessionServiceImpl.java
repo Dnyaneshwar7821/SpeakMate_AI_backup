@@ -583,104 +583,197 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	}
 
 	private List<String> getDefaultScenarioHints(String scenario) {
-		return getDefaultScenarioHints(scenario, 0);
+		return generateContextualScenarioHints(null, scenario, null, 0);
 	}
 
 	private List<String> getDefaultScenarioHints(String scenario, int turn) {
+		return generateContextualScenarioHints(null, scenario, null, turn);
+	}
+
+	private List<String> generateContextualScenarioHints(User user, String scenario, String lastAiMessage, int turn) {
 		int idx = Math.abs(turn);
-		if (scenario == null) {
-			List<List<String>> generalSets = List.of(
-					List.of("Could you please tell me more about that?", "That sounds great, what should we do next?", "What do you recommend in this case?"),
-					List.of("I completely agree with that perspective.", "How would you suggest we approach this?", "Could you give me a real-world example?"),
-					List.of("That makes total sense to me.", "What is the most important factor here?", "Let me explain my thoughts on that.")
-			);
-			return generalSets.get(idx % generalSets.size());
+		String s = (scenario != null) ? scenario.toLowerCase() : "";
+		String ai = (lastAiMessage != null) ? lastAiMessage.toLowerCase() : "";
+
+		boolean isStudent = (user != null && (user.getRole() == Role.STUDENT || (user.getSchoolGrade() != null && !user.getSchoolGrade().trim().isEmpty())))
+				|| s.contains("std") || s.contains("school") || s.contains("grade") || s.contains("student") || s.contains("admission");
+		String grade = (user != null && user.getSchoolGrade() != null) ? user.getSchoolGrade().toLowerCase() : "";
+
+		// 1. Analyze what the AI tutor specifically asked in the latest turn
+		if (ai.contains("project") || ai.contains("proud of") || ai.contains("activity") || ai.contains("initiative")) {
+			if (isStudent) {
+				List<List<String>> studentProjects = List.of(
+						List.of("I recently coordinated a fundraiser for our local animal shelter.", "I worked on an inter-school science exhibition model with my classmates.", "Could I share about an extracurricular event I organized?"),
+						List.of("I led our class team in building a renewable energy project.", "I organized a campus book donation drive that collected over 200 books.", "Would you like to hear about our community outreach project?"),
+						List.of("I helped design our school magazine and wrote an editorial piece.", "I coordinated our robotics club entry for the regional science fair.", "May I tell you about the environmental club initiative I led?")
+				);
+				return studentProjects.get(idx % studentProjects.size());
+			} else {
+				List<List<String>> generalProjects = List.of(
+						List.of("I recently led a project that improved our team's delivery time.", "I coordinated a cross-functional initiative that solved a key bottleneck.", "Could I share how our team achieved a major milestone recently?"),
+						List.of("I organized a successful community workshop that reached many participants.", "I spearheaded a new initiative that significantly boosted collaboration.", "Would you like me to walk you through our recent project achievements?")
+				);
+				return generalProjects.get(idx % generalProjects.size());
+			}
 		}
-		String s = scenario.toLowerCase();
-		if (s.contains("daily conversation") || s.contains("small talk") || s.contains("routine")) {
-			List<List<String>> dailySets = List.of(
-					List.of("I've had a busy but great day!", "How has your day been going so far?", "I'm planning to relax and listen to music later."),
-					List.of("I really enjoy trying new activities on weekends.", "What kind of hobbies do you enjoy most?", "That reminds me of something interesting recently."),
-					List.of("Speaking regularly is boosting my confidence.", "What do you think is the best way to practice daily?", "I'm excited to learn more conversational phrases.")
+
+		if (ai.contains("challenge") || ai.contains("difficult") || ai.contains("obstacle") || ai.contains("overcome") || ai.contains("problem")) {
+			List<List<String>> challenges = List.of(
+					List.of("Delegating tasks and keeping everyone on schedule was the toughest part.", "We overcame tight deadlines by prioritizing the most crucial deliverables.", "How would you suggest balancing unexpected challenges in group projects?"),
+					List.of("Keeping all team members motivated required frequent communication.", "We resolved resource constraints by finding creative, alternative solutions.", "What is the best way to handle shifting priorities under pressure?"),
+					List.of("Managing different opinions was challenging, but open dialogue helped us succeed.", "We broke down the complex problem into smaller, manageable steps.", "Could you share how teams typically navigate similar roadblocks?")
 			);
-			return dailySets.get(idx % dailySets.size());
-		} else if (s.contains("restaurant") || s.contains("dining") || s.contains("food") || s.contains("burger")) {
+			return challenges.get(idx % challenges.size());
+		}
+
+		if (ai.contains("conflict") || ai.contains("disagree") || ai.contains("resolve") || ai.contains("teamwork")) {
+			List<List<String>> conflicts = List.of(
+					List.of("Two teammates disagreed on the design, so we combined the best of both ideas.", "I scheduled a quick group meeting so every voice could be heard fairly.", "We found common ground by focusing on our shared project goal."),
+					List.of("When opinions clashed, we evaluated both options based on objective criteria.", "I listened patiently to both sides and suggested a practical compromise.", "How do effective leaders usually mediate disagreements among peers?"),
+					List.of("We resolved the issue by clarifying roles and aligning on next steps.", "Clear, empathetic communication prevented misunderstandings from escalating.", "Could you share tips for maintaining harmony during high-stakes projects?")
+			);
+			return conflicts.get(idx % conflicts.size());
+		}
+
+		if (ai.contains("strength") || ai.contains("quality") || ai.contains("qualities") || ai.contains("succeed") || ai.contains("why should we")) {
+			if (isStudent) {
+				List<List<String>> strengths = List.of(
+						List.of("My strongest qualities are curiosity, discipline, and collaborative teamwork.", "I stay organized under pressure and love taking on challenging assignments.", "What qualities do you look for most in incoming students?"),
+						List.of("I have strong analytical skills and genuinely enjoy problem solving.", "I communicate clearly and always support my teammates to do their best.", "How do successful students make the most of their time here?"),
+						List.of("My adaptability and passion for learning help me thrive in new environments.", "I take initiative and welcome constructive feedback to keep improving.", "What extracurricular opportunities are most impactful for growth here?")
+				);
+				return strengths.get(idx % strengths.size());
+			} else {
+				List<List<String>> strengths = List.of(
+						List.of("My greatest strengths are strategic problem solving and clear communication.", "I thrive in dynamic environments and take pride in dependable execution.", "What skills are most vital for excelling in this position?"),
+						List.of("I bring a blend of technical expertise and empathetic collaboration.", "I actively seek feedback and continuously refine my workflows.", "How is long-term performance evaluated in this role?")
+				);
+				return strengths.get(idx % strengths.size());
+			}
+		}
+
+		if (ai.contains("dream") || ai.contains("future") || ai.contains("goal") || ai.contains("career") || ai.contains("aspire") || ai.contains("major")) {
+			if (isStudent) {
+				List<List<String>> goals = List.of(
+						List.of("I aspire to study computer science and build innovative technologies.", "I want to pursue environmental engineering to solve climate challenges.", "What academic streams would best prepare me for this path?"),
+						List.of("My goal is to enter medicine and contribute to community health.", "I am passionate about literature and hope to pursue journalism or law.", "What research opportunities do high school students have here?"),
+						List.of("I aim to combine technology and design to create accessible tools.", "I want to deepen my skills in mathematics and advanced sciences.", "Could you tell me more about your campus mentorship programs?")
+				);
+				return goals.get(idx % goals.size());
+			}
+		}
+
+		// 2. Scenario-Themed Curricula
+		if (s.contains("admission") || s.contains("high school") || (s.contains("interview") && isStudent)) {
+			List<List<String>> admissionSets = List.of(
+					List.of("Thank you for having me! I am really eager to join this school.", "I'm drawn to your strong academic culture and diverse clubs.", "Could you tell me what a typical day looks like for a freshman?"),
+					List.of("I balance academics with sports and creative extracurriculars.", "I believe this curriculum will challenge me to reach my potential.", "What kinds of student leadership programs do you offer?"),
+					List.of("I am enthusiastic about participating in debate and science competitions.", "I value hands-on learning and collaborative team projects.", "How does the faculty support students pursuing ambitious goals?")
+			);
+			return admissionSets.get(idx % admissionSets.size());
+		}
+
+		if (grade.contains("1st") || grade.contains("2nd") || grade.contains("3rd") || s.contains("std1") || s.contains("std2") || s.contains("std3") || s.contains("phonics")) {
+			List<List<String>> primarySets = List.of(
+					List.of("Good morning, teacher! I am ready to speak.", "My favorite color is blue and I love drawing animals.", "Can we practice saying new words together?"),
+					List.of("I finished my homework and helped tidy up our classroom.", "I like playing with my toys and reading storybooks.", "What is the next fun question, teacher?"),
+					List.of("I am very happy today! Can we play a speaking game?", "My favorite animal is a friendly puppy.", "Thank you, teacher, that was very fun!")
+			);
+			return primarySets.get(idx % primarySets.size());
+		}
+
+		if (s.contains("debate") || s.contains("speech") || s.contains("keynote") || s.contains("oratory")) {
+			List<List<String>> debateSets = List.of(
+					List.of("I believe that evidence and clear logic support this viewpoint.", "While that perspective is compelling, counter-arguments must be weighed.", "What is the most persuasive evidence on this issue?"),
+					List.of("Let's examine both the immediate and long-term consequences.", "A balanced approach requires listening to diverse viewpoints.", "How would you counter that rebuttal effectively?"),
+					List.of("I propose a solution that addresses both core concerns.", "Public discourse thrives when arguments remain respectful and fact-based.", "May I elaborate on the primary justification for this stance?")
+			);
+			return debateSets.get(idx % debateSets.size());
+		}
+
+		if (s.contains("science") || s.contains("climate") || s.contains("robotics") || s.contains("tech") || s.contains("space")) {
+			List<List<String>> scienceSets = List.of(
+					List.of("Our experiment tested how renewable energy can be harnessed efficiently.", "Technology can automate repetitive tasks and empower communities.", "What are the most promising breakthroughs in this field?"),
+					List.of("We collected data over two weeks to validate our hypothesis.", "Scientific discovery requires patience, testing, and continuous curiosity.", "Could you explain how artificial intelligence impacts this research?"),
+					List.of("I am fascinated by planetary exploration and future space probes.", "Sustainable practices are essential for combating climate change.", "How can students get involved in practical STEM initiatives?")
+			);
+			return scienceSets.get(idx % scienceSets.size());
+		}
+
+		if (s.contains("restaurant") || s.contains("dining") || s.contains("food") || s.contains("canteen") || s.contains("burger")) {
 			List<List<String>> diningSets = List.of(
-					List.of("Could I please see the dinner menu?", "What do you recommend as today's special?", "Could we get a table by the window?"),
-					List.of("I'd like to order a fresh pasta and sparkling water, please.", "Could you make this without extra dairy or spices?", "How long does this dish usually take to prepare?"),
-					List.of("Everything tasted wonderful, thank you!", "Could we get the check whenever you're ready, please?", "Do you accept card or contactless payment?")
+					List.of("Could I please see today's special menu?", "What do you recommend as the most popular dish?", "Could we get a table near the window, please?"),
+					List.of("I'd like to order a fresh pasta and sparkling water, please.", "Could you make this without extra spices or dairy?", "How long does this meal usually take to prepare?"),
+					List.of("Everything tasted wonderful, thank you!", "Could we get the check whenever you're ready, please?", "Do you accept card or digital payments?")
 			);
 			return diningSets.get(idx % diningSets.size());
 		} else if (s.contains("coffee") || s.contains("cafe")) {
 			List<List<String>> cafeSets = List.of(
-					List.of("I'd like a medium iced latte with oat milk, please.", "Do you have any fresh pastries today?", "Can I get this to go, please?"),
-					List.of("What kind of coffee beans do you recommend?", "Could you add a little vanilla syrup, please?", "Is there free Wi-Fi here for customers?"),
+					List.of("I'd like a medium iced latte with oat milk, please.", "Do you have any fresh pastries or croissants today?", "Can I get this to go, please?"),
+					List.of("What coffee roast do you recommend today?", "Could you please add a little vanilla syrup?", "Is there free Wi-Fi here for customers?"),
 					List.of("This coffee is fantastic, thank you!", "Could I also get a glass of water, please?", "Do you stamp loyalty cards here?")
 			);
 			return cafeSets.get(idx % cafeSets.size());
-		} else if (s.contains("hotel") || s.contains("check-in")) {
+		} else if (s.contains("hotel") || s.contains("check-in") || s.contains("roommate") || s.contains("hostel")) {
 			List<List<String>> hotelSets = List.of(
 					List.of("Hi, I have a reservation under my name.", "What time is breakfast served in the morning?", "Could you tell me the Wi-Fi password?"),
-					List.of("Could I request a room on a higher floor?", "Is there an airport shuttle service available?", "Where are the gym and pool located?"),
-					List.of("Could you arrange a taxi for early tomorrow morning?", "Is it possible to request a late check-out?", "Thank you for the wonderful stay!")
+					List.of("Could I request a quiet room on a higher floor?", "Is there a shuttle service available to the center?", "Where are the gym and facilities located?"),
+					List.of("Could you arrange transportation for early tomorrow morning?", "Is it possible to request a late check-out?", "Thank you for the wonderful stay!")
 			);
 			return hotelSets.get(idx % hotelSets.size());
-		} else if (s.contains("airport") || s.contains("flight") || s.contains("travel")) {
+		} else if (s.contains("airport") || s.contains("flight") || s.contains("travel") || s.contains("customs") || s.contains("tour")) {
 			List<List<String>> travelSets = List.of(
-					List.of("Here are my passport and boarding pass.", "I am traveling for a short vacation.", "Which gate does my flight depart from?"),
+					List.of("Here are my passport and boarding pass.", "I am traveling for a short study tour.", "Which gate does my flight depart from?"),
 					List.of("Is my connecting flight on schedule?", "Could you please direct me to baggage claim?", "Where can I find currency exchange?"),
-					List.of("What is the quickest way to reach the city center?", "Are there any luggage storage facilities here?", "Thank you for guiding me!")
+					List.of("What is the quickest way to reach the city center?", "Are there luggage storage facilities available here?", "Thank you for guiding me!")
 			);
 			return travelSets.get(idx % travelSets.size());
-		} else if (s.contains("interview") || s.contains("job") || s.contains("career")) {
+		} else if (s.contains("job") || s.contains("meeting") || s.contains("salary") || s.contains("presentation") || s.contains("business")) {
 			List<List<String>> jobSets = List.of(
-					List.of("I have hands-on experience in problem solving.", "My greatest strength is communicating under pressure.", "I am excited about this role and your team culture."),
-					List.of("When faced with tight deadlines, I prioritize impact.", "I actively seek feedback to continually refine my skills.", "What are the biggest goals for this team in the coming year?"),
-					List.of("I believe clear communication prevents misunderstandings.", "I am eager to contribute to your company's mission.", "How is success measured during the first ninety days?")
+					List.of("I have hands-on experience in structured problem solving.", "My greatest strength is communicating effectively under pressure.", "I am excited about this role and your team culture."),
+					List.of("When faced with tight deadlines, I prioritize high-impact results.", "I actively seek constructive feedback to continually refine my skills.", "What are the biggest goals for this team in the coming year?"),
+					List.of("I believe clear communication prevents misunderstandings.", "I am eager to contribute to your organization's mission.", "How is success measured during the first ninety days?")
 			);
 			return jobSets.get(idx % jobSets.size());
-		} else if (s.contains("shopping") || s.contains("store") || s.contains("clothes")) {
+		} else if (s.contains("shopping") || s.contains("store") || s.contains("clothes") || s.contains("market")) {
 			List<List<String>> shopSets = List.of(
 					List.of("Excuse me, do you have this in a medium size?", "Where are the fitting rooms located?", "Is this item currently on discount?"),
 					List.of("Do you have this available in another color?", "I'm just browsing for now, thank you!", "What is your return policy?"),
 					List.of("I'll take this one, please.", "Can I pay with credit card?", "Could I have a gift receipt with this?")
 			);
 			return shopSets.get(idx % shopSets.size());
-		} else if (s.contains("doctor") || s.contains("health") || s.contains("hospital")) {
+		} else if (s.contains("doctor") || s.contains("health") || s.contains("hospital") || s.contains("pharmacy")) {
 			List<List<String>> healthSets = List.of(
-					List.of("I've been having a mild headache since yesterday.", "How often should I take this medication?", "Thank you for the helpful advice, doctor."),
+					List.of("I've had a mild headache since yesterday.", "How often should I take this medication?", "Thank you for the helpful advice, doctor."),
 					List.of("Are there any side effects I should watch out for?", "Should I schedule a follow-up appointment?", "Do I need to take this medicine with food?"),
 					List.of("The symptoms started about three days ago.", "Is there anything specific I should avoid eating?", "I feel much better today, thank you.")
 			);
 			return healthSets.get(idx % healthSets.size());
-		} else if (s.contains("zoo") || s.contains("animal")) {
-			List<List<String>> zooSets = List.of(
-					List.of("Where can we find the elephant exhibit?", "What time is the animal feeding show?", "My favorite animals are the giant pandas!"),
-					List.of("Are there guided tours available today?", "Which area has the marine animals?", "The birds in this aviary are beautiful!"),
-					List.of("Can visitors take photos here without flash?", "How big is this wildlife sanctuary?", "That was such an exciting visit!")
-			);
-			return zooSets.get(idx % zooSets.size());
-		} else if (s.contains("school") || s.contains("class") || s.contains("grade") || s.contains("std")) {
-			List<List<String>> schoolSets = List.of(
-					List.of("Good morning! I finished my homework assignment.", "Could you please explain that question again?", "My favorite subjects are science and English."),
-					List.of("Can I work on this project with a partner?", "When is the project submission deadline?", "I really enjoyed today's lesson, teacher!"),
-					List.of("Could you review my essay draft?", "What chapters will be on the upcoming test?", "Thank you for explaining it so clearly.")
-			);
-			return schoolSets.get(idx % schoolSets.size());
-		} else if (s.contains("meeting") || s.contains("business") || s.contains("presentation")) {
-			List<List<String>> businessSets = List.of(
-					List.of("Let's review the main milestones on our agenda.", "I agree with that strategy and propose next steps.", "Does anyone have any questions on this slide?"),
-					List.of("I'd like to share an update on our current timeline.", "How will this affect our quarterly deliverables?", "Let's follow up on this in our next sync."),
-					List.of("I completely agree with the proposed action items.", "Could we allocate more resources to that phase?", "Thank you everyone for the productive discussion.")
-			);
-			return businessSets.get(idx % businessSets.size());
 		}
-		List<List<String>> fallbackSets = List.of(
-				List.of("Could you tell me a bit more about that?", "That sounds interesting, what should we do next?", "Could you give me an example of that?"),
-				List.of("I see what you mean, that makes total sense.", "How do native speakers usually express this?", "What would you recommend in this situation?"),
-				List.of("That's a very interesting perspective!", "I'd like to share my thoughts on that as well.", "What other details should we consider?")
+
+		// 3. Dynamic synthesis from the scenario title and tutor prompt
+		String cleanTitle = (scenario != null && !scenario.trim().isEmpty())
+				? scenario.replaceAll("(?i)\\b(conversation|practice|session)\\b", "").trim()
+				: "our conversation";
+
+		List<List<String>> synthesizedSets = List.of(
+				List.of(
+						"I'm really looking forward to discussing " + cleanTitle + ".",
+						"In my experience, consistent practice makes talking about this much easier.",
+						"What do you think is the best way to approach this topic?"
+				),
+				List.of(
+						"That makes total sense to me, and I'd like to share my thoughts.",
+						"I completely agree with that perspective on " + cleanTitle + ".",
+						"Could you share how a native speaker would usually express that?"
+				),
+				List.of(
+						"I'm eager to learn more practical vocabulary for this situation.",
+						"Speaking regularly in scenarios like this is boosting my confidence.",
+						"What should our main conversational takeaway be from this?"
+				)
 		);
-		return fallbackSets.get(idx % fallbackSets.size());
+		return synthesizedSets.get(idx % synthesizedSets.size());
 	}
 
 	@Override
@@ -900,7 +993,11 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 			}
 		}
 		if (cleanSuggested.size() < 2) {
-			List<String> fallbacks = getDefaultScenarioHints(session.getScenario(), history.size());
+			String lastAi = response.getAiReply();
+			if (response.getFollowUpQuestion() != null) {
+				lastAi = (lastAi != null ? lastAi + " " : "") + response.getFollowUpQuestion();
+			}
+			List<String> fallbacks = generateContextualScenarioHints(user, session.getScenario(), lastAi, history.size());
 			for (String fb : fallbacks) {
 				if (!cleanSuggested.contains(fb)) {
 					cleanSuggested.add(fb);
@@ -1348,26 +1445,43 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Session not found"));
 
 		List<ConversationMessage> history = messageRepository.findBySessionOrderByTimestampAsc(session);
+		User user = session.getUser();
+		String userContext = buildUserContextInstruction(user, session.getScenario());
+
+		String lastAiMsg = "";
+		for (int i = history.size() - 1; i >= 0; i--) {
+			if ("ai".equalsIgnoreCase(history.get(i).getSender())) {
+				lastAiMsg = history.get(i).getMessage();
+				break;
+			}
+		}
 
 		// Build context for suggestions
 		List<GroqRequest.Message> groqMessages = new ArrayList<>();
 		String systemPrompt = String.format(
-				"You are an expert English tutor observing a live practice conversation under the scenario: '%s'.\n" +
-						"Based on the conversation history and the latest turn, provide EXACTLY 3 short, distinct, high-impact alternative responses the student could say next:\n"
-						+
-						"1. Simple & direct option (3-5 words)\n" +
-						"2. Natural & idiomatic conversational option\n" +
-						"3. Thoughtful follow-up question or pivot\n" +
-						"Keep each suggestion under 8 words. Do not use punctuation tags or emojis.\n" +
-						"YOU MUST RESPOND IN VALID JSON FORMAT ONLY. Do not wrap in ```json or markdown blocks.\n" +
-						"The JSON must have this exact structure:\n" +
-						"{\n" +
-						"  \"hints\": [\n" +
-						"    \"Simple direct response\",\n" +
-						"    \"Natural native response\",\n" +
-						"    \"Engaging follow up question\"\n" +
-						"  ]\n" +
-						"}",
+				"You are an expert English conversation tutor observing a live speaking practice under scenario: '%s'.\n\n" +
+				"LEARNER CONTEXT:\n%s\n\n" +
+				"TUTOR'S LATEST MESSAGE / QUESTION:\n\"%s\"\n\n" +
+				"TASK:\n" +
+				"Provide EXACTLY 3 distinct, fresh, natural speaking responses the student could say right now to answer or continue the dialogue:\n" +
+				"1. Direct, realistic response answering the tutor's question/topic (5-12 words).\n" +
+				"2. Natural personal experience or thoughtful elaboration (6-14 words).\n" +
+				"3. Curious follow-up question or perspective (5-12 words).\n\n" +
+				"CRITICAL RULES:\n" +
+				"- Tailor each response directly to what the tutor asked/said in the context of '%s'.\n" +
+				"- NEVER use placeholder labels like 'Option 1' or 'Suggestion 1'. Each must be an authentic spoken sentence.\n" +
+				"- If this is a school/student admission interview, do NOT output corporate HR job interview responses.\n" +
+				"- YOU MUST RESPOND IN VALID JSON FORMAT ONLY. Do not wrap in ```json or markdown.\n" +
+				"{\n" +
+				"  \"hints\": [\n" +
+				"    \"First realistic response student can speak\",\n" +
+				"    \"Second realistic response student can speak\",\n" +
+				"    \"Third realistic response student can speak\"\n" +
+				"  ]\n" +
+				"}",
+				session.getScenario(),
+				userContext,
+				(lastAiMsg.isEmpty() ? "Welcome to our practice session!" : lastAiMsg),
 				session.getScenario());
 		groqMessages.add(new GroqRequest.Message("system", systemPrompt));
 
@@ -1435,7 +1549,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 			// ignore and fallback
 		}
 
-		return getDefaultScenarioHints(session.getScenario(), history.size());
+		return generateContextualScenarioHints(user, session.getScenario(), lastAiMsg, history.size());
 	}
 
 	private String buildUserContextInstruction(User user, String scenarioName) {
