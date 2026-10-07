@@ -783,7 +783,6 @@ export const VoiceService = {
       if (confirmedEnglishMale) return confirmedEnglishMale.identifier;
     }
 
-    const isMale = gs.includes('male') && !gs.includes('female');
     const targetGender = isMale ? 'male' : 'female';
 
     let targetLocale = 'en-us';
