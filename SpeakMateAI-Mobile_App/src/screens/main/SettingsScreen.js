@@ -317,9 +317,8 @@ export default function SettingsScreen({ navigation }) {
       setSavedBaseline(committedBaseline);
       savedBaselineRef.current = committedBaseline;
       if (form.aiVoice) {
-        const charAvatar = getAvatarByVoice(form.aiVoice) || (isCharacterAvatar ? activeAvatar : null);
-        const coachModel = charAvatar ? charAvatar.id : (isMaleTutor ? 'chitose' : 'haru');
-        savedAvatarRef.current = coachModel;
+        const canonical = getActiveTutorSync();
+        savedAvatarRef.current = currentAvatarModel || canonical.avatarModel || 'haru';
       }
 
       // 5. Sync behavioral toggles to local storage and schedule device notifications
@@ -374,6 +373,7 @@ export default function SettingsScreen({ navigation }) {
   const canonicalState = getActiveTutorSync();
   const effectiveModel = currentAvatarModel || canonicalState.avatarModel || getCachedAvatarModel();
   const activeAvatar = getAvatarById(effectiveModel);
+  const isCharacterAvatar = activeAvatar.id !== 'haru' && activeAvatar.id !== 'chitose';
 
   const currentSource = REGIONAL_VOICE_CODES.includes(form.aiVoice)
     ? SELECTION_SOURCE.REGIONAL
