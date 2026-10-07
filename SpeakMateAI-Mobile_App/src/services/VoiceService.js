@@ -72,7 +72,7 @@ export const AVATAR_VOICE_PROFILES = {
     targetLocale: 'en-US',
     basePitch: 1.06,
     baseRate: 1.03,
-    preferredVoices: ['sfg', 'iol', 'rgf', 'samantha', 'victoria', 'karen', 'allison', 'female'],
+    preferredVoices: ['sfg', 'rgf', 'samantha', 'victoria', 'karen', 'allison', 'female'],
   },
   chitose: {
     avatarId: 'chitose',
@@ -94,7 +94,7 @@ export const AVATAR_VOICE_PROFILES = {
     targetLocale: 'en-US',
     basePitch: 1.22,
     baseRate: 1.04,
-    preferredVoices: ['sfg', 'iol', 'iom', 'rgf', 'samantha', 'victoria', 'karen', 'allison', 'female'],
+    preferredVoices: ['sfg', 'rgf', 'samantha', 'victoria', 'karen', 'allison', 'female'],
   },
   robopaws: {
     avatarId: 'robopaws',
@@ -181,13 +181,13 @@ const DIRECT_VOICE_GENDERS = {
   // Female
   'en-us-x-sfg-local': 'female',
   'en-us-x-sfg-network': 'female',
-  'en-us-x-iom-local': 'male',
-  'en-us-x-iom-network': 'male',
-  'en-us-x-iol-local': 'female',
-  'en-us-x-iol-network': 'female',
   'en-us-x-rgf-local': 'female',
   'en-us-x-rgf-network': 'female',
   // Male
+  'en-us-x-iom-local': 'male',
+  'en-us-x-iom-network': 'male',
+  'en-us-x-iol-local': 'male',
+  'en-us-x-iol-network': 'male',
   'en-us-x-tpf-local': 'male',
   'en-us-x-tpf-network': 'male',
   'en-us-x-iog-local': 'male',
@@ -225,13 +225,13 @@ const DIRECT_VOICE_GENDERS = {
   'en-au-x-auf-network': 'female',
   'en-au-x-aug-local': 'female',
   'en-au-x-aug-network': 'female',
-  'en-au-x-aum-local': 'female',
-  'en-au-x-aum-network': 'female',
   'en-au-x-cta-local': 'female',
   'en-au-x-cta-network': 'female',
   'en-au-x-ctc-local': 'female',
   'en-au-x-ctc-network': 'female',
   // Male
+  'en-au-x-aum-local': 'male',
+  'en-au-x-aum-network': 'male',
   'en-au-x-aud-local': 'male',
   'en-au-x-aud-network': 'male',
   'en-au-x-ctb-local': 'male',
@@ -284,9 +284,13 @@ const isFemalePattern = (id, name, voiceGender) => {
     if (g === 'male') return false;
   }
 
-  const normId = String(id || '').toLowerCase().replace(/^.*:/, '');
-  if (DIRECT_VOICE_GENDERS[normId]) {
-    return DIRECT_VOICE_GENDERS[normId] === 'female';
+  const rawId = String(id || '').toLowerCase().replace(/^.*:/, '');
+  const baseId = rawId.replace(/-(local|network)$/, '');
+  if (DIRECT_VOICE_GENDERS[rawId]) {
+    return DIRECT_VOICE_GENDERS[rawId] === 'female';
+  }
+  if (DIRECT_VOICE_GENDERS[baseId]) {
+    return DIRECT_VOICE_GENDERS[baseId] === 'female';
   }
 
   const combined = `${name || ''} ${id || ''}`.toLowerCase();
@@ -296,7 +300,7 @@ const isFemalePattern = (id, name, voiceGender) => {
     'david', 'daniel', 'george', 'alex', 'bruce', 'tom', 'fred', 'oliver', 'rishi',
     'ravi', 'prabhat', 'aaron', 'guy', 'mister', 'mike', 'james', 'mark', 'paul',
     'richard', 'robert', 'stephen', 'william', 'russell', 'neel', 'lee', 'male', 'man',
-    'tpf', 'iog', 'tpc', 'gbc', 'gbd', 'rjs', 'aud', 'ctb', 'ctd', 'ind', 'inc', 'inb', 'end', 'ene', 'enf'
+    'tpf', 'iog', 'iol', 'iom', 'tpc', 'gbc', 'gbd', 'rjs', 'aud', 'aum', 'ctb', 'ctd', 'ind', 'inc', 'inb', 'end', 'ene', 'enf', 'cab', 'cac'
   ];
   if (maleKeywords.some(k => combined.includes(k))) {
     return false;
@@ -308,8 +312,8 @@ const isFemalePattern = (id, name, voiceGender) => {
     'kate', 'serena', 'nicky', 'alice', 'allison', 'joanna', 'ivy', 'kendra', 'kimberly',
     'salli', 'emma', 'amy', 'jessa', 'claire', 'vicki', 'lekha', 'veena', 'heera', 'zira',
     'hazel', 'zosia', 'zoe', 'susan', 'aria', 'jenny', 'natasha', 'female', 'woman',
-    'sfg', 'iol', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aub', 'auc', 'auf', 'aug', 'aum',
-    'cta', 'ctc', 'inf', 'ing', 'inm', 'cbf', 'ena', 'enc'
+    'sfg', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aub', 'auc', 'auf', 'aug',
+    'cta', 'ctc', 'inf', 'ing', 'inm', 'cbf', 'ena', 'enc', 'caa', 'cad'
   ];
   if (femaleKeywords.some(k => combined.includes(k))) {
     return true;
@@ -479,13 +483,13 @@ export const VoiceService = {
         if (id.includes('sfg') || name.includes('sfg')) score += 450;
         else if (id.includes('samantha') || name.includes('samantha')) score += 400;
         else if (id.includes('victoria') || name.includes('victoria')) score += 350;
-        else if (id.includes('iol') || id.includes('iom') || id.includes('karen')) score += 250;
+        else if (id.includes('rgf') || id.includes('karen') || id.includes('allison')) score += 250;
       } else if (charId === 'haru' || charId.includes('teacher')) {
         // Clear, articulate female teacher voice
         if (id.includes('sfg') || name.includes('sfg')) score += 500;
         else if (id.includes('samantha') || name.includes('samantha')) score += 400;
         else if (id.includes('victoria') || name.includes('victoria')) score += 350;
-        else if (id.includes('iol') || id.includes('karen')) score += 250;
+        else if (id.includes('rgf') || id.includes('karen') || id.includes('allison')) score += 250;
         else if (id.includes('female')) score += 200;
       } else if (charId === 'chitose' || charId.includes('maleteacher')) {
         // Calm, patient, articulate Indian male teacher
