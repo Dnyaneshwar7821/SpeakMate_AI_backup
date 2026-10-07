@@ -24,10 +24,6 @@ export const Navbar = memo(function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [liveStats, setLiveStats] = useState(() => {
-    const cached = getCachedDashboardData(user?.email);
-    if (cached) {
-      return syncBackendProgress(cached, user);
-    }
     return getLiveProgressStats(user);
   });
   const [unreadCount, setUnreadCount] = useState(0);
@@ -303,9 +299,8 @@ export const Navbar = memo(function Navbar() {
 
   useEffect(() => {
     const updateStats = (e) => {
-      const source = e?.detail || getCachedDashboardData(user?.email);
-      if (source) {
-        setLiveStats(syncBackendProgress(source, user));
+      if (e?.detail) {
+        setLiveStats(e.detail);
       } else {
         setLiveStats(getLiveProgressStats(user));
       }

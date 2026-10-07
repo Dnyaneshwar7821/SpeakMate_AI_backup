@@ -279,7 +279,16 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
-      const email = (user?.email || "").toLowerCase();
+      let email = (user?.email || "").toLowerCase();
+      if (!email) {
+        try {
+          const rawUser = await AsyncStorage.getItem(STORAGE_KEYS.user);
+          if (rawUser) {
+            const parsed = JSON.parse(rawUser);
+            email = (parsed?.email || "").toLowerCase();
+          }
+        } catch (_) {}
+      }
       if (email) {
         await captureCurrentUserPreferences(email);
       }

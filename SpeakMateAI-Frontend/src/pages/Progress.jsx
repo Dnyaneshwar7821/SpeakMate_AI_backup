@@ -104,11 +104,18 @@ export function Progress() {
 
   useEffect(() => {
     updateStats();
+    const handleLocalUpdate = (e) => {
+      if (e?.detail) {
+        setLiveStats(e.detail);
+      } else {
+        setLiveStats(getLiveProgressStats());
+      }
+    };
     window.addEventListener("focus", updateStats);
-    window.addEventListener("speakmate_progress_updated", updateStats);
+    window.addEventListener("speakmate_progress_updated", handleLocalUpdate);
     return () => {
       window.removeEventListener("focus", updateStats);
-      window.removeEventListener("speakmate_progress_updated", updateStats);
+      window.removeEventListener("speakmate_progress_updated", handleLocalUpdate);
     };
   }, []);
 

@@ -233,12 +233,19 @@ export const getLiveProgressStats = (userContext = null) => {
   };
 };
 
+let isDispatchingProgress = false;
+
 export const saveProgressStats = (stats, userContext = null, syncToBackend = true) => {
   const key = getStorageKey(userContext);
   try {
     localStorage.setItem(key, JSON.stringify(stats));
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: stats }));
+    if (typeof window !== "undefined" && !isDispatchingProgress) {
+      isDispatchingProgress = true;
+      try {
+        window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: stats }));
+      } finally {
+        isDispatchingProgress = false;
+      }
     }
   } catch (e) { }
 

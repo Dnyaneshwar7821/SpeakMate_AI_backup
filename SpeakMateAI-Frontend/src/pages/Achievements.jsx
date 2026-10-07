@@ -268,11 +268,17 @@ export function Achievements() {
 
   useEffect(() => {
     syncAchievements(false);
-    const handleRefresh = () => syncAchievements(false);
-    window.addEventListener("focus", handleRefresh);
+    const handleRefresh = (e) => {
+      if (e?.detail) {
+        setLiveStats(e.detail);
+      } else {
+        setLiveStats(getLiveProgressStats());
+      }
+    };
+    window.addEventListener("focus", () => syncAchievements(false));
     window.addEventListener("speakmate_progress_updated", handleRefresh);
     return () => {
-      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("focus", () => syncAchievements(false));
       window.removeEventListener("speakmate_progress_updated", handleRefresh);
     };
   }, []);

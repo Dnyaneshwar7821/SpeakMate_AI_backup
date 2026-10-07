@@ -124,7 +124,16 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     try {
-      const email = user?.email || "";
+      let email = (user?.email || "").toLowerCase();
+      if (!email) {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.user);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            email = (parsed?.email || "").toLowerCase();
+          }
+        } catch (_) {}
+      }
       if (email) {
         captureCurrentUserPreferences(email);
       }
@@ -158,7 +167,7 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
     setOnboardingCompleted(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     setLogoutCallback(logout);
@@ -244,7 +253,9 @@ export function AuthProvider({ children }) {
           setUser(enrichedUser);
           syncUserProfile(enrichedUser);
           localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(enrichedUser));
-          syncBackendProgress(enrichedUser).catch(() => {});
+          try {
+            syncBackendProgress(enrichedUser);
+          } catch (_) {}
         }
 
         setOnboardingCompleted(isCompleted);
@@ -366,7 +377,9 @@ export function AuthProvider({ children }) {
           syncUserProfile(response.user);
           localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(response.user));
           setUser(response.user);
-          syncBackendProgress(response.user).catch(() => {});
+          try {
+            syncBackendProgress(response.user);
+          } catch (_) {}
           const isDone = Boolean(response.user?.onboardingCompleted);
 
           setOnboardingCompleted(isDone);

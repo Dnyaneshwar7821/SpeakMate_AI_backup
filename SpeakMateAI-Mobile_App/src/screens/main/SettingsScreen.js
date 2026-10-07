@@ -347,15 +347,12 @@ export default function SettingsScreen({ navigation }) {
   // 1. If form.aiVoice is a character's signature voice (e.g. 'Shizuka', 'Doraemon'), that avatar is active
   // 2. If currentAvatarModel or the module cache is a character avatar (e.g. 'shizuku', 'robopaws', 'mao'), that avatar is active
   // 3. Otherwise, resolve human coach (Male Teacher 'chitose' or Female Teacher 'haru') based on voice gender
-  const characterFromVoice = getAvatarByVoice(form.aiVoice);
   const effectiveModel = currentAvatarModel || getCachedAvatarModel();
-  const characterFromModel = (effectiveModel && effectiveModel !== 'haru' && effectiveModel !== 'chitose')
-    ? getAvatarById(effectiveModel)
-    : null;
-
+  const avatarFromModel = effectiveModel ? getAvatarById(effectiveModel) : null;
+  const characterFromVoice = getAvatarByVoice(form.aiVoice);
   const isMaleTutor = VoiceService.getAvatarGender(form.aiVoice, onboardingVoiceStyle) === 'male';
-  const activeAvatar = characterFromVoice
-    || characterFromModel
+  const activeAvatar = avatarFromModel
+    || characterFromVoice
     || getAvatarById(isMaleTutor ? 'chitose' : 'haru')
     || getAvatarById('haru');
 
