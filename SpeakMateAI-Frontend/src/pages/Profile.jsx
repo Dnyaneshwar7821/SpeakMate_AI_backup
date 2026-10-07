@@ -12,8 +12,8 @@ import { Link } from "react-router-dom";
 import ROUTES from "../constants/routes";
 import { speakGlobalText } from "../utils/speechHelper";
 import { CurriculumCache } from "../utils/curriculumCache";
-import { getEnglishLevelLabel } from "../utils/formatters";
 import { saveUserPreferenceField } from "../utils/userPreferences";
+import { setActiveTutorFromAvatar, getActiveTutorSync } from "../services/ActiveTutorService";
 
 
 const PRESET_AVATARS = [
@@ -130,11 +130,32 @@ export function Profile() {
     () => localStorage.getItem("speakmate_accent") || "US"
   );
   const [activeAvatarId, setActiveAvatarId] = useState(
-    () => localStorage.getItem("speakmate_avatar_model") || "haru"
+    () => getActiveTutorSync().avatarModel || "haru"
   );
   const [preferredVoice, setPreferredVoice] = useState(
-    () => localStorage.getItem("speakmate_voice_gender") || "female"
+    () => (getActiveTutorSync().avatarModel === 'chitose' ? 'male' : 'female')
   );
+
+  useEffect(() => {
+    const handleTutorChanged = (e) => {
+      const canonical = e?.detail || getActiveTutorSync();
+      if (canonical?.avatarModel) {
+        setActiveAvatarId(canonical.avatarModel);
+        setPreferredVoice(canonical.avatarModel === 'chitose' ? 'male' : 'female');
+      }
+    };
+    window.addEventListener("speakmate_tutor_changed", handleTutorChanged);
+    const unsub = EventBus.on(AVATAR_EVENTS.GENDER_CHANGED, (data) => {
+      if (data?.model) {
+        setActiveAvatarId(data.model);
+        if (data?.gender) setPreferredVoice(data.gender);
+      }
+    });
+    return () => {
+      window.removeEventListener("speakmate_tutor_changed", handleTutorChanged);
+      unsub();
+    };
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -286,14 +307,7 @@ export function Profile() {
 
     setActiveAvatarId(model);
     setPreferredVoice(gender);
-    localStorage.setItem("speakmate_voice_gender", gender);
-    localStorage.setItem("speakmate_avatar_model", model);
-    localStorage.setItem("speakmate_selected_voice", voiceCode);
-    localStorage.setItem("speakmate_ai_voice", voiceCode);
-    localStorage.setItem("speakmate_voice_code", voiceCode);
-    localStorage.setItem("speakmate_voice_pitch", String(pitch));
-
-    EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender, model });
+    setActiveTutorFromAvatar(model);
 
     settingsService.update({ aiVoice: voiceCode }).catch(() => {});
     onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
@@ -304,6 +318,7 @@ export function Profile() {
     if (user?.email) {
       saveUserPreferenceField(user.email, 'avatarModel', model);
       saveUserPreferenceField(user.email, 'aiVoice', voiceCode);
+      saveUserPreferenceField(user.email, 'selectionSource', 'AVATAR');
       saveUserPreferenceField(user.email, 'voiceGender', gender);
       saveUserPreferenceField(user.email, 'voicePitch', pitch);
     }
@@ -483,6 +498,13 @@ export function Profile() {
       localStorage.setItem("speakmate_accent", preferredAccent);
       localStorage.setItem("speakmate_voice_gender", preferredVoice);
       localStorage.setItem("speakmate_avatar_model", activeAvatarId);
+
+      const canonical = getActiveTutorSync();
+      if (user?.email) {
+        saveUserPreferenceField(user.email, 'avatarModel', canonical.avatarModel);
+        saveUserPreferenceField(user.email, 'aiVoice', canonical.aiVoice);
+        saveUserPreferenceField(user.email, 'selectionSource', canonical.selectionSource);
+      }
 
       EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender: preferredVoice, model: activeAvatarId });
 

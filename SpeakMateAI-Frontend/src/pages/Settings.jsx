@@ -8,6 +8,14 @@ import { settingsService, onboardingService, profileService } from "../services/
 import { getAvatarById } from "../config/AvatarCatalog";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { saveUserPreferenceField } from "../utils/userPreferences";
+import {
+  getActiveTutorSync,
+  setActiveTutorFromRegional,
+  setActiveTutorFromSystemDefault,
+  formatActiveVoiceLabel,
+  REGIONAL_VOICE_CODES,
+  SELECTION_SOURCE,
+} from "../services/ActiveTutorService";
 
 const LANGUAGE_OPTIONS = [
   { code: "English", label: "English", native: "English", flag: "🇺🇸" },
@@ -40,8 +48,9 @@ export function Settings() {
   const isStudent = accountType === "STUDENT" || user?.role === "STUDENT" || Boolean(user?.isSchoolStudent) || Boolean(user?.schoolGrade) || Boolean(user?.standard) || Boolean(localStorage.getItem("speakmate_school_grade"));
   const schoolGrade = user?.schoolGrade || (user?.standard ? `${user.standard}th Std` : localStorage.getItem("speakmate_school_grade") || "1st Std");
 
+  const [canonicalState, setCanonicalState] = useState(() => getActiveTutorSync());
   const [accent, setAccent] = useState(() => localStorage.getItem("speakmate_voice_accent") || "US");
-  const [selectedVoice, setSelectedVoice] = useState(() => localStorage.getItem("speakmate_ai_voice") || "Default");
+  const [selectedVoice, setSelectedVoice] = useState(() => getActiveTutorSync().aiVoice);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState(() => normalizeAgeGroup(user?.ageGroup || localStorage.getItem("speakmate_age_group") || "Professional"));
   const [dailyGoal, setDailyGoal] = useState(() => localStorage.getItem("speakmate_daily_goal") || "15 min");
   const [speechSpeed, setSpeechSpeed] = useState(() => parseFloat(localStorage.getItem("speakmate_voice_speed") || "1.0"));
@@ -61,45 +70,46 @@ export function Settings() {
   const [soundEffects, setSoundEffects] = useState(() => localStorage.getItem("speakmate_sound_effects") !== "false");
   const [autoPlayAudio, setAutoPlayAudio] = useState(() => localStorage.getItem("speakmate_autoplay_audio") !== "false");
 
-
-
   const onboardingVoiceStyle =
     localStorage.getItem("speakmate_onboarding_voice") ||
     localStorage.getItem("speakmate_voice_persona") ||
     user?.preferredVoice ||
     "Friendly";
 
-  const [currentModelKey, setCurrentModelKey] = useState(() => {
-    const saved = localStorage.getItem("speakmate_avatar_model");
-    if (saved) return saved.toLowerCase();
-    const voice = localStorage.getItem("speakmate_ai_voice") || "Default";
-    return resolveAvatarFromVoice(voice, onboardingVoiceStyle).model.toLowerCase();
-  });
+  const [currentModelKey, setCurrentModelKey] = useState(() => getActiveTutorSync().avatarModel);
 
   useEffect(() => {
+    const handleTutorChanged = (e) => {
+      const next = e?.detail || getActiveTutorSync();
+      setCanonicalState(next);
+      setCurrentModelKey(next.avatarModel);
+      setSelectedVoice(next.aiVoice);
+    };
+
     const unsub = EventBus.on(AVATAR_EVENTS.GENDER_CHANGED, (data) => {
-      const chosen = data?.model || data?.gender || localStorage.getItem("speakmate_avatar_model") || resolveAvatarFromVoice(localStorage.getItem("speakmate_ai_voice"), onboardingVoiceStyle).model;
+      const next = getActiveTutorSync();
+      setCanonicalState(next);
+      const chosen = data?.model || next.avatarModel;
       setCurrentModelKey(chosen.toLowerCase());
+      setSelectedVoice(next.aiVoice);
     });
-    return () => unsub();
-  }, [onboardingVoiceStyle]);
+
+    window.addEventListener("speakmate_tutor_changed", handleTutorChanged);
+
+    return () => {
+      unsub();
+      window.removeEventListener("speakmate_tutor_changed", handleTutorChanged);
+    };
+  }, []);
 
   const activeAvatar = getAvatarById(currentModelKey);
   const isHaruOrChitose = currentModelKey === "haru" || currentModelKey === "chitose";
 
-  const activeVoiceLabel = (() => {
-    if (selectedVoice === "Default" || !selectedVoice) {
-      return `System Default (${onboardingVoiceStyle})`;
-    }
-    const profile = VOICE_PROFILES.find((p) => p.code.toLowerCase() === (selectedVoice || "").toLowerCase());
-    if (profile) {
-      return profile.label;
-    }
-    if (!isHaruOrChitose) {
-      return `${activeAvatar.name} — ${activeAvatar.voiceLabel}`;
-    }
-    return selectedVoice;
-  })();
+  const activeVoiceLabel = formatActiveVoiceLabel(
+    selectedVoice,
+    currentModelKey,
+    canonicalState.selectionSource
+  );
 
   const playVoicePreview = (voiceCode, previewMsg) => {
     const targetCode = voiceCode || selectedVoice || activeAvatar.voiceProfile;
@@ -117,6 +127,7 @@ export function Settings() {
     setPlayingVoice(targetCode);
     speakGlobalText(textToSpeak, speechSpeed, {
       overrideVoiceCode: targetCode,
+      avatarModel: currentModelKey,
       onend: () => setPlayingVoice(null),
       onerror: () => setPlayingVoice(null),
     });
@@ -134,30 +145,24 @@ export function Settings() {
   };
 
   const handleSelectVoiceCode = (voiceCode, previewText) => {
-    setSelectedVoice(voiceCode);
-    let isMale;
+    let nextTutor;
     if (voiceCode === "Default") {
-      isMale = currentModelKey === "chitose";
+      nextTutor = setActiveTutorFromSystemDefault();
     } else {
-      isMale = (voiceCode || "").toLowerCase().includes("male") && !(voiceCode || "").toLowerCase().includes("female");
+      nextTutor = setActiveTutorFromRegional(voiceCode);
     }
-    const gender = isMale ? "male" : "female";
-    const model = isMale ? "chitose" : "haru";
 
-    setCurrentModelKey(model);
-    localStorage.setItem("speakmate_avatar_model", model);
-    localStorage.setItem("speakmate_voice_gender", gender);
-    localStorage.setItem("speakmate_selected_voice", voiceCode);
-    localStorage.setItem("speakmate_ai_voice", voiceCode);
-    localStorage.setItem("speakmate_voice_code", voiceCode);
+    setSelectedVoice(nextTutor.aiVoice);
+    setCurrentModelKey(nextTutor.avatarModel);
+    setCanonicalState(nextTutor);
 
-    // Sync accent if selecting a regional or native profile
+    // Sync accent if selecting a regional profile
     let newAccent = null;
     const vLower = (voiceCode || "").toLowerCase();
     if (vLower.includes("us") || vLower.includes("american")) newAccent = "US";
     else if (vLower.includes("uk") || vLower.includes("british")) newAccent = "UK";
     else if (vLower.includes("au") || vLower.includes("australian")) newAccent = "AU";
-    else if (vLower.includes("in") || vLower.includes("indian") || voiceCode === "Teacher" || voiceCode === "MaleTeacher") newAccent = "IN";
+    else if (vLower.includes("in") || vLower.includes("indian")) newAccent = "IN";
 
     if (newAccent) {
       setAccent(newAccent);
@@ -168,25 +173,24 @@ export function Settings() {
       }
     }
 
-    EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender, model });
-
-    settingsService.update({ aiVoice: voiceCode }).catch(() => {});
-    onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
+    settingsService.update({ aiVoice: nextTutor.aiVoice }).catch(() => {});
+    onboardingService.update({ preferredVoice: nextTutor.aiVoice }).catch(() => {});
     if (updateUser) {
-      updateUser({ preferredVoice: voiceCode });
+      updateUser({ preferredVoice: nextTutor.aiVoice });
     }
 
     if (user?.email) {
-      saveUserPreferenceField(user.email, 'avatarModel', model);
-      saveUserPreferenceField(user.email, 'aiVoice', voiceCode);
-      saveUserPreferenceField(user.email, 'voiceGender', gender);
+      saveUserPreferenceField(user.email, 'avatarModel', nextTutor.avatarModel);
+      saveUserPreferenceField(user.email, 'aiVoice', nextTutor.aiVoice);
+      saveUserPreferenceField(user.email, 'selectionSource', nextTutor.selectionSource);
+      saveUserPreferenceField(user.email, 'voiceGender', nextTutor.avatarModel === 'chitose' ? 'male' : 'female');
     }
     window.dispatchEvent(new CustomEvent("speakmate_settings_updated", {
-      detail: { preferredVoice: voiceCode, aiVoice: voiceCode, ...(newAccent ? { preferredAccent: newAccent } : {}) }
+      detail: { preferredVoice: nextTutor.aiVoice, aiVoice: nextTutor.aiVoice, ...(newAccent ? { preferredAccent: newAccent } : {}) }
     }));
     toast.success("AI tutor voice applied ✓");
 
-    playVoicePreview(voiceCode, previewText);
+    playVoicePreview(nextTutor.aiVoice, previewText);
   };
 
   const handleSelectSpeed = (spd) => {
@@ -303,7 +307,7 @@ export function Settings() {
           </p>
         </div>
 
-        {/* VOICE SELECTION CARD WITH POPUP TRIGGER */}
+        {/* ACTIVE SPEAKING TUTOR STATUS CARD */}
         <div className="p-6 rounded-3xl bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-inner flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="flex items-center gap-4 min-w-0">
             <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-[var(--bg-surface)] border-2 border-[#6C63FF]/30 grid place-items-center shadow-lg shrink-0 overflow-hidden relative">
@@ -326,17 +330,26 @@ export function Settings() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-black uppercase text-[#6C63FF] tracking-wider px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
-                  AI Tutor Voice
+                  Active Speaking Tutor
                 </span>
                 <span className="text-[10px] font-black uppercase text-amber-500 tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30">
-                  {activeAvatar.name} ({activeAvatar.badge})
+                  {activeAvatar.name} ({activeAvatar.gender === 'female' ? 'Female' : 'Male'})
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF] border border-[#6C63FF]/20">
+                  {canonicalState.selectionSource === SELECTION_SOURCE.AVATAR
+                    ? 'Avatar Voice Active'
+                    : canonicalState.selectionSource === SELECTION_SOURCE.REGIONAL
+                    ? 'Regional Voice Active'
+                    : 'System Default Active'}
                 </span>
               </div>
-              <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">{activeVoiceLabel}</h3>
+              <h3 className="text-xl font-black text-[var(--text-primary)] mt-1 truncate">
+                {activeAvatar.emoji} {activeAvatar.name} • {activeVoiceLabel}
+              </h3>
               <p className="text-xs text-[var(--text-secondary)] font-medium mt-0.5">
-                {isHaruOrChitose
-                  ? "Teacher & Male Teacher support switching between custom Male & Female voices and accents below."
-                  : `${activeAvatar.name} uses its dedicated character voice across the entire app. To choose custom Male/Female voices, switch to Teacher or Male Teacher in your Profile.`}
+                {canonicalState.selectionSource === SELECTION_SOURCE.AVATAR
+                  ? `${activeAvatar.name} uses its dedicated character voice across the entire app. Choosing a regional voice below switches your active tutor to Teacher (Female) or Male Teacher.`
+                  : `Selecting any regional voice below switches your active tutor to Female Teacher or Male Teacher with that accent.`}
               </p>
             </div>
           </div>
@@ -581,53 +594,55 @@ export function Settings() {
             {/* Scrollable Voices Grid */}
             <div className="p-5 sm:p-8 overflow-y-auto space-y-4 flex-1">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div
-                  onClick={() => handleSelectVoiceCode("Default")}
-                  className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
-                    selectedVoice === "Default" || !selectedVoice
-                      ? "border-[#6C63FF] bg-[#6C63FF]/15 shadow-xl scale-102"
-                      : "border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[#6C63FF]/50"
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl">✨</span>
-                      <div className="flex items-center gap-1.5">
-                        {playingVoice === "Default" && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase animate-pulse">
-                            🔊 Playing...
+                {/* 1. System Default Option */}
+                {(() => {
+                  const isRegionalOrSysDefault =
+                    canonicalState.selectionSource === SELECTION_SOURCE.REGIONAL ||
+                    canonicalState.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT;
+                  const isSysDefaultSelected = isRegionalOrSysDefault && (selectedVoice === "Default" || !selectedVoice);
+
+                  return (
+                    <div
+                      onClick={() => handleSelectVoiceCode("Default")}
+                      className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                        isSysDefaultSelected
+                          ? "border-[#6C63FF] bg-[#6C63FF]/15 shadow-xl scale-102"
+                          : "border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[#6C63FF]/50"
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl">✨</span>
+                          <div className="flex items-center gap-1.5">
+                            {playingVoice === "Default" && (
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase animate-pulse">
+                                🔊 Playing...
+                              </span>
+                            )}
+                            {isSysDefaultSelected && (
+                              <span className="px-2.5 py-0.5 rounded-full bg-[#6C63FF] text-white text-[10px] font-black uppercase">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-black text-base text-[var(--text-primary)]">1. System Default</h4>
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                            {onboardingVoiceStyle}
                           </span>
-                        )}
-                        {(selectedVoice === "Default" || !selectedVoice) && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-[#6C63FF] text-white text-[10px] font-black uppercase">
-                            Selected
-                          </span>
-                        )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <h4 className="font-black text-base text-[var(--text-primary)]">1. System Default</h4>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
-                        {onboardingVoiceStyle}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
-                {VOICE_PROFILES.filter((vp) => {
-                  const REGIONAL_VOICES_ONLY = [
-                    "US Female",
-                    "US Male",
-                    "UK Female",
-                    "UK Male",
-                    "AU Female",
-                    "AU Male",
-                    "IN Female",
-                    "IN Male"
-                  ];
-                  return REGIONAL_VOICES_ONLY.includes(vp.code);
-                }).map((profile, idx) => {
-                  const isSelected = selectedVoice === profile.code;
+                {/* 8 Regional Voice Profiles */}
+                {VOICE_PROFILES.filter((vp) => REGIONAL_VOICE_CODES.includes(vp.code)).map((profile, idx) => {
+                  const isRegionalOrSysDefault =
+                    canonicalState.selectionSource === SELECTION_SOURCE.REGIONAL ||
+                    canonicalState.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT;
+                  const isSelected = isRegionalOrSysDefault && selectedVoice === profile.code;
                   const flagMap = {
                     American: "🇺🇸",
                     British: "🇬🇧",

@@ -1,5 +1,6 @@
 import { EventBus, AVATAR_EVENTS } from '../services/live2d/EventBus';
 import { resolveAvatarFromVoice } from './speechHelper';
+import { resolveCanonicalTutor, setCanonicalState, STORAGE_KEYS as TUTOR_KEYS, SELECTION_SOURCE } from '../services/ActiveTutorService';
 
 export const USER_PREFS_PREFIX = 'speakmate_user_prefs_';
 
@@ -19,6 +20,7 @@ export function captureCurrentUserPreferences(email) {
   try {
     const avatarModel = localStorage.getItem('speakmate_avatar_model');
     const aiVoice = localStorage.getItem('speakmate_ai_voice');
+    const selectionSource = localStorage.getItem('speakmate_selection_source');
     const selectedVoice = localStorage.getItem('speakmate_selected_voice');
     const voiceCode = localStorage.getItem('speakmate_voice_code');
     const voiceGender = localStorage.getItem('speakmate_voice_gender');
@@ -29,7 +31,7 @@ export function captureCurrentUserPreferences(email) {
     const darkMode = localStorage.getItem('speakmate_dark_mode');
     const dailyGoal = localStorage.getItem('speakmate_daily_goal');
     const soundEffects = localStorage.getItem('speakmate_sound_effects');
-    const autoPlayAudio = localStorage.getItem('speakmate_auto_play_audio');
+    const autoPlayAudio = localStorage.getItem('speakmate_auto_play_audio') || localStorage.getItem('speakmate_autoplay_audio');
     const englishLevel = localStorage.getItem('speakmate_english_level');
     const schoolGrade = localStorage.getItem('speakmate_school_grade');
     const standard = localStorage.getItem('speakmate_standard');
@@ -39,14 +41,19 @@ export function captureCurrentUserPreferences(email) {
     const lessonsCategory = localStorage.getItem('speakmate_lessons_category');
     const speakingCategory = localStorage.getItem('speakmate_speaking_category');
 
-    const effectiveModel = avatarModel || (aiVoice ? resolveAvatarFromVoice(aiVoice)?.model : null);
+    const canonical = resolveCanonicalTutor(
+      avatarModel,
+      aiVoice || selectedVoice || voiceCode,
+      selectionSource
+    );
 
     const prefs = {
-      avatarModel: effectiveModel || null,
-      aiVoice: aiVoice || selectedVoice || voiceCode || null,
-      selectedVoice: selectedVoice || aiVoice || null,
-      voiceCode: voiceCode || aiVoice || null,
-      voiceGender: voiceGender || (effectiveModel ? resolveAvatarFromVoice(aiVoice)?.gender : null),
+      avatarModel: canonical.avatarModel,
+      aiVoice: canonical.aiVoice,
+      selectionSource: canonical.selectionSource,
+      selectedVoice: canonical.aiVoice,
+      voiceCode: canonical.aiVoice,
+      voiceGender: voiceGender || (canonical.avatarModel === 'chitose' ? 'male' : 'female'),
       voicePitch: voicePitch || null,
       voiceSpeed: voiceSpeed || null,
       voiceAccent: voiceAccent || null,
@@ -88,13 +95,13 @@ export function restoreUserPreferences(email) {
     const prefs = JSON.parse(raw);
     if (!prefs || typeof prefs !== 'object') return null;
 
-    if (prefs.avatarModel) {
-      localStorage.setItem('speakmate_avatar_model', prefs.avatarModel);
-      EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, {
-        gender: prefs.voiceGender || 'female',
-        model: prefs.avatarModel,
-      });
-    }
+    const canonical = resolveCanonicalTutor(
+      prefs.avatarModel,
+      prefs.aiVoice || prefs.selectedVoice,
+      prefs.selectionSource
+    );
+
+    setCanonicalState(canonical);
     if (prefs.aiVoice) localStorage.setItem('speakmate_ai_voice', prefs.aiVoice);
     if (prefs.selectedVoice) localStorage.setItem('speakmate_selected_voice', prefs.selectedVoice);
     if (prefs.voiceCode) localStorage.setItem('speakmate_voice_code', prefs.voiceCode);
@@ -106,7 +113,10 @@ export function restoreUserPreferences(email) {
     if (prefs.darkMode !== null && prefs.darkMode !== undefined) localStorage.setItem('speakmate_dark_mode', String(prefs.darkMode));
     if (prefs.dailyGoal) localStorage.setItem('speakmate_daily_goal', String(prefs.dailyGoal));
     if (prefs.soundEffects !== null && prefs.soundEffects !== undefined) localStorage.setItem('speakmate_sound_effects', String(prefs.soundEffects));
-    if (prefs.autoPlayAudio !== null && prefs.autoPlayAudio !== undefined) localStorage.setItem('speakmate_auto_play_audio', String(prefs.autoPlayAudio));
+    if (prefs.autoPlayAudio !== null && prefs.autoPlayAudio !== undefined) {
+      localStorage.setItem('speakmate_auto_play_audio', String(prefs.autoPlayAudio));
+      localStorage.setItem('speakmate_autoplay_audio', String(prefs.autoPlayAudio));
+    }
     if (prefs.englishLevel) localStorage.setItem('speakmate_english_level', prefs.englishLevel);
     if (prefs.schoolGrade) localStorage.setItem('speakmate_school_grade', prefs.schoolGrade);
     if (prefs.standard) localStorage.setItem('speakmate_standard', prefs.standard);

@@ -6,6 +6,7 @@ import { syncBackendProgress } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { resolveAvatarFromVoice } from "../utils/speechHelper";
 import { captureCurrentUserPreferences, restoreUserPreferences } from "../utils/userPreferences";
+import { resetActiveTutorCache, resolveCanonicalTutor, setCanonicalState } from "../services/ActiveTutorService";
 
 const AuthContext = createContext(null);
 
@@ -96,23 +97,10 @@ export function AuthProvider({ children }) {
 
       const voicePref = userData.aiVoice || userData.preferredVoice;
       if (voicePref) {
-        localStorage.setItem("speakmate_ai_voice", voicePref);
-        localStorage.setItem("speakmate_selected_voice", voicePref);
-        localStorage.setItem("speakmate_voice_code", voicePref);
-
-        // Derive and restore avatar model + gender on login or session restore
         const existingModel = localStorage.getItem("speakmate_avatar_model");
-        if (existingModel) {
-          EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, {
-            gender: localStorage.getItem("speakmate_voice_gender") || "female",
-            model: existingModel,
-          });
-        } else {
-          const resolved = resolveAvatarFromVoice(voicePref);
-          localStorage.setItem("speakmate_avatar_model", resolved.model);
-          localStorage.setItem("speakmate_voice_gender", resolved.gender);
-          EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender: resolved.gender, model: resolved.model });
-        }
+        const existingSource = localStorage.getItem("speakmate_selection_source");
+        const canonical = resolveCanonicalTutor(existingModel, voicePref, existingSource);
+        setCanonicalState(canonical);
       }
 
       const goalMins = parseInt(userData.dailyGoalMinutes || userData.dailyGoal || userData.commitment, 10);
@@ -170,6 +158,7 @@ export function AuthProvider({ children }) {
         }
       }
       sessionKeysToRemove.forEach((k) => sessionStorage.removeItem(k));
+      resetActiveTutorCache();
     } catch (e) { }
 
     setToken(null);

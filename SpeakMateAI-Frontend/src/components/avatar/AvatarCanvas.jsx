@@ -18,8 +18,8 @@ import { getCurrentVoiceGender, resolveAvatarFromVoice } from '../../utils/speec
 import { EventBus, AVATAR_EVENTS } from '../../services/live2d/EventBus';
 
 import { useLipSync } from '../../hooks/useLipSync';
-
 import { getAvatarById, AVATAR_CATALOG } from '../../config/AvatarCatalog';
+import { getActiveTutorSync } from '../../services/ActiveTutorService';
 
 // Make PIXI available on window for Live2D SDK Cubism integration
 if (typeof window !== 'undefined' && !window.PIXI) {
@@ -59,7 +59,7 @@ function AvatarCanvasInner({ model, modelPath, onModelLoaded, onError, className
   const modelRef = useRef(null);
   const [modelInstance, setModelInstance] = useState(null);
   const [activeModelKey, setActiveModelKey] = useState(() => {
-    return model || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || getCurrentVoiceGender() || 'haru';
+    return model || getActiveTutorSync().avatarModel || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || getCurrentVoiceGender() || 'haru';
   });
 
   // Automatic Lip-Sync & Viseme Hook
@@ -333,7 +333,7 @@ function AvatarCanvasInner({ model, modelPath, onModelLoaded, onError, className
 
 export function AvatarCanvas(props) {
   const [currentModel, setCurrentModel] = useState(() => {
-    return props.model || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || getCurrentVoiceGender() || 'haru';
+    return props.model || getActiveTutorSync().avatarModel || localStorage.getItem('speakmate_avatar_model') || resolveAvatarFromVoice(localStorage.getItem('speakmate_ai_voice')).model || getCurrentVoiceGender() || 'haru';
   });
 
   useEffect(() => {

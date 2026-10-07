@@ -2,6 +2,7 @@
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { getPrimaryVisemeForWord } from "./PhoneticVisemeEngine";
 import { getAvatarById } from "../config/AvatarCatalog";
+import { getActiveTutorSync, SELECTION_SOURCE } from "../services/ActiveTutorService";
 
 export const VOICE_PROFILES = [
   { code: 'US Male', accent: 'American', locale: 'en-US', gender: 'male', label: 'American - Male', previewText: 'Hello, I am your American Male English tutor.' },
@@ -1587,9 +1588,11 @@ export const resolveAvatarFromVoice = (voiceCode, onboardingVoiceStyle = "Friend
 
 export const getSavedVoiceSettings = (overrideVoiceCode = null, overrideModel = null) => {
   const hasOverride = Boolean(overrideVoiceCode || overrideModel);
+  const canonical = getActiveTutorSync();
+
   const currentAvatarModel = hasOverride
     ? (overrideModel || mapVoiceCodeToModel(overrideVoiceCode) || "").toLowerCase()
-    : (localStorage.getItem("speakmate_avatar_model") || "haru").toLowerCase();
+    : (canonical?.avatarModel || localStorage.getItem("speakmate_avatar_model") || "haru").toLowerCase();
 
   const REGIONAL_VOICES = [
     "US Male", "US Female",
@@ -1598,21 +1601,30 @@ export const getSavedVoiceSettings = (overrideVoiceCode = null, overrideModel = 
     "IN Male", "IN Female"
   ];
 
-  const candidateVoices = [
-    localStorage.getItem("speakmate_selected_voice"),
-    localStorage.getItem("speakmate_voice_code"),
-    localStorage.getItem("speakmate_ai_voice"),
-  ].filter(Boolean);
+  let rawStoredVoice;
+  if (!hasOverride && canonical?.selectionSource === SELECTION_SOURCE.REGIONAL && canonical?.aiVoice) {
+    rawStoredVoice = canonical.aiVoice;
+  } else if (!hasOverride && canonical?.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT) {
+    rawStoredVoice = "Default";
+  } else if (!hasOverride && canonical?.selectionSource === SELECTION_SOURCE.AVATAR && canonical?.aiVoice) {
+    rawStoredVoice = canonical.aiVoice;
+  } else {
+    const candidateVoices = [
+      localStorage.getItem("speakmate_selected_voice"),
+      localStorage.getItem("speakmate_voice_code"),
+      localStorage.getItem("speakmate_ai_voice"),
+    ].filter(Boolean);
 
-  const matchedRegional = candidateVoices.find((c) =>
-    REGIONAL_VOICES.some((rv) => rv.toLowerCase() === (c || "").trim().toLowerCase())
-  );
+    const matchedRegional = candidateVoices.find((c) =>
+      REGIONAL_VOICES.some((rv) => rv.toLowerCase() === (c || "").trim().toLowerCase())
+    );
 
-  let rawStoredVoice = (matchedRegional ? matchedRegional.trim() : "") ||
-    localStorage.getItem("speakmate_selected_voice") ||
-    localStorage.getItem("speakmate_voice_code") ||
-    localStorage.getItem("speakmate_ai_voice") ||
-    "Default";
+    rawStoredVoice = (matchedRegional ? matchedRegional.trim() : "") ||
+      localStorage.getItem("speakmate_selected_voice") ||
+      localStorage.getItem("speakmate_voice_code") ||
+      localStorage.getItem("speakmate_ai_voice") ||
+      "Default";
+  }
 
   let aiVoice = overrideVoiceCode || (hasOverride ? mapModelToVoiceCode(currentAvatarModel) : rawStoredVoice) || "Default";
   const onboardingVoice = localStorage.getItem("speakmate_onboarding_voice") || localStorage.getItem("speakmate_voice_persona") || "Friendly";
@@ -1654,13 +1666,19 @@ export const getSavedVoiceSettings = (overrideVoiceCode = null, overrideModel = 
     } else if (currentAvatarModel === "wanko" || currentAvatarModel === "puppy" || currentAvatarModel === "dog" || currentAvatarModel === "scooby" || currentAvatarModel === "scoobydoo") {
       aiVoice = "Puppy";
     } else if (isTeacherAvatar) {
-      // Check if user specifically selected a regional voice for Teacher
-      const isRegional = REGIONAL_VOICES.some(rv => rv.toLowerCase() === rawStoredVoice.trim().toLowerCase());
-      aiVoice = matchedRegional ? matchedRegional.trim() : (isRegional ? rawStoredVoice.trim() : "Teacher");
+      if (canonical?.selectionSource === SELECTION_SOURCE.REGIONAL && REGIONAL_VOICES.some(rv => rv.toLowerCase() === (canonical.aiVoice || "").toLowerCase())) {
+        aiVoice = canonical.aiVoice;
+      } else if (canonical?.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT) {
+        aiVoice = "Default";
+      } else {
+        aiVoice = "Teacher";
+      }
     } else if (isMaleTeacherAvatar) {
-      // Check if user specifically selected a regional voice for Male Teacher
-      const isRegional = REGIONAL_VOICES.some(rv => rv.toLowerCase() === rawStoredVoice.trim().toLowerCase());
-      aiVoice = matchedRegional ? matchedRegional.trim() : (isRegional ? rawStoredVoice.trim() : "MaleTeacher");
+      if (canonical?.selectionSource === SELECTION_SOURCE.REGIONAL && REGIONAL_VOICES.some(rv => rv.toLowerCase() === (canonical.aiVoice || "").toLowerCase())) {
+        aiVoice = canonical.aiVoice;
+      } else {
+        aiVoice = "MaleTeacher";
+      }
     }
   }
 
