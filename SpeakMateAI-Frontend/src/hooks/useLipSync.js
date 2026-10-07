@@ -164,19 +164,35 @@ export function useLipSync(model, isSpeakingProp = false) {
       let targetMouthY = 0;
       let targetMouthForm = 0;
 
-      if (isSpeaking && lastWordTimeRef.current > 0) {
-        const elapsed = now - lastWordTimeRef.current;
-        const duration = wordDurationRef.current || 240;
+      if (isSpeaking) {
+        if (lastWordTimeRef.current > 0) {
+          const elapsed = now - lastWordTimeRef.current;
+          const duration = wordDurationRef.current || 240;
 
-        if (elapsed < duration) {
-          // Word is actively being pronounced: natural vocalic syllable envelope
-          const progress = elapsed / duration;
-          const envelope = Math.sin(progress * Math.PI);
-          targetMouthY = targetMouthYRef.current * envelope;
-          targetMouthForm = targetMouthFormRef.current;
+          if (elapsed < duration) {
+            // Word is actively being pronounced: natural vocalic syllable envelope
+            const progress = elapsed / duration;
+            const envelope = Math.sin(progress * Math.PI);
+            targetMouthY = targetMouthYRef.current * envelope;
+            targetMouthForm = targetMouthFormRef.current;
+          } else {
+            // Discrete word envelope finished or ticker paused, but AI audio is STILL speaking:
+            // Sustain natural human vocalic cadence (~3.8 Hz syllable wave modulated by a 1.4 Hz phrasing wave)
+            // so mouth moves naturally and never locks shut mid-speech
+            const t = now * 0.001;
+            const syllablePhase = t * 3.8 * Math.PI * 2;
+            const rawSyllable = Math.max(0, Math.sin(syllablePhase));
+            const phrasingStress = 0.5 + 0.5 * Math.sin(t * 1.4 * Math.PI * 2);
+            targetMouthY = rawSyllable * (0.35 + 0.42 * phrasingStress);
+            targetMouthForm = Math.sin(t * 2.2) * 0.25;
+          }
         } else {
-          // Word voicing complete: immediately close mouth between words / during pauses
-          targetMouthY = 0;
+          // isSpeaking is true right from utterance start before first word viseme lands:
+          // Immediately animate mouth with vocal cadence so avatar speaks without initial freeze
+          const t = now * 0.001;
+          const syllablePhase = t * 3.8 * Math.PI * 2;
+          const rawSyllable = Math.max(0, Math.sin(syllablePhase));
+          targetMouthY = rawSyllable * 0.52;
           targetMouthForm = 0;
         }
       }

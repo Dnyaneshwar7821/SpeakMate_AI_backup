@@ -2250,42 +2250,59 @@ export const speakGlobalText = (text, speedMultiplier = 1.0, options = {}) => {
   if (!cleanText) return null;
 
   let keepAliveInterval = null;
-  let wordTickerInterval = null;
+  let wordTickerTimeout = null;
 
   const startWordTicker = () => {
-    if (wordTickerInterval) return;
+    if (wordTickerTimeout) return;
     const words = cleanText.split(/\s+/).filter(Boolean);
     if (!words.length) return;
     let wordIdx = 0;
-    const intervalMs = Math.max(180, Math.min(340, Math.round(230 / (speedMultiplier || 1.0))));
+    const speed = Math.max(0.5, Math.min(2.0, Number(speedMultiplier) || 1.0));
+
+    const tickNext = () => {
+      if (!window._speakmate_ai_is_speaking) {
+        if (wordTickerTimeout) {
+          clearTimeout(wordTickerTimeout);
+          wordTickerTimeout = null;
+        }
+        return;
+      }
+
+      let currentWord = "";
+      if (wordIdx < words.length) {
+        currentWord = words[wordIdx++];
+      } else {
+        // Words array completed, but audio is STILL actively speaking:
+        // Sustain natural vocalic visemes across trailing phrases until utterance end
+        const naturalVowels = ["ah", "ee", "oh", "eh", "uh"];
+        currentWord = naturalVowels[Math.floor(Math.random() * naturalVowels.length)];
+      }
+
+      const visemeObj = getPrimaryVisemeForWord(currentWord);
+      EventBus.emit(AVATAR_EVENTS.LIP_SYNC_UPDATE, {
+        word: currentWord,
+        viseme: visemeObj.viseme,
+        yVal: visemeObj.yVal,
+        formVal: visemeObj.formVal,
+      });
+
+      // Calculate realistic timing matching authentic human TTS pacing:
+      // Base word articulation (length scaled)
+      const baseMs = Math.max(220, Math.min(420, currentWord.length * 48));
+      let delayMs = Math.round(baseMs / speed);
+
+      // Add realistic punctuation pause weighting
+      if (/[,\uFF0C;:]$/.test(currentWord)) {
+        delayMs += Math.round(240 / speed);
+      } else if (/[.?!]$/.test(currentWord)) {
+        delayMs += Math.round(440 / speed);
+      }
+
+      wordTickerTimeout = setTimeout(tickNext, delayMs);
+    };
 
     // Emit initial word viseme immediately upon actual utterance playback start
-    const firstWord = words[wordIdx++];
-    const firstViseme = getPrimaryVisemeForWord(firstWord);
-    EventBus.emit(AVATAR_EVENTS.LIP_SYNC_UPDATE, {
-      word: firstWord,
-      viseme: firstViseme.viseme,
-      yVal: firstViseme.yVal,
-      formVal: firstViseme.formVal,
-    });
-
-    wordTickerInterval = setInterval(() => {
-      if (wordIdx < words.length && window._speakmate_ai_is_speaking) {
-        const word = words[wordIdx++];
-        const visemeObj = getPrimaryVisemeForWord(word);
-        EventBus.emit(AVATAR_EVENTS.LIP_SYNC_UPDATE, {
-          word,
-          viseme: visemeObj.viseme,
-          yVal: visemeObj.yVal,
-          formVal: visemeObj.formVal,
-        });
-      } else {
-        if (wordTickerInterval) {
-          clearInterval(wordTickerInterval);
-          wordTickerInterval = null;
-        }
-      }
-    }, intervalMs);
+    tickNext();
   };
 
   // Chrome keep-alive heartbeat (safely resumes without interrupting speech)
@@ -2302,9 +2319,9 @@ export const speakGlobalText = (text, speedMultiplier = 1.0, options = {}) => {
       clearInterval(keepAliveInterval);
       keepAliveInterval = null;
     }
-    if (wordTickerInterval) {
-      clearInterval(wordTickerInterval);
-      wordTickerInterval = null;
+    if (wordTickerTimeout) {
+      clearTimeout(wordTickerTimeout);
+      wordTickerTimeout = null;
     }
     window._activeUtterance = null;
     window._activeCleanupKeepAlive = null;
