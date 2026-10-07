@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { authService } from "../services/authService";
 import { subscriptionService } from "../services/appServices";
 import { setLogoutCallback } from "../services/api";
@@ -37,6 +37,13 @@ export function AuthProvider({ children }) {
       return false;
     }
   });
+
+  const userRef = useRef(user);
+  const sessionRestoredRef = useRef(false);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const syncUserProfile = (userData) => {
     if (!userData) return;
@@ -123,8 +130,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = useCallback(() => {
+    sessionRestoredRef.current = false;
     try {
-      let email = (user?.email || "").toLowerCase();
+      let email = (userRef.current?.email || "").toLowerCase();
       if (!email) {
         try {
           const raw = localStorage.getItem(STORAGE_KEYS.user);
@@ -167,13 +175,15 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
     setOnboardingCompleted(false);
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     setLogoutCallback(logout);
   }, [logout]);
 
   const restoreSession = useCallback(async () => {
+    if (sessionRestoredRef.current) return;
+    sessionRestoredRef.current = true;
     try {
       setLoading(true);
       const expiresAtStr = localStorage.getItem(STORAGE_KEYS.sessionExpiresAt);
@@ -273,7 +283,12 @@ export function AuthProvider({ children }) {
     }
   }, [logout]);
 
+  const lastRefreshRef = useRef(0);
   const refreshUserProfile = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 15000) return;
+    lastRefreshRef.current = now;
+
     const currentToken = localStorage.getItem(STORAGE_KEYS.token);
     if (!currentToken || currentToken === "null" || currentToken === "undefined") return;
     try {
@@ -367,6 +382,7 @@ export function AuthProvider({ children }) {
         const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
         localStorage.setItem(STORAGE_KEYS.sessionExpiresAt, String(expiresAt));
         localStorage.setItem(STORAGE_KEYS.token, response.token);
+        sessionRestoredRef.current = true;
         setToken(response.token);
         if (response.user) {
           const userEmail = (response.user?.email || credentials.email || "").toLowerCase();
