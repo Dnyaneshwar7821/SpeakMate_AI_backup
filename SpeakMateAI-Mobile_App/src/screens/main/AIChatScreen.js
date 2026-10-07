@@ -39,7 +39,6 @@ export default function AIChatScreen({ navigation }) {
   const { isDark, theme } = useTheme();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   
   // Modal for Renaming
   const [renameModalVisible, setRenameModalVisible] = useState(false);
@@ -180,22 +179,12 @@ export default function AIChatScreen({ navigation }) {
     );
   };
 
-  // Filtering based on search
-  const filteredHistory = history.filter((s) => {
-    if (!s || Number(s.messageCount || 0) <= 1) return false;
-    const q = searchQuery.toLowerCase();
-    return (
-      (s.title || '').toLowerCase().includes(q) ||
-      (s.mode || '').toLowerCase().includes(q)
-    );
-  });
-
   const latestSession = history.length > 0 ? history[0] : null;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <FlatList
-        data={filteredHistory}
+        data={history}
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -288,28 +277,12 @@ export default function AIChatScreen({ navigation }) {
             </View>
 
             {/* ─── Conversation History Section ─── */}
-            <View style={[styles.section, { marginBottom: 0 }]}>
+            <View style={[styles.section, { marginBottom: 8 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 }}>
                 <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Recent Conversations</Text>
                 {history.length > 0 && (
                   <TouchableOpacity onPress={handleClearAllSessions} style={{ padding: 4 }}>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>Clear All</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {/* Search Box */}
-              <View style={[styles.searchContainer, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-                <Ionicons name="search-outline" size={18} color={theme.textSecondary} style={{ marginRight: 8 }} />
-                <TextInput
-                  style={[styles.searchInput, { color: theme.textPrimary }]}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Search previous sessions or topics..."
-                  placeholderTextColor={theme.textSecondary}
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -467,20 +440,6 @@ const styles = StyleSheet.create({
   gridCardTitle: { fontSize: 13, fontWeight: '800', color: COLORS.black },
   gridCardLevel: { fontSize: 9, fontWeight: '700', color: '#64748B' },
   gridCardDesc: { fontSize: 11, color: COLORS.text, marginTop: 4, lineHeight: 15 },
-
-  // Search box
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    marginHorizontal: 16,
-    paddingHorizontal: 12,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  searchInput: { flex: 1, height: '100%', fontSize: 13, color: COLORS.black, fontWeight: '500' },
 
   // History List
   historyCard: {
