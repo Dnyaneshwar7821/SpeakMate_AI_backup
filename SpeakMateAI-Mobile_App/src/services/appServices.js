@@ -88,6 +88,8 @@ export const chatService = {
   toggleBookmark: (messageId) => api.post(`/api/chat/bookmark/${messageId}`).then((res) => res.data),
   bookmarks: () => api.get('/api/chat/bookmarks').then((res) => res.data),
   getHints: (id) => api.get(`/api/chat/hint/${id}`).then((res) => res.data),
+  finish: (id) => api.post(`/api/chat/session/${id}/finish`).then((res) => res.data),
+  clearAll: () => api.delete('/api/chat/clear-all').then((res) => res.data),
 };
 
 export const speechService = {

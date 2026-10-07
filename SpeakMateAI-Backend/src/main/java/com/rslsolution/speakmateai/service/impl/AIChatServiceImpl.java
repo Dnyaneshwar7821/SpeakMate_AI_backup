@@ -89,7 +89,21 @@ public class AIChatServiceImpl implements AIChatService {
 	@Override
 	public List<ChatSessionResponse> getChatHistory() {
 		User user = currentUser();
+		// Auto-prune empty ghost sessions where user never sent any messages (e.g. previewed or abandoned)
+		List<ChatSession> allSessions = chatSessionRepository.findByUserOrderByUpdatedAtDesc(user);
+		List<ChatSession> ghostSessions = allSessions.stream()
+				.filter(s -> s.getMessages().stream().noneMatch(m -> "user".equalsIgnoreCase(m.getSender())))
+				.filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isBefore(LocalDateTime.now().minusSeconds(10)))
+				.toList();
+
+		if (!ghostSessions.isEmpty()) {
+			try {
+				chatSessionRepository.deleteAll(ghostSessions);
+			} catch (Exception ignored) {}
+		}
+
 		return chatSessionRepository.findByUserOrderByUpdatedAtDesc(user).stream()
+				.filter(s -> s.getMessages().stream().anyMatch(m -> "user".equalsIgnoreCase(m.getSender())))
 				.map(s -> ChatSessionResponse.builder()
 						.id(s.getId())
 						.mode(s.getMode())
@@ -822,7 +836,7 @@ public class AIChatServiceImpl implements AIChatService {
 			feedback = "Session ended with " + userMessageCount + " exchange(s). Chat at least 3 turns (15+ words) next time to earn 5 XP! Keep practicing!";
 		}
 
-		return ChatSessionFinishResponse.builder()
+		ChatSessionFinishResponse finishResponse = ChatSessionFinishResponse.builder()
 				.sessionId(session.getId())
 				.mode(session.getMode())
 				.title(session.getTitle())
@@ -832,5 +846,19 @@ public class AIChatServiceImpl implements AIChatService {
 				.feedback(feedback)
 				.eligibleForXp(isEligible)
 				.build();
+
+		// Session is finished and complete - delete from active chat sessions so it is no longer stored in recent chat
+		try {
+			chatSessionRepository.delete(session);
+		} catch (Exception ignored) {}
+
+		return finishResponse;
+	}
+
+	@Override
+	public void clearAllSessions() {
+		User user = currentUser();
+		List<ChatSession> sessions = chatSessionRepository.findByUserOrderByUpdatedAtDesc(user);
+		chatSessionRepository.deleteAll(sessions);
 	}
 }

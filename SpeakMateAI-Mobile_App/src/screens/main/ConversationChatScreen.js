@@ -517,6 +517,24 @@ export default function ConversationChatScreen({ navigation, route }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
+  const hasUserSentMessageRef = useRef(false);
+  const isFinishedRef = useRef(false);
+  const currentSessionIdRef = useRef(sessionId);
+
+  useEffect(() => {
+    currentSessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // Clean up and auto-delete empty ghost session on exit if user never sent any message
+  useEffect(() => {
+    return () => {
+      const sId = currentSessionIdRef.current;
+      if (!hasUserSentMessageRef.current && !isFinishedRef.current && sId && !String(sId).startsWith('sim_')) {
+        chatService.deleteSession(sId).catch(() => {});
+      }
+    };
+  }, []);
+
   const flatListRef = useRef(null);
   const isInitialMount = useRef(true);
   const wasSpeakingOnPause = useRef(false);
@@ -830,6 +848,9 @@ export default function ConversationChatScreen({ navigation, route }) {
       chatService.detail(sessionId).then((data) => {
         if (data && data.messages && data.messages.length > 0) {
           setMessages(data.messages);
+          if (data.messages.some((m) => m.sender === 'user')) {
+            hasUserSentMessageRef.current = true;
+          }
           const lastAi = [...data.messages].reverse().find((m) => m.sender === 'ai');
           if (lastAi && lastAi.message) {
             speakInitialMessage(lastAi.message);
@@ -1158,6 +1179,7 @@ export default function ConversationChatScreen({ navigation, route }) {
       message: cleanText,
       createdAt: new Date().toISOString(),
     };
+    hasUserSentMessageRef.current = true;
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
@@ -1527,6 +1549,45 @@ export default function ConversationChatScreen({ navigation, route }) {
     }
   };
 
+  const handleFinishChat = async () => {
+    VoiceService.stop();
+    const userMessages = messages.filter((m) => m.sender === 'user');
+    const totalWords = userMessages.reduce(
+      (sum, m) => sum + (m.message || '').trim().split(/\s+/).filter(Boolean).length,
+      0
+    );
+    const isEligible = userMessages.length >= 3 && totalWords >= 15;
+
+    try {
+      let finishData = null;
+      if (sessionId && !String(sessionId).startsWith('sim_')) {
+        finishData = await chatService.finish(sessionId).catch(() => null);
+      }
+      isFinishedRef.current = true;
+
+      const xp = finishData?.xpEarned || (isEligible ? 5 : 0);
+      const msg = finishData?.feedback || (isEligible
+        ? `Great job! You completed ${userMessages.length} exchanges (${totalWords} words) and earned ${xp} XP!`
+        : `Session concluded with ${userMessages.length} exchanges. Practice 3+ turns next time to earn XP!`);
+
+      Alert.alert(
+        isEligible ? '🎉 Chat Complete!' : 'Session Concluded',
+        msg,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.goBack();
+            },
+          },
+        ]
+      );
+    } catch {
+      isFinishedRef.current = true;
+      navigation.goBack();
+    }
+  };
+
   const subtitleText = isSpeaking
     ? '✨ Tutor speaking...'
     : evaluating
@@ -1587,6 +1648,12 @@ export default function ConversationChatScreen({ navigation, route }) {
               }}
             >
               <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={20} color="#FFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.finishBtn}
+              onPress={handleFinishChat}
+            >
+              <Text style={styles.finishBtnText}>Finish ✨</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -2193,5 +2260,19 @@ const styles = StyleSheet.create({
   },
   charCountLimit: {
     color: '#EF4444',
+  },
+  finishBtn: {
+    backgroundColor: '#6C63FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginLeft: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  finishBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

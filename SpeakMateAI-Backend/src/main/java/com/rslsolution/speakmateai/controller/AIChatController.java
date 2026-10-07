@@ -76,4 +76,10 @@ public class AIChatController {
 	public ChatSessionFinishResponse finishSession(@PathVariable Long id) {
 		return aiChatService.finishSession(id);
 	}
+
+	@DeleteMapping("/clear-all")
+	public String clearAllSessions() {
+		aiChatService.clearAllSessions();
+		return "All chat sessions cleared successfully.";
+	}
 }

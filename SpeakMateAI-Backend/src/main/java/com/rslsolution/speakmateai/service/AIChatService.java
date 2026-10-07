@@ -31,4 +31,5 @@ public interface AIChatService {
 	List<String> getHints(Long id);
 
 	ChatSessionFinishResponse finishSession(Long id);
+	void clearAllSessions();
 }

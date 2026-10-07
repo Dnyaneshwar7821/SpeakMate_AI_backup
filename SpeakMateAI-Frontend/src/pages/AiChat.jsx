@@ -28,7 +28,8 @@ export function AiChat() {
   const [history, setHistory] = useState(() => {
     try {
       const cached = sessionStorage.getItem("speakmate_chat_history_cache");
-      return cached ? JSON.parse(cached) : [];
+      const parsed = cached ? JSON.parse(cached) : [];
+      return Array.isArray(parsed) ? parsed.filter((s) => s && Number(s.messageCount || 0) > 1) : [];
     } catch {
       return [];
     }
@@ -47,7 +48,9 @@ export function AiChat() {
   const fetchHistory = async () => {
     try {
       const data = await chatService.history().catch(() => []);
-      const historyList = Array.isArray(data) ? data : [];
+      const historyList = Array.isArray(data)
+        ? data.filter((s) => s && Number(s.messageCount || 0) > 1)
+        : [];
       setHistory(historyList);
       try {
         sessionStorage.setItem("speakmate_chat_history_cache", JSON.stringify(historyList));
@@ -123,6 +126,30 @@ export function AiChat() {
     }
   };
 
+  const handleClearAllSessions = async () => {
+    const confirmed = await showConfirm({
+      title: "Clear All Recent Chats?",
+      message: "Are you sure you want to clear all your recent chat conversations? This cannot be undone.",
+      confirmText: "Clear All",
+      cancelText: "Keep Sessions",
+      type: "danger",
+    });
+
+    if (confirmed) {
+      try {
+        await chatService.clearAll().catch(async () => {
+          await Promise.all(history.map((s) => chatService.deleteSession(s.id).catch(() => {})));
+        });
+        setHistory([]);
+        sessionStorage.removeItem("speakmate_chat_history_cache");
+        toast.success("All recent chat sessions cleared");
+      } catch (err) {
+        console.error("Clear all sessions error:", err);
+        toast.error("Failed to clear chat sessions");
+      }
+    }
+  };
+
   const handleRenameSession = async (e) => {
     e.preventDefault();
     if (!newTitle.trim() || !renameTargetSession) return;
@@ -188,8 +215,20 @@ export function AiChat() {
       {history.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black text-[var(--text-primary)]">Recent Chat Sessions</h2>
-            <span className="text-xs font-black text-[#6C63FF]">{history.length} active threads</span>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-black text-[var(--text-primary)]">Recent Chat Sessions</h2>
+              <span className="text-xs font-black text-[#6C63FF] px-2.5 py-0.5 rounded-full bg-[#6C63FF]/15">
+                {history.length} active {history.length === 1 ? "thread" : "threads"}
+              </span>
+            </div>
+            <button
+              onClick={handleClearAllSessions}
+              className="px-3 py-1.5 rounded-xl border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              title="Clear all recent chats"
+            >
+              <span>🧹</span>
+              <span>Clear All</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

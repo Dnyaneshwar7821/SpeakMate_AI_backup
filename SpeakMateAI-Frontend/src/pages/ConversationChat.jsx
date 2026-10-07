@@ -385,11 +385,22 @@ export function ConversationChat() {
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [model, setModel] = useState(null);
+  const hasUserSentMessageRef = useRef(false);
+  const isFinishedRef = useRef(false);
+  const currentSessionIdRef = useRef(sessionId);
 
-  // useLipSync is handled directly by AvatarCanvas with isSpeaking prop
+  useEffect(() => {
+    currentSessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // Clean up speech and auto-delete empty ghost session on exit if user never spoke/typed
   useEffect(() => {
     return () => {
       stopSpeaking();
+      const sId = currentSessionIdRef.current;
+      if (!hasUserSentMessageRef.current && !isFinishedRef.current && sId && !String(sId).startsWith("sim_")) {
+        chatService.deleteSession(sId).catch(() => {});
+      }
     };
   }, []);
 
@@ -510,6 +521,9 @@ export function ConversationChat() {
       .then((data) => {
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
+          if (data.messages.some((m) => m.sender === "user")) {
+            hasUserSentMessageRef.current = true;
+          }
           if (!hasSpokenInitialRef.current) {
             hasSpokenInitialRef.current = true;
             const lastAi = [...data.messages].reverse().find((m) => m.sender === "ai");
@@ -865,6 +879,7 @@ export function ConversationChat() {
       sender: "user",
       message: cleanText,
     };
+    hasUserSentMessageRef.current = true;
     setMessages((prev) => [...prev, userMsg]);
 
     try {
@@ -992,6 +1007,11 @@ export function ConversationChat() {
         toast.info("Session ended with 0 XP. Chat at least 3 turns to earn XP!");
       }
 
+      isFinishedRef.current = true;
+      try {
+        sessionStorage.removeItem("speakmate_chat_history_cache");
+      } catch (_) {}
+
       setFinishSummary({
         userMessageCount: userMessages.length,
         totalWords,
@@ -1010,6 +1030,8 @@ export function ConversationChat() {
     setFinishSummary(null);
     setMessages([]);
     hasSpokenInitialRef.current = false;
+    hasUserSentMessageRef.current = false;
+    isFinishedRef.current = false;
     try {
       const res = await chatService.start(mode);
       if (res?.id) {

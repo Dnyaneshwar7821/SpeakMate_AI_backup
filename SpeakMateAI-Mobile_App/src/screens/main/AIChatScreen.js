@@ -54,7 +54,10 @@ export default function AIChatScreen({ navigation }) {
     if (!silent && history.length === 0) setLoading(true);
     try {
       const data = await chatService.history();
-      setHistory(data || []);
+      const validData = Array.isArray(data)
+        ? data.filter((s) => s && Number(s.messageCount || 0) > 1)
+        : [];
+      setHistory(validData);
       const [savedType, savedGrade] = await Promise.all([
         AsyncStorage.getItem('speakmate_account_type'),
         AsyncStorage.getItem('speakmate_school_grade'),
@@ -153,8 +156,33 @@ export default function AIChatScreen({ navigation }) {
     }
   };
 
+  const handleClearAllSessions = () => {
+    Alert.alert(
+      'Clear All Recent Chats',
+      'Are you sure you want to delete all your previous conversation threads?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await chatService.clearAll().catch(async () => {
+                await Promise.all(history.map((s) => chatService.deleteSession(s.id).catch(() => {})));
+              });
+              setHistory([]);
+            } catch {
+              Alert.alert('Error', 'Failed to clear sessions.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Filtering based on search
   const filteredHistory = history.filter((s) => {
+    if (!s || Number(s.messageCount || 0) <= 1) return false;
     const q = searchQuery.toLowerCase();
     return (
       (s.title || '').toLowerCase().includes(q) ||
@@ -261,7 +289,14 @@ export default function AIChatScreen({ navigation }) {
 
             {/* ─── Conversation History Section ─── */}
             <View style={[styles.section, { marginBottom: 0 }]}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Recent Conversations</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 }}>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Recent Conversations</Text>
+                {history.length > 0 && (
+                  <TouchableOpacity onPress={handleClearAllSessions} style={{ padding: 4 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>Clear All</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               {/* Search Box */}
               <View style={[styles.searchContainer, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
                 <Ionicons name="search-outline" size={18} color={theme.textSecondary} style={{ marginRight: 8 }} />
