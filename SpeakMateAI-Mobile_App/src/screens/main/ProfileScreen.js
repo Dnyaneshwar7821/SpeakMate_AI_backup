@@ -23,6 +23,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { profileService, settingsService } from '../../services/appServices';
 import { authService } from '../../services/authService';
+import { saveUserPreferences } from '../../utils/userPreferences';
 import { getDisplayName } from '../../utils/format';
 import { validateName, NAME_VALIDATION_ERROR, normalizeEmail, isValidEmail } from '../../utils/validation';
 import { COLORS } from '../../constants/colors';
@@ -511,6 +512,15 @@ export default function ProfileScreen({ navigation }) {
 
       if (voiceCode) {
         settingsService.update({ aiVoice: voiceCode }).catch(() => {});
+      }
+
+      if (user?.email) {
+        saveUserPreferences(user.email, {
+          avatarModel: model,
+          voiceGender: gender,
+          preferredVoice: voiceCode,
+          voicePitch: pitch,
+        }).catch(() => {});
       }
 
       showToast('Tutor Updated ✓', 'success', `${entry.emoji} ${entry.name} (${entry.badge}) is active!`);

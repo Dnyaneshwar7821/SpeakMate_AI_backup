@@ -13,6 +13,7 @@ import ROUTES from "../constants/routes";
 import { speakGlobalText } from "../utils/speechHelper";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { getEnglishLevelLabel } from "../utils/formatters";
+import { saveUserPreferences } from "../utils/userPreferences";
 
 
 const PRESET_AVATARS = [
@@ -294,6 +295,15 @@ export function Profile() {
 
     EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender, model });
 
+    if (user?.email) {
+      saveUserPreferences(user.email, {
+        avatarModel: model,
+        voiceGender: gender,
+        preferredVoice: voiceCode,
+        voicePitch: pitch,
+      });
+    }
+
     settingsService.update({ aiVoice: voiceCode }).catch(() => {});
     onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
     if (updateUser) {
@@ -477,6 +487,18 @@ export function Profile() {
       localStorage.setItem("speakmate_avatar_model", activeAvatarId);
 
       EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender: preferredVoice, model: activeAvatarId });
+
+      if (cleanEmail || user?.email) {
+        saveUserPreferences(cleanEmail || user?.email, {
+          avatarModel: activeAvatarId,
+          voiceGender: preferredVoice,
+          schoolGrade: isStudent ? schoolGrade : undefined,
+          ageGroup: isStudent ? undefined : ageGroup,
+          englishLevel: cefrLevel,
+          dailyGoal: dailyGoal,
+          accent: preferredAccent,
+        });
+      }
 
       // Directly update backend profile and surface any errors
       const updatedProfile = await profileService.update({

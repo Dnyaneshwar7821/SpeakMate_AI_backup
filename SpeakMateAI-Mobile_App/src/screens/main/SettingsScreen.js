@@ -20,9 +20,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { settingsService, onboardingService, profileService } from '../../services/appServices';
 import { VoiceService, VOICE_PROFILES } from '../../services/VoiceService';
-import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { COLORS } from '../../constants/colors';
 import { DashboardCache } from '../../utils/dashboardCache';
+import { captureCurrentUserPreferences } from '../../utils/userPreferences';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { NotificationHelper } from '../../services/NotificationHelper';
 
@@ -308,6 +308,11 @@ export default function SettingsScreen({ navigation }) {
       }, 3500);
 
       DashboardCache.clear();
+
+      if (user?.email) {
+        await captureCurrentUserPreferences(user.email);
+      }
+
       showToast('Preferences Saved ✓', 'success', 'All tutor voice and language settings updated');
     } catch (error) {
       console.error('Settings save error:', error);

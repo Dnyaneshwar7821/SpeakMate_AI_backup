@@ -7,6 +7,7 @@ import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { settingsService, onboardingService, profileService } from "../services/appServices";
 import { getAvatarById } from "../config/AvatarCatalog";
 import { CurriculumCache } from "../utils/curriculumCache";
+import { saveUserPreferences } from "../utils/userPreferences";
 
 const LANGUAGE_OPTIONS = [
   { code: "English", label: "English", native: "English", flag: "🇺🇸" },
@@ -124,6 +125,9 @@ export function Settings() {
   const handleSelectAccent = (newAccent) => {
     setAccent(newAccent);
     localStorage.setItem("speakmate_voice_accent", newAccent);
+    if (user?.email) {
+      saveUserPreferences(user.email, { accent: newAccent });
+    }
     onboardingService.update({ preferredAccent: newAccent }).catch(() => {});
     if (updateUser) {
       updateUser({ preferredAccent: newAccent });
@@ -167,6 +171,15 @@ export function Settings() {
       }
     }
 
+    if (user?.email) {
+      saveUserPreferences(user.email, {
+        avatarModel: model,
+        voiceGender: gender,
+        preferredVoice: voiceCode,
+        ...(newAccent ? { accent: newAccent } : {}),
+      });
+    }
+
     EventBus.emit(AVATAR_EVENTS.GENDER_CHANGED, { gender, model });
 
     settingsService.update({ aiVoice: voiceCode }).catch(() => {});
@@ -185,6 +198,10 @@ export function Settings() {
   const handleSelectSpeed = (spd) => {
     setSpeechSpeed(spd);
     localStorage.setItem("speakmate_voice_speed", String(spd));
+    localStorage.setItem("speakmate_speaking_rate", String(spd));
+    if (user?.email) {
+      saveUserPreferences(user.email, { speakingRate: String(spd) });
+    }
     toast.success(`Tutor speech speed set to ${spd}x ✓`);
   };
 
@@ -192,6 +209,9 @@ export function Settings() {
     setDailyGoal(goal);
     const mins = parseInt(goal, 10) || 15;
     localStorage.setItem("speakmate_daily_goal", String(mins));
+    if (user?.email) {
+      saveUserPreferences(user.email, { dailyGoal: mins });
+    }
     onboardingService.update({ dailyGoalMinutes: mins }).catch(() => {});
     window.dispatchEvent(new CustomEvent("speakmate_settings_updated", { detail: { dailyGoalMinutes: mins } }));
     window.dispatchEvent(new Event("speakmate_progress_updated"));
@@ -207,6 +227,9 @@ export function Settings() {
     }
     setSelectedAgeGroup(val);
     localStorage.setItem("speakmate_age_group", val);
+    if (user?.email) {
+      saveUserPreferences(user.email, { ageGroup: val });
+    }
     onboardingService.update({ ageGroup: val }).catch(() => {});
     profileService.update({
       ageGroup: val,
@@ -244,6 +267,9 @@ export function Settings() {
     const next = !soundEffects;
     setSoundEffects(next);
     localStorage.setItem("speakmate_sound_effects", String(next));
+    if (user?.email) {
+      saveUserPreferences(user.email, { soundEffects: next });
+    }
     settingsService.update({ soundEffects: next }).catch(() => {});
     toast.success(next ? "Sound effects enabled ✓" : "Sound effects muted");
   };
@@ -252,6 +278,9 @@ export function Settings() {
     const next = !autoPlayAudio;
     setAutoPlayAudio(next);
     localStorage.setItem("speakmate_autoplay_audio", String(next));
+    if (user?.email) {
+      saveUserPreferences(user.email, { autoplayAudio: next });
+    }
     settingsService.update({ autoPlayAudio: next }).catch(() => {});
     window.dispatchEvent(new CustomEvent("speakmate_autoplay_changed", { detail: { autoPlayAudio: next } }));
     toast.success(next ? "Auto-play spoken audio enabled ✓" : "Auto-play audio disabled (Replay buttons still work)");

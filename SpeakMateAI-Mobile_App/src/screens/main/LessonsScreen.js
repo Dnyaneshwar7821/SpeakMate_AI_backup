@@ -31,6 +31,7 @@ import { lessonModuleService } from '../../services/appServices';
 import { COLORS } from '../../constants/colors';
 import { STANDARD_LESSONS, GENERAL_LESSONS, MASTER_LESSONS } from '../../constants/standardLessons';
 import { CurriculumCache } from '../../utils/dashboardCache';
+import { saveUserPreferences } from '../../utils/userPreferences';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -900,12 +901,16 @@ export default function LessonsScreen({ navigation }) {
   // ── Filter by tab/category ─────────────────────────────────────────
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab);
+    AsyncStorage.setItem('speakmate_last_lesson_tab', tab).catch(() => {});
+    if (user?.email) {
+      saveUserPreferences(user.email, { lastLessonTab: tab }).catch(() => {});
+    }
     if (searchText.trim()) {
       executeLocalSearch(searchText, selectedCategory, tab);
     } else {
       applyFilter(selectedCategory, tab);
     }
-  }, [selectedCategory, searchText, executeLocalSearch, applyFilter]);
+  }, [selectedCategory, searchText, executeLocalSearch, applyFilter, user?.email]);
 
   const handleCategoryPress = useCallback((catName) => {
     const next = selectedCategory === catName ? null : catName;
@@ -921,6 +926,10 @@ export default function LessonsScreen({ navigation }) {
   const openLesson = useCallback(async (lesson) => {
     if (!lesson) return;
     try {
+      await AsyncStorage.setItem('speakmate_last_lesson_id', String(lesson.id));
+      if (user?.email) {
+        saveUserPreferences(user.email, { lastLessonId: String(lesson.id) }).catch(() => {});
+      }
       const stored = await AsyncStorage.getItem('speakmate_in_progress_lessons').catch(() => null);
       const inProg = stored ? JSON.parse(stored) : [];
       const titleKey = (lesson.title || '').trim().toLowerCase();
@@ -957,7 +966,7 @@ export default function LessonsScreen({ navigation }) {
     } catch (_) {}
 
     navigation.navigate('LessonDetail', { lessonId: lesson.id, lessonTitle: lesson.title, lesson });
-  }, [navigation]);
+  }, [navigation, user?.email]);
 
   // ── Displayed lessons ──────────────────────────────────────────────
   const displayedLessons = searchResults !== null ? searchResults : lessons;

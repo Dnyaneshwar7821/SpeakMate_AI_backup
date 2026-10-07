@@ -10,6 +10,7 @@ import {
 } from "../constants/masterCurriculum";
 import { CurriculumCache, areListsIdentical } from "../utils/curriculumCache";
 import { SpeakMateLoader } from "../components/common/SpeakMateLoader";
+import { saveUserPreferences } from "../utils/userPreferences";
 
 const DIFFICULTY_TABS = ["All", "Beginner", "Intermediate", "Advanced"];
 
@@ -112,7 +113,7 @@ export function Lessons() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState(urlSearchQuery);
   const [searchResults, setSearchResults] = useState(null);
-  const [activeTab, setActiveTab] = useState("All");
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("speakmate_last_lesson_tab") || "All");
   const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Distinct categories computed strictly from user's profile lessons
@@ -284,6 +285,10 @@ export function Lessons() {
 
   const handleOpenLesson = useCallback((lessonItem) => {
     if (!lessonItem) return;
+    localStorage.setItem("speakmate_last_lesson_id", String(lessonItem.id));
+    if (user?.email) {
+      saveUserPreferences(user.email, { lastLessonId: String(lessonItem.id) });
+    }
     const curProg = Math.max(11, lessonItem.progressPercent || 0);
     CurriculumCache.updateLessonProgress(
       lessonItem.id,
@@ -295,7 +300,15 @@ export function Lessons() {
       lessonItem.estimatedMinutes || lessonItem.duration
     );
     navigate(`/lessons/${lessonItem.id}`);
-  }, [navigate]);
+  }, [navigate, user?.email]);
+
+  const handleSelectTab = (tab) => {
+    setActiveTab(tab);
+    localStorage.setItem("speakmate_last_lesson_tab", tab);
+    if (user?.email) {
+      saveUserPreferences(user.email, { lastLessonTab: tab });
+    }
+  };
 
   const handleSearch = useCallback(
     async (text, currentLessons = lessons) => {
@@ -419,7 +432,7 @@ export function Lessons() {
           {DIFFICULTY_TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleSelectTab(tab)}
               className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black shrink-0 transition-all active:scale-95 ${
                 activeTab === tab
                   ? "bg-gradient-to-r from-[#6C63FF] to-[#8B5CF6] text-white shadow-md shadow-[#6C63FF]/25 scale-102"
