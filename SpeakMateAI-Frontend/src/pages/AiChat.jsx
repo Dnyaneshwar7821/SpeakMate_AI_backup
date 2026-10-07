@@ -17,7 +17,6 @@ const CHAT_MODES = [
   { key: "IELTS Speaking", title: "IELTS Speaking", desc: "Simulate official IELTS speaking parts with targeted scoring.", difficulty: "Advanced", icon: "🏅", color: "#EF4444" },
   { key: "Storytelling", title: "Storytelling", desc: "Construct narratives, descriptive tales, and explain events.", difficulty: "Intermediate", icon: "📖", color: "#10B981" },
   { key: "Debate", title: "Debate", desc: "Discuss controversial topics, formulate arguments, and reply.", difficulty: "Advanced", icon: "⚖️", color: "#6C63FF" },
-  { key: "Free Chat", title: "Freeform AI Chat", desc: "Open-ended dialogue with your tutor on any topic.", difficulty: "All levels", icon: "✨", color: "#F59E0B" },
 ];
 
 export function AiChat() {
