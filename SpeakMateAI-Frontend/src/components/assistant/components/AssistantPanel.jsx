@@ -12,6 +12,25 @@ import {
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypingIndicator";
 
+// Conversational Voice Activity Thresholds (Matches Speaking Practice, AI Chat & Mobile Assistant)
+const NORMAL_SILENCE_THRESHOLD = 3000; // 3.0s: comfortable complete-thought pause
+const INCOMPLETE_SILENCE_THRESHOLD = 4500; // 4.5s: extra hesitation tolerance for connectors
+const INITIAL_SILENCE_THRESHOLD = 8000; // 8.0s: auto-close if user stays completely silent
+
+const INCOMPLETE_CONNECTORS = new Set([
+    "and", "because", "but", "or", "so", "that", "to", "with", "like",
+    "if", "when", "while", "although", "since", "for"
+]);
+
+const isIncompleteSentence = (text) => {
+    if (!text || typeof text !== "string") return false;
+    const clean = text.trim().toLowerCase().replace(/[.,!?;:]+$/, "").trim();
+    if (!clean) return false;
+    const words = clean.split(/\s+/);
+    const lastWord = words[words.length - 1];
+    return INCOMPLETE_CONNECTORS.has(lastWord);
+};
+
 export const AssistantPanel = React.forwardRef(function AssistantPanel(props, ref) {
     const {
         messages,
@@ -34,6 +53,8 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
     const recognitionRef = useRef(null);
     const isListeningRef = useRef(false);
     const silenceTimerRef = useRef(null);
+    const initialSilenceTimerRef = useRef(null);
+    const recordingSessionRef = useRef(0);
     const stoppingByUserRef = useRef(false);
     const accumulatedTranscriptRef = useRef("");
     const interimTranscriptRef = useRef("");
@@ -64,6 +85,17 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
         }
     }, [loading, isEmpty]);
 
+    const clearAllSilenceTimers = () => {
+        if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+        }
+        if (initialSilenceTimerRef.current) {
+            clearTimeout(initialSilenceTimerRef.current);
+            initialSilenceTimerRef.current = null;
+        }
+    };
+
     // Speech-to-Text setup using browser Web Speech API with Continuous VAD & Auto-Send
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -88,17 +120,24 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
                 const fullTranscript = (accumulatedTranscriptRef.current + " " + interim).trim();
                 setDraft(fullTranscript);
 
-                if (silenceTimerRef.current) {
-                    clearTimeout(silenceTimerRef.current);
-                    silenceTimerRef.current = null;
-                }
+                // Reset timers on active speech
+                clearAllSilenceTimers();
 
+                // Arm auto-send timer with smart connector hesitation tolerance (3.0s normal vs 4.5s incomplete connector)
                 if (fullTranscript.length > 0) {
+                    const activeSessionId = recordingSessionRef.current;
+                    const threshold = isIncompleteSentence(fullTranscript)
+                        ? INCOMPLETE_SILENCE_THRESHOLD
+                        : NORMAL_SILENCE_THRESHOLD;
+
                     silenceTimerRef.current = setTimeout(() => {
-                        if (handleStopListeningAndSendRef.current) {
+                        if (
+                            recordingSessionRef.current === activeSessionId &&
+                            handleStopListeningAndSendRef.current
+                        ) {
                             handleStopListeningAndSendRef.current();
                         }
-                    }, 2800);
+                    }, threshold);
                 }
             };
 
@@ -107,10 +146,7 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
                 if (err?.error === "not-allowed" || err?.error === "service-not-allowed") {
                     setIsListening(false);
                     isListeningRef.current = false;
-                    if (silenceTimerRef.current) {
-                        clearTimeout(silenceTimerRef.current);
-                        silenceTimerRef.current = null;
-                    }
+                    clearAllSilenceTimers();
                 }
             };
 
@@ -122,6 +158,7 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
                 } else {
                     setIsListening(false);
                     isListeningRef.current = false;
+                    clearAllSilenceTimers();
                 }
             };
 
@@ -129,10 +166,7 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
         }
 
         return () => {
-            if (silenceTimerRef.current) {
-                clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = null;
-            }
+            clearAllSilenceTimers();
             if (recognitionRef.current) {
                 try {
                     recognitionRef.current.stop();
@@ -144,10 +178,7 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
     }, []);
 
     const handleStopListeningAndSend = async () => {
-        if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-        }
+        clearAllSilenceTimers();
 
         stoppingByUserRef.current = true;
         isListeningRef.current = false;
@@ -184,14 +215,29 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
         if (isListeningRef.current) {
             handleStopListeningAndSend();
         } else {
-            if (silenceTimerRef.current) {
-                clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = null;
-            }
+            const activeSessionId = ++recordingSessionRef.current;
+            clearAllSilenceTimers();
             stoppingByUserRef.current = false;
             accumulatedTranscriptRef.current = "";
             interimTranscriptRef.current = "";
             setDraft("");
+
+            // Arm 8.0s initial silence timer - auto stops if user doesn't say anything
+            initialSilenceTimerRef.current = setTimeout(() => {
+                if (
+                    recordingSessionRef.current === activeSessionId &&
+                    isListeningRef.current
+                ) {
+                    stoppingByUserRef.current = true;
+                    isListeningRef.current = false;
+                    setIsListening(false);
+                    if (recognitionRef.current) {
+                        try {
+                            recognitionRef.current.stop();
+                        } catch (e) {}
+                    }
+                }
+            }, INITIAL_SILENCE_THRESHOLD);
 
             try {
                 recognitionRef.current.start();
@@ -203,6 +249,36 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
                 setIsListening(true);
             }
         }
+    };
+
+    const handleStartNewChat = () => {
+        if (isListeningRef.current) {
+            clearAllSilenceTimers();
+            stoppingByUserRef.current = true;
+            isListeningRef.current = false;
+            setIsListening(false);
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch (e) {}
+            }
+        }
+        startNewChat();
+    };
+
+    const handleCloseWidget = () => {
+        if (isListeningRef.current) {
+            clearAllSilenceTimers();
+            stoppingByUserRef.current = true;
+            isListeningRef.current = false;
+            setIsListening(false);
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch (e) {}
+            }
+        }
+        closeWidget();
     };
 
     const handleSubmit = async (event) => {
@@ -271,7 +347,7 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
                 <div className="flex items-center gap-1">
                     <button
                         type="button"
-                        onClick={startNewChat}
+                        onClick={handleStartNewChat}
                         title="Start New Chat"
                         aria-label="Start new chat and reset conversation"
                         className="grid h-8 w-8 place-items-center rounded-xl text-slate-500 dark:text-slate-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 cursor-pointer"
@@ -280,7 +356,7 @@ export const AssistantPanel = React.forwardRef(function AssistantPanel(props, re
                     </button>
                     <button
                         type="button"
-                        onClick={closeWidget}
+                        onClick={handleCloseWidget}
                         title="Close Chat"
                         aria-label="Close SpeakMate Assistant"
                         className={`grid h-8 w-8 place-items-center rounded-xl text-slate-500 dark:text-slate-400 transition-all duration-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus:outline-none focus-visible:ring-2 ${theme.ring} cursor-pointer`}
