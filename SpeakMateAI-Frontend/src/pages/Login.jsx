@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import ROUTES from "../constants/routes";
-import { dashboardService, progressService } from "../services/appServices";
+import { dashboardService, progressService, achievementService } from "../services/appServices";
 import { setCachedDashboardData, getCachedDashboardData, clearDashboardCache } from "../utils/dashboardCache";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { syncBackendProgress, getLiveProgressStats } from "../utils/progressTracker";
@@ -150,53 +150,72 @@ export function Login() {
           email: userEmail,
         });
 
-        // 2. Fetch fresh dashboard summary & progress while the loader is displayed (snappy 1.1s - 1.4s window)
+        // 2. Fetch fresh dashboard summary & achievements while the loader is displayed
         try {
-          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 1100));
+          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 800));
           const summaryPromise = dashboardService.summary().catch(() => null);
-          const progressPromise = progressService.get().catch(() => null);
-          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1400));
+          const achsPromise = achievementService.all().catch(() => null);
+          const maxSafetyTimeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 10000));
 
-          const [summaryData, progressData] = await Promise.all([
-            Promise.race([summaryPromise, timeoutPromise]),
-            Promise.race([progressPromise, timeoutPromise]),
+          const [summaryData, achsData] = await Promise.all([
+            Promise.race([summaryPromise, maxSafetyTimeoutPromise]),
+            Promise.race([achsPromise, maxSafetyTimeoutPromise]),
             minDelayPromise,
           ]);
 
-          const liveStats = getLiveProgressStats(authenticatedUser);
-          const existingCache = getCachedDashboardData(userEmail) || {};
+          if (summaryData) {
+            const synced = syncBackendProgress(summaryData, authenticatedUser);
+            const backendStats = summaryData.statistics || {};
+            const backendAccuracy = backendStats.averageScore > 0 ? backendStats.averageScore : null;
+            const verifiedAchsCount = Array.isArray(achsData) && achsData.length > 0
+              ? achsData.filter((a) => a.unlocked).length
+              : (Array.isArray(summaryData.achievements) && summaryData.achievements.length > 0
+                ? summaryData.achievements.filter((a) => a.unlocked).length
+                : null);
 
-          const finalSummary = {
-            ...existingCache,
-            ...(summaryData || {}),
-            progress: {
-              ...(existingCache.progress || {}),
-              ...(progressData || {}),
-              ...(summaryData?.progress || {}),
-            },
-          };
+            const finalBadgesUnlocked = verifiedAchsCount != null
+              ? verifiedAchsCount
+              : (summaryData.badgesUnlocked != null ? Number(summaryData.badgesUnlocked) : (synced.badgesUnlocked ?? 0));
 
-          const accuracyVal =
-            finalSummary.accuracy ??
-            finalSummary.statistics?.averageScore ??
-            liveStats.accuracy ??
-            liveStats.backendAccuracy ??
-            authenticatedUser.averageScore;
+            const finalAccuracy =
+              synced.accuracy ??
+              backendAccuracy ??
+              summaryData.accuracy ??
+              null;
 
-          finalSummary.accuracy = accuracyVal > 0 ? accuracyVal : null;
-          finalSummary.streak = Number(finalSummary.streak ?? liveStats.streak ?? authenticatedUser.streak ?? 0);
-          finalSummary.xp = Number(finalSummary.xp ?? liveStats.xp ?? authenticatedUser.xp ?? 0);
-          finalSummary.totalHours = finalSummary.statistics?.totalStudyHours ?? liveStats.totalHours ?? 0.0;
-          finalSummary.badgesUnlocked = Number(finalSummary.badgesUnlocked ?? liveStats.badgesUnlocked ?? 0);
-          finalSummary.wordsLearned = Number(finalSummary.statistics?.vocabularyLearned ?? liveStats.wordsLearned ?? 0);
+            const finalHours = backendStats.totalStudyHours != null
+              ? Number(backendStats.totalStudyHours)
+              : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
 
-          setCachedDashboardData(finalSummary, userEmail);
-          const synced = syncBackendProgress(finalSummary, authenticatedUser);
-          const identifier = authenticatedUser?.id || authenticatedUser?.email || userEmail;
-          try {
-            localStorage.setItem(`speakmate_user_progress_stats_${identifier}`, JSON.stringify(synced));
-          } catch (_) {}
-          window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: synced }));
+            const finalWords =
+              backendStats.vocabularyLearned ??
+              summaryData.progress?.totalVocabularyWords ??
+              synced.wordsLearned ??
+              0;
+
+            const finalSummary = {
+              ...summaryData,
+              ...synced,
+              badgesUnlocked: finalBadgesUnlocked,
+              accuracy: finalAccuracy,
+              totalHours: finalHours,
+              wordsLearned: finalWords,
+              streak: Number(synced.streak ?? summaryData.streak ?? summaryData.progress?.streak ?? 0),
+              xp: Number(synced.xp ?? summaryData.progress?.xp ?? summaryData.xp ?? 0),
+              streakFreezes: Number(synced.streakFreezes ?? summaryData.progress?.streakFreezes ?? 0),
+              todayMins: synced.todayMins ?? 0,
+              completedMins: synced.todayMins ?? 0,
+              dailyGoalMins: summaryData.dailyGoal?.targetSpeakingMinutes || summaryData.dailyGoal?.dailyGoalMinutes || 15,
+              _syncedFromServer: true,
+            };
+
+            setCachedDashboardData(finalSummary, userEmail);
+            const identifier = authenticatedUser?.id || authenticatedUser?.email || userEmail;
+            try {
+              localStorage.setItem(`speakmate_user_progress_stats_${identifier}`, JSON.stringify(synced));
+            } catch (_) {}
+            window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: synced }));
+          }
         } catch (prepErr) {
           console.warn("Dashboard prefetch error:", prepErr);
         }
