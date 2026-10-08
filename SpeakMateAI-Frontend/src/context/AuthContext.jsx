@@ -6,7 +6,7 @@ import { syncBackendProgress } from "../utils/progressTracker";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { resolveAvatarFromVoice } from "../utils/speechHelper";
 import { captureCurrentUserPreferences, restoreUserPreferences } from "../utils/userPreferences";
-import { resetActiveTutorCache, resolveCanonicalTutor, setCanonicalState } from "../services/ActiveTutorService";
+import { resetActiveTutorCache, resolveCanonicalTutor, setCanonicalState, isTutorAvatarModel } from "../services/ActiveTutorService";
 
 const AuthContext = createContext(null);
 
@@ -23,7 +23,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.user);
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      if (parsed?.avatar && isTutorAvatarModel(parsed.avatar)) {
+        delete parsed.avatar;
+      }
+      return parsed;
     } catch { return null; }
   });
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEYS.token) || null);
@@ -196,6 +201,10 @@ export function AuthProvider({ children }) {
         if (storedUser) {
           try {
             parsedUser = JSON.parse(storedUser);
+            if (parsedUser?.avatar && isTutorAvatarModel(parsedUser.avatar)) {
+              delete parsedUser.avatar;
+              localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(parsedUser));
+            }
             if (parsedUser && parsedUser.email) {
               restoreUserPreferences(parsedUser.email);
             }
@@ -457,7 +466,11 @@ export function AuthProvider({ children }) {
 
   const updateUser = (updatedFields) => {
     setUser((prev) => {
-      const updated = { ...prev, ...updatedFields };
+      const sanitized = { ...updatedFields };
+      if (sanitized.avatar && isTutorAvatarModel(sanitized.avatar)) {
+        delete sanitized.avatar;
+      }
+      const updated = { ...prev, ...sanitized };
       syncUserProfile(updated);
       localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(updated));
       return updated;

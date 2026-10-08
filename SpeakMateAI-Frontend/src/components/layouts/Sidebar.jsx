@@ -2,6 +2,7 @@ import React, { memo, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ROUTES from "../../constants/routes";
+import { isLearnerImageAvatar, isLearnerEmojiAvatar } from "../../services/ActiveTutorService";
 
 const SidebarItem = memo(function SidebarItem({ item }) {
   return (
@@ -212,10 +213,10 @@ export const Sidebar = memo(function Sidebar() {
       <div className="pt-3 border-t border-[var(--border-default)]">
         <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] flex items-center gap-3 shadow-inner">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-tr from-[#6C63FF] via-[#8B5CF6] to-[#FF6584] text-white font-black text-sm shadow-md overflow-hidden">
-            {user?.avatar && user.avatar.length <= 4 ? (
-              <span className="text-xl">{user.avatar}</span>
-            ) : user?.avatar && user.avatar.startsWith("http") ? (
+            {isLearnerImageAvatar(user?.avatar) ? (
               <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+            ) : isLearnerEmojiAvatar(user?.avatar) ? (
+              <span className="text-xl">{user.avatar}</span>
             ) : (
               user?.firstName ? user.firstName.charAt(0).toUpperCase() : user?.name ? user.name.charAt(0).toUpperCase() : "U"
             )}

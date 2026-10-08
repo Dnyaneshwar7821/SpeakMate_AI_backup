@@ -13,7 +13,7 @@ import ROUTES from "../constants/routes";
 import { speakGlobalText } from "../utils/speechHelper";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { saveUserPreferenceField } from "../utils/userPreferences";
-import { setActiveTutorFromAvatar, getActiveTutorSync } from "../services/ActiveTutorService";
+import { setActiveTutorFromAvatar, getActiveTutorSync, isTutorAvatarModel } from "../services/ActiveTutorService";
 import { getEnglishLevelLabel } from "../utils/formatters";
 
 
@@ -110,7 +110,12 @@ export function Profile() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const [selectedAvatar, setSelectedAvatar] = useState(() => user?.avatar || localStorage.getItem("speakmate_avatar") || "🎓");
+  const [selectedAvatar, setSelectedAvatar] = useState(() => {
+    const raw = user?.avatar || localStorage.getItem("speakmate_avatar");
+    if (raw && !isTutorAvatarModel(raw)) return raw;
+    try { localStorage.removeItem("speakmate_avatar"); } catch {}
+    return "🎓";
+  });
   const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   const [schoolGrade, setSchoolGrade] = useState(
@@ -221,7 +226,7 @@ export function Profile() {
           };
           setForm(fetchedForm);
           setOriginalForm(fetchedForm);
-          if (profile.avatar) {
+          if (profile.avatar && !isTutorAvatarModel(profile.avatar)) {
             setSelectedAvatar(profile.avatar);
             localStorage.setItem("speakmate_avatar", profile.avatar);
           }

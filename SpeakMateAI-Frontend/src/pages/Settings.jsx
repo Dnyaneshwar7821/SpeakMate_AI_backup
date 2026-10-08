@@ -180,7 +180,6 @@ export function Settings() {
         preferredVoice: nextTutor.aiVoice,
         aiVoice: nextTutor.aiVoice,
         avatarModel: nextTutor.avatarModel,
-        avatar: nextTutor.avatarModel,
         selectionSource: nextTutor.selectionSource,
         ...(newAccent ? { preferredAccent: newAccent } : {}),
       });

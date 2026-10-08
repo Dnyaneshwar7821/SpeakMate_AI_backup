@@ -28,6 +28,52 @@ export const STORAGE_KEYS = {
   VOICE_SPEED: 'speakmate_voice_speed',
 };
 
+export const TUTOR_AVATAR_MODELS = [
+  'haru',
+  'chitose',
+  'robopaws',
+  'shizuku',
+  'spongebob',
+  'sparky',
+  'koharu',
+  'haruto',
+  'mao',
+  'puppy',
+  'doraemon',
+  'shizuka',
+  'bheem',
+  'chhotabheem',
+  'ben',
+  'ben10',
+  'hattori',
+  'ninjahattori',
+  'tom',
+  'scooby',
+  'scoobydoo',
+  'motu',
+  'teacher',
+  'maleteacher',
+];
+
+export function isTutorAvatarModel(modelOrName) {
+  if (!modelOrName || typeof modelOrName !== 'string') return false;
+  const clean = modelOrName.trim().toLowerCase();
+  return TUTOR_AVATAR_MODELS.includes(clean);
+}
+
+export function isLearnerImageAvatar(avatar) {
+  if (!avatar || typeof avatar !== 'string') return false;
+  const clean = avatar.trim();
+  return clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:image/') || clean.startsWith('/');
+}
+
+export function isLearnerEmojiAvatar(avatar) {
+  if (!avatar || typeof avatar !== 'string') return false;
+  const clean = avatar.trim();
+  if (isLearnerImageAvatar(clean) || isTutorAvatarModel(clean)) return false;
+  return !/^[a-zA-Z0-9_\-\s]+$/.test(clean);
+}
+
 // Regional Voice Codes in Settings (exactly 8 regional options)
 export const REGIONAL_VOICE_CODES = [
   'US Male',
