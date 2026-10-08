@@ -215,21 +215,31 @@ const DIRECT_VOICE_GENDERS = {
   // Female
   'en-gb-x-gba-local': 'female',
   'en-gb-x-gba-network': 'female',
+  'en-gb-x-gba': 'female',
   'en-gb-x-gbb-local': 'female',
   'en-gb-x-gbb-network': 'female',
+  'en-gb-x-gbb': 'female',
   'en-gb-x-gbf-local': 'female',
   'en-gb-x-gbf-network': 'female',
+  'en-gb-x-gbf': 'female',
   'en-gb-x-gbg-local': 'female',
   'en-gb-x-gbg-network': 'female',
+  'en-gb-x-gbg': 'female',
   'en-gb-x-fis-local': 'female',
   'en-gb-x-fis-network': 'female',
+  'en-gb-x-fis': 'female',
   // Male
   'en-gb-x-gbc-local': 'male',
   'en-gb-x-gbc-network': 'male',
+  'en-gb-x-gbc': 'male',
   'en-gb-x-gbd-local': 'male',
   'en-gb-x-gbd-network': 'male',
+  'en-gb-x-gbd': 'male',
   'en-gb-x-rjs-local': 'male',
   'en-gb-x-rjs-network': 'male',
+  'en-gb-x-rjs': 'male',
+  'en_gb_m00': 'male',
+  'en_gb_f00': 'female',
 
   // AU (Australian)
   // Female
@@ -416,40 +426,6 @@ const isFemalePattern = (id, name, voiceGender) => {
   return false; // Default fallback to male
 };
 
-// --- Positive confirmation of true male voices ---
-const isConfirmedMaleVoice = (v) => {
-  if (!v) return false;
-  const gender = (v.gender || '').toLowerCase();
-  if (gender === 'male') return true;
-  if (gender === 'female') return false;
-
-  const rawId = String(v.identifier || '').toLowerCase().replace(/^.*:/, '');
-  const baseId = getNormalizedVoiceId(v.identifier);
-  if (DIRECT_VOICE_GENDERS[rawId] === 'male' || DIRECT_VOICE_GENDERS[baseId] === 'male') {
-    return true;
-  }
-  if (DIRECT_VOICE_GENDERS[rawId] === 'female' || DIRECT_VOICE_GENDERS[baseId] === 'female') {
-    return false;
-  }
-
-  if (isFemalePattern(v.identifier, v.name, v.gender)) {
-    return false;
-  }
-
-  const combined = `${v.name || ''} ${v.identifier || ''}`.toLowerCase();
-  const maleKeywords = [
-    'david', 'daniel', 'george', 'alex', 'bruce', 'tom', 'fred', 'oliver', 'rishi',
-    'ravi', 'prabhat', 'aaron', 'guy', 'mister', 'mike', 'james', 'mark', 'paul',
-    'richard', 'robert', 'stephen', 'william', 'russell', 'neel', 'lee', 'ralph',
-    '#male', 'male_', '-male', '_male',
-    'tpf', 'iog', 'tpc', 'tpd', 'iod', 'iob', 'gbc', 'gbd', 'rjs', 'aub', 'aud', 'ctb', 'ctd',
-    'ind', 'inc', 'inb', 'end', 'ene', 'enf', 'cab', 'cac',
-    '_m00', '_m01', '-m00', '-m01', 'smtm00', 'smtm01'
-  ];
-  const hasExplicitMaleWord = (/\b(male|man|boy)\b/i.test(combined) && !combined.includes('female') && !combined.includes('woman'));
-  return maleKeywords.some(k => combined.includes(k)) || hasExplicitMaleWord;
-};
-
 const sortVoices = (voices) =>
   [...voices].sort((a, b) => {
     const qA = (a.quality || '').toLowerCase();
@@ -466,7 +442,8 @@ export const VoiceService = {
   },
 
   isMaleVoice: (v) => {
-    return isConfirmedMaleVoice(v);
+    if (!v) return false;
+    return !isFemalePattern(v.identifier, v.name, v.gender);
   },
 
   getAvatarVoiceProfile: (avatarOrVoice) => {
@@ -761,26 +738,26 @@ export const VoiceService = {
       const exact = localeVoices.find(v => {
         const id = (v.identifier || '').toLowerCase();
         const name = (v.name || '').toLowerCase();
-        return targetGender === 'female' ? isFemalePattern(id, name, v.gender) : isConfirmedMaleVoice(v);
+        const isFemale = isFemalePattern(id, name, v.gender);
+        return targetGender === 'female' ? isFemale : !isFemale;
       });
       if (exact) return { voice: exact, isFallback: false };
 
-      // Step 2: Fallback for female target: find first locale voice that is NOT confirmed male
+      // Step 2: Fallback for female target: find first locale voice that is NOT explicitly male
       if (targetGender === 'female') {
-        const notExplicitlyMale = localeVoices.find(v => !isConfirmedMaleVoice(v));
+        const notExplicitlyMale = localeVoices.find(v => {
+          const id = (v.identifier || '').toLowerCase();
+          const name = (v.name || '').toLowerCase();
+          const isMale = (v.gender && v.gender.toLowerCase() === 'male') ||
+            name.includes('male') || id.includes('male') ||
+            !isFemalePattern(id, name, v.gender);
+          return !isMale;
+        });
         if (notExplicitlyMale) return { voice: notExplicitlyMale, isFallback: true };
       }
 
-      // Step 3: Fallback for male target: find first locale voice that is confirmed male
-      if (targetGender === 'male') {
-        const confirmedMale = localeVoices.find(v => isConfirmedMaleVoice(v));
-        if (confirmedMale) return { voice: confirmedMale, isFallback: true };
-      }
-
-      // If female requested and locale has voices, return first locale voice
-      if (targetGender === 'female') {
-        return { voice: localeVoices[0], isFallback: true, fallbackReason: 'Locale default' };
-      }
+      // Step 3: Any voice in the target locale
+      return { voice: localeVoices[0], isFallback: true, fallbackReason: 'Locale default' };
     }
 
     // Step 2: Match gender across any English locale (Guarantees Male voice when requested)
@@ -788,7 +765,8 @@ export const VoiceService = {
     const sameGender = allEn.find(v => {
       const id = (v.identifier || '').toLowerCase();
       const name = (v.name || '').toLowerCase();
-      return targetGender === 'female' ? isFemalePattern(id, name, v.gender) : isConfirmedMaleVoice(v);
+      const isFemale = isFemalePattern(id, name, v.gender);
+      return targetGender === 'female' ? isFemale : !isFemale;
     });
     if (sameGender) return { voice: sameGender, isFallback: true, fallbackReason: 'Any English same-gender' };
 
@@ -799,7 +777,11 @@ export const VoiceService = {
   resolveSystemDefaultVoice: (availableVoices) => {
     if (!availableVoices || availableVoices.length === 0) return null;
 
-    const isExcludedMale = (v) => isConfirmedMaleVoice(v);
+    const isExcludedMale = (v) => {
+      const id = (v.identifier || '').toLowerCase();
+      const name = (v.name || '').toLowerCase();
+      return !isFemalePattern(id, name, v.gender);
+    };
 
     // 1. Google TTS US standard female tutor voice 'sfg' (Voice I) - highest priority
     const sfg = availableVoices.find(v => {
@@ -859,14 +841,20 @@ export const VoiceService = {
     if (isIndian && isMale) {
       // Look for explicit Indian male voice
       const indianMale = availableVoices.find(v => {
-        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        const id = (v.identifier || '').toLowerCase();
         const name = (v.name || '').toLowerCase();
-        return (lang.startsWith('en-in') || name.includes('india')) && isConfirmedMaleVoice(v);
+        const lang = (v.language || '').toLowerCase().replace('_', '-');
+        const isMaleVoice = !isFemalePattern(id, name, v.gender);
+        return (lang.startsWith('en-in') || name.includes('india')) && isMaleVoice;
       });
       if (indianMale) return indianMale.identifier;
 
       // If no Indian male voice installed, select confirmed English male voice (never a female voice)
-      const confirmedEnglishMale = availableVoices.find(v => isConfirmedMaleVoice(v));
+      const confirmedEnglishMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
+        return !isFemalePattern(id, name, v.gender);
+      });
       if (confirmedEnglishMale) return confirmedEnglishMale.identifier;
     }
 
@@ -875,31 +863,36 @@ export const VoiceService = {
 
     // 2. For US Male specifically:
     if (isAmerican && isMale) {
-      // Prioritize confirmed Google TTS & system US male voices
-      const US_MALE_KEYS = ['iog', 'tpf', 'tpc', 'tpd', 'iod', 'iob', 'alex', 'david', 'fred', 'guy', 'mark', 'tom', 'm00', 'aaron', 'ralph'];
+      // Prioritize confirmed Google TTS & system US male voices (no loose 'male' keyword)
+      const US_MALE_KEYS = ['iog', 'tpf', 'tpc', 'tpd', 'iod', 'iob', 'david', 'alex', 'guy', 'mark', 'fred', 'tom', 'm00', 'aaron'];
       for (const key of US_MALE_KEYS) {
         const usMaleVoice = availableVoices.find(v => {
           const id = (v.identifier || '').toLowerCase();
           const name = (v.name || '').toLowerCase();
           const lang = (v.language || '').toLowerCase().replace('_', '-');
           const isUS = lang.startsWith('en-us') || lang === 'en';
-          return isUS && isConfirmedMaleVoice(v) && (id.includes(key) || name.includes(key));
+          const isMaleVoice = !isFemalePattern(id, name, v.gender);
+          return isUS && isMaleVoice && (id.includes(key) || name.includes(key));
         });
         if (usMaleVoice) return usMaleVoice.identifier;
       }
 
-      // Any confirmed US male voice
+      // Any US voice that is NOT female
       const anyUSMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
         const lang = (v.language || '').toLowerCase().replace('_', '-');
         const isUS = lang.startsWith('en-us') || lang === 'en';
-        return isUS && isConfirmedMaleVoice(v);
+        return isUS && !isFemalePattern(id, name, v.gender);
       });
       if (anyUSMale) return anyUSMale.identifier;
 
-      // Confirmed English male voice from any region (UK, AU, IN, CA) rather than picking a female voice
+      // English male voice from any region (UK, AU, IN, CA) rather than picking a female voice
       const anyConfirmedMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
+        const name = (v.name || '').toLowerCase();
         const lang = (v.language || '').toLowerCase().replace('_', '-');
-        return lang.startsWith('en') && isConfirmedMaleVoice(v);
+        return lang.startsWith('en') && !isFemalePattern(id, name, v.gender);
       });
       if (anyConfirmedMale) return anyConfirmedMale.identifier;
     }
@@ -937,15 +930,17 @@ export const VoiceService = {
           const name = (v.name || '').toLowerCase();
           const lang = (v.language || '').toLowerCase().replace('_', '-');
           const isAU = lang.startsWith('en-au') || name.includes('australia');
-          return isAU && isConfirmedMaleVoice(v) && (id.includes(key) || name.includes(key));
+          const isMaleVoice = !isFemalePattern(id, name, v.gender);
+          return isAU && isMaleVoice && (id.includes(key) || name.includes(key));
         });
         if (auMaleVoice) return auMaleVoice.identifier;
       }
 
       const anyAUMale = availableVoices.find(v => {
+        const id = (v.identifier || '').toLowerCase();
         const name = (v.name || '').toLowerCase();
         const lang = (v.language || '').toLowerCase().replace('_', '-');
-        return (lang.startsWith('en-au') || name.includes('australia')) && isConfirmedMaleVoice(v);
+        return (lang.startsWith('en-au') || name.includes('australia')) && !isFemalePattern(id, name, v.gender);
       });
       if (anyAUMale) return anyAUMale.identifier;
     }
@@ -1001,7 +996,11 @@ export const VoiceService = {
           });
           if (anyFemale) selected = anyFemale.identifier;
         } else if (targetGender === 'male' && isFemale) {
-          const anyMale = availableVoices.find(v => isConfirmedMaleVoice(v));
+          const anyMale = availableVoices.find(v => {
+            const vid = (v.identifier || '').toLowerCase();
+            const vname = (v.name || '').toLowerCase();
+            return !isFemalePattern(vid, vname, v.gender);
+          });
           if (anyMale) selected = anyMale.identifier;
         }
       }
