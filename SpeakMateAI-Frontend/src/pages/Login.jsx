@@ -6,12 +6,13 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import ROUTES from "../constants/routes";
 import { dashboardService, progressService } from "../services/appServices";
-import { setCachedDashboardData, clearDashboardCache } from "../utils/dashboardCache";
+import { setCachedDashboardData, getCachedDashboardData, clearDashboardCache } from "../utils/dashboardCache";
 import { CurriculumCache } from "../utils/curriculumCache";
-import { syncBackendProgress } from "../utils/progressTracker";
+import { syncBackendProgress, getLiveProgressStats } from "../utils/progressTracker";
+import { SpeakMateLoader } from "../components/common/SpeakMateLoader";
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, setIsPostLoginLoading } = useAuth();
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -138,11 +139,8 @@ export function Login() {
         const displayName = authenticatedUser.firstName || authenticatedUser.name || (userEmail ? userEmail.split("@")[0] : "Learner");
         const isProUser = Boolean((authenticatedUser.isPro || authenticatedUser.pro) && authenticatedUser.subscriptionPlan && authenticatedUser.subscriptionPlan !== "FREE");
 
-        // Clear any stale cached data so previous sessions or other accounts cannot leak
-        clearDashboardCache();
-        CurriculumCache.clear();
-
-        // 1. Show the Admin-style loader immediately
+        // 1. Show the branded theme-aware loader immediately
+        setIsPostLoginLoading(true);
         setTransitioningUser({
           name: displayName,
           avatar: authenticatedUser.avatar,
@@ -152,12 +150,12 @@ export function Login() {
           email: userEmail,
         });
 
-        // 2. Fetch fresh dashboard summary & progress while the loader is displayed (snappy 800-1200ms window)
+        // 2. Fetch fresh dashboard summary & progress while the loader is displayed (snappy 1.1s - 1.4s window)
         try {
-          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 800));
+          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 1100));
           const summaryPromise = dashboardService.summary().catch(() => null);
           const progressPromise = progressService.get().catch(() => null);
-          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1200));
+          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1400));
 
           const [summaryData, progressData] = await Promise.all([
             Promise.race([summaryPromise, timeoutPromise]),
@@ -165,29 +163,54 @@ export function Login() {
             minDelayPromise,
           ]);
 
-          const finalSummary = summaryData || {};
-          if (progressData && !finalSummary.progress) {
-            finalSummary.progress = progressData;
-          }
+          const liveStats = getLiveProgressStats(authenticatedUser);
+          const existingCache = getCachedDashboardData(userEmail) || {};
 
-          if (finalSummary) {
-            setCachedDashboardData(finalSummary, userEmail);
-            const synced = syncBackendProgress(finalSummary, authenticatedUser);
-            const identifier = authenticatedUser?.id || authenticatedUser?.email || userEmail;
-            try {
-              localStorage.setItem(`speakmate_user_progress_stats_${identifier}`, JSON.stringify(synced));
-            } catch (_) {}
-            window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: synced }));
-          }
+          const finalSummary = {
+            ...existingCache,
+            ...(summaryData || {}),
+            progress: {
+              ...(existingCache.progress || {}),
+              ...(progressData || {}),
+              ...(summaryData?.progress || {}),
+            },
+          };
+
+          const accuracyVal =
+            finalSummary.accuracy ??
+            finalSummary.statistics?.averageScore ??
+            liveStats.accuracy ??
+            liveStats.backendAccuracy ??
+            authenticatedUser.averageScore;
+
+          finalSummary.accuracy = accuracyVal > 0 ? accuracyVal : null;
+          finalSummary.streak = Number(finalSummary.streak ?? liveStats.streak ?? authenticatedUser.streak ?? 0);
+          finalSummary.xp = Number(finalSummary.xp ?? liveStats.xp ?? authenticatedUser.xp ?? 0);
+          finalSummary.totalHours = finalSummary.statistics?.totalStudyHours ?? liveStats.totalHours ?? 0.0;
+          finalSummary.badgesUnlocked = Number(finalSummary.badgesUnlocked ?? liveStats.badgesUnlocked ?? 0);
+          finalSummary.wordsLearned = Number(finalSummary.statistics?.vocabularyLearned ?? liveStats.wordsLearned ?? 0);
+
+          setCachedDashboardData(finalSummary, userEmail);
+          const synced = syncBackendProgress(finalSummary, authenticatedUser);
+          const identifier = authenticatedUser?.id || authenticatedUser?.email || userEmail;
+          try {
+            localStorage.setItem(`speakmate_user_progress_stats_${identifier}`, JSON.stringify(synced));
+          } catch (_) {}
+          window.dispatchEvent(new CustomEvent("speakmate_progress_updated", { detail: synced }));
         } catch (prepErr) {
           console.warn("Dashboard prefetch error:", prepErr);
         }
 
         // 3. AFTER loading is complete and actual data is saved: navigate to Dashboard
         navigate(ROUTES.DASHBOARD, { replace: true });
+        setTimeout(() => {
+          setIsPostLoginLoading(false);
+          setTransitioningUser(null);
+        }, 120);
       }
     } catch (err) {
       console.error("Login failed:", err);
+      setIsPostLoginLoading(false);
       setTransitioningUser(null);
       const serverMsg = err.userMessage || err.response?.data?.message || err.message;
       let displayMsg = serverMsg;
@@ -499,62 +522,14 @@ export function Login() {
         </div>
       </div>
 
-      {/* Branded Post-Login Theme-Aware Transition Loader (Admin Reference) */}
-      <AnimatePresence>
-        {transitioningUser && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 bg-[var(--bg-base)]"
-          >
-            <div className="flex flex-col items-center text-center animate-in fade-in zoom-in duration-300 max-w-md w-full">
-              {/* Dual-Spinning Ring Emblem Matching Admin Login/Dashboard */}
-              <div className="relative flex h-24 w-24 items-center justify-center">
-                {/* Outer spinning ring */}
-                <div className="absolute inset-0 rounded-full border-[3px] border-[#6C63FF]/20 border-t-[#6C63FF] animate-spin" />
-                {/* Inner counter-spinning ring */}
-                <div className="absolute inset-2 rounded-full border-[3px] border-purple-500/20 border-b-purple-500 animate-[spin_1.5s_linear_infinite_reverse]" />
-                {/* Center glowing badge */}
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6C63FF] to-purple-600 text-white shadow-lg shadow-[#6C63FF]/30">
-                  <Sparkles className="h-6 w-6 animate-pulse" />
-                </div>
-              </div>
-
-              {/* Title */}
-              <h2 className="mt-6 text-xl font-black tracking-tight text-[#6C63FF]">
-                SpeakMate AI
-              </h2>
-
-              {/* Status with animated pulsing dots */}
-              <div className="mt-2 flex items-center justify-center gap-1 font-semibold text-[var(--text-secondary)] text-sm">
-                <span>Loading dashboard</span>
-                <span className="flex w-4 justify-start">
-                  <span className="animate-[ping_1.4s_infinite] text-lg leading-none">.</span>
-                  <span className="animate-[ping_1.4s_0.2s_infinite] text-lg leading-none">.</span>
-                  <span className="animate-[ping_1.4s_0.4s_infinite] text-lg leading-none">.</span>
-                </span>
-              </div>
-
-              {/* Personalized subMessage */}
-              <p className="mt-2 text-xs font-medium text-[var(--text-muted)] max-w-xs">
-                Welcome back, <span className="font-bold text-[var(--text-primary)]">{transitioningUser.name}</span>! Synchronizing your live fluency data and streak...
-              </p>
-
-              {/* Progress Track */}
-              <div className="w-56 mt-4 h-1.5 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-full overflow-hidden p-0.5">
-                <motion.div
-                  initial={{ width: "10%" }}
-                  animate={{ width: "100%" }}
-                  transition={{ duration: 1.4, ease: "easeInOut" }}
-                  className="h-full rounded-full bg-gradient-to-r from-[#6C63FF] via-purple-500 to-[#FF6584]"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Branded Post-Login Theme-Aware Transition Loader */}
+      {transitioningUser && (
+        <SpeakMateLoader
+          fullScreen
+          message="Loading dashboard..."
+          subMessage={`Welcome back, ${transitioningUser.name}! Synchronizing your stats & streak`}
+        />
+      )}
     </div>
   );
 }

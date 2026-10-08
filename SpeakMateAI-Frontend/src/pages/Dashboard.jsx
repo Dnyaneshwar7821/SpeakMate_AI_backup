@@ -182,11 +182,32 @@ export function Dashboard() {
     const backendStats = cached?.statistics || {};
     const synced = cached ? syncBackendProgress(cached, user) : {};
 
-    const accuracyVal = synced.accuracy ?? (backendStats.averageScore > 0 ? backendStats.averageScore : null);
-    const totalHoursVal = backendStats.totalStudyHours != null
-      ? Number(backendStats.totalStudyHours)
-      : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
-    const wordsVal = backendStats.vocabularyLearned ?? cached?.progress?.totalVocabularyWords ?? synced.wordsLearned ?? 0;
+    const accuracyVal =
+      cached?.accuracy ??
+      synced.accuracy ??
+      (backendStats.averageScore > 0 ? backendStats.averageScore : null) ??
+      (live.accuracy > 0 ? live.accuracy : null) ??
+      (live.backendAccuracy > 0 ? live.backendAccuracy : null) ??
+      (user?.averageScore > 0 ? user.averageScore : null);
+
+    const totalHoursVal =
+      cached?.totalHours != null
+        ? Number(cached.totalHours)
+        : backendStats.totalStudyHours != null
+        ? Number(backendStats.totalStudyHours)
+        : synced.totalHours != null
+        ? Number(synced.totalHours)
+        : live.totalHours != null
+        ? Number(live.totalHours)
+        : 0.0;
+
+    const wordsVal =
+      cached?.wordsLearned ??
+      backendStats.vocabularyLearned ??
+      cached?.progress?.totalVocabularyWords ??
+      synced.wordsLearned ??
+      live.wordsLearned ??
+      0;
 
     return {
       ...live,
@@ -195,11 +216,11 @@ export function Dashboard() {
       accuracy: accuracyVal,
       totalHours: totalHoursVal,
       wordsLearned: wordsVal,
-      speakingSessions: backendStats.speakingSessions ?? synced.speakingSessions ?? 0,
-      completedLessons: backendStats.completedLessons ?? synced.completedLessons ?? 0,
-      streak: Number(synced.streak ?? cached?.streak ?? cached?.progress?.streak ?? live.streak ?? 0),
-      xp: Number(synced.xp ?? cached?.progress?.xp ?? cached?.xp ?? live.xp ?? 0),
-      streakFreezes: Number(synced.streakFreezes ?? live.streakFreezes ?? 0),
+      speakingSessions: backendStats.speakingSessions ?? synced.speakingSessions ?? live.speakingSessions ?? 0,
+      completedLessons: backendStats.completedLessons ?? synced.completedLessons ?? live.lessonsCompleted ?? 0,
+      streak: Number(cached?.streak ?? synced.streak ?? cached?.progress?.streak ?? (live.streak > 0 ? live.streak : null) ?? user?.streak ?? live.streak ?? 0),
+      xp: Number(cached?.xp ?? synced.xp ?? cached?.progress?.xp ?? live.xp ?? user?.xp ?? 0),
+      streakFreezes: Number(synced.streakFreezes ?? cached?.streakFreezes ?? live.streakFreezes ?? 0),
       todayMins: live.todayMins || 0,
       completedMins: live.todayMins || 0,
       dailyGoalMins: cached?.dailyGoal?.targetSpeakingMinutes || cached?.dailyGoal?.dailyGoalMinutes || initialGoal,
@@ -275,11 +296,17 @@ export function Dashboard() {
           const synced = syncBackendProgress(data, user);
           const backendStats = data.statistics || {};
           const backendAccuracy = backendStats.averageScore > 0 ? backendStats.averageScore : null;
-          const finalAccuracy = synced.accuracy ?? backendAccuracy;
+          const finalAccuracy =
+            synced.accuracy ??
+            backendAccuracy ??
+            data.accuracy ??
+            liveStats.accuracy ??
+            liveStats.backendAccuracy ??
+            null;
           const finalHours = backendStats.totalStudyHours != null
             ? Number(backendStats.totalStudyHours)
-            : (synced.totalHours != null ? Number(synced.totalHours) : 0.0);
-          const finalWords = backendStats.vocabularyLearned ?? data.progress?.totalVocabularyWords ?? synced.wordsLearned;
+            : (synced.totalHours != null ? Number(synced.totalHours) : (liveStats.totalHours != null ? Number(liveStats.totalHours) : 0.0));
+          const finalWords = backendStats.vocabularyLearned ?? data.progress?.totalVocabularyWords ?? synced.wordsLearned ?? liveStats.wordsLearned ?? 0;
           const targetFromBackend = data.dailyGoal?.targetSpeakingMinutes || data.dailyGoal?.dailyGoalMinutes;
 
           const verifiedAchsCount = Array.isArray(achs) && achs.length > 0
@@ -287,7 +314,7 @@ export function Dashboard() {
             : null;
           const finalBadgesUnlocked = verifiedAchsCount != null
             ? verifiedAchsCount
-            : (data.badgesUnlocked != null ? Number(data.badgesUnlocked) : (synced.badgesUnlocked ?? 0));
+            : (data.badgesUnlocked != null ? Number(data.badgesUnlocked) : (synced.badgesUnlocked ?? liveStats.badgesUnlocked ?? 0));
 
           const cachePayload = {
             ...data,
@@ -303,16 +330,16 @@ export function Dashboard() {
             ...prev,
             ...data,
             ...synced,
-            accuracy: finalAccuracy,
-            totalHours: finalHours,
-            wordsLearned: finalWords,
-            streak: Number(synced.streak ?? data.streak ?? data.progress?.streak ?? 0),
-            xp: Number(synced.xp ?? data.progress?.xp ?? data.xp ?? 0),
+            accuracy: finalAccuracy ?? prev.accuracy,
+            totalHours: finalHours || prev.totalHours,
+            wordsLearned: finalWords || prev.wordsLearned,
+            streak: Number(synced.streak ?? data.streak ?? data.progress?.streak ?? (prev.streak > 0 ? prev.streak : 0)),
+            xp: Number(synced.xp ?? data.progress?.xp ?? data.xp ?? (prev.xp > 0 ? prev.xp : 0)),
             streakFreezes: Number(synced.streakFreezes ?? prev.streakFreezes ?? 0),
             todayMins: synced.todayMins ?? prev.todayMins ?? 0,
             completedMins: synced.todayMins ?? prev.todayMins ?? 0,
             dailyGoalMins: targetFromBackend || userGoal,
-            badgesUnlocked: finalBadgesUnlocked,
+            badgesUnlocked: finalBadgesUnlocked ?? prev.badgesUnlocked,
           }));
         }
       })

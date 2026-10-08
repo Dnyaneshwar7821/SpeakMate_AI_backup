@@ -44,6 +44,8 @@ export function AuthProvider({ children }) {
     }
   });
 
+  const [isPostLoginLoading, setIsPostLoginLoading] = useState(false);
+
   const userRef = useRef(user);
   const sessionRestoredRef = useRef(false);
 
@@ -484,13 +486,15 @@ export function AuthProvider({ children }) {
       isAuthenticated: !!token && !!user,
       onboardingCompleted,
       loading,
+      isPostLoginLoading,
+      setIsPostLoginLoading,
       login,
       register,
       logout,
       completeOnboarding,
       updateUser,
     }),
-    [user, token, onboardingCompleted, loading, logout]
+    [user, token, onboardingCompleted, loading, logout, isPostLoginLoading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

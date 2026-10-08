@@ -105,14 +105,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import PublicRoute from "./PublicRoute";
 
 function RouteFallback() {
-  return (
-    <div className="min-h-[50vh] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-9 h-9 border-3 border-[#6C63FF]/30 border-t-[#6C63FF] rounded-full animate-spin" />
-        <span className="text-xs font-semibold text-[var(--text-secondary)]">Loading...</span>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 function PageTransition({ children }) {

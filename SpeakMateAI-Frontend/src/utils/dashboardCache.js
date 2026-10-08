@@ -5,14 +5,14 @@
  */
 
 export const DASHBOARD_CACHE_KEY = "speakmate_dashboard_data_cache";
-export const DEFAULT_DASHBOARD_CACHE_TTL_MS = 180000; // 3 minutes TTL
+export const DEFAULT_DASHBOARD_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours TTL
 
 let inMemoryDashboardCache = null;
 
 /**
  * Retrieve cached dashboard data for the active user.
  * Validates that cached data matches the current authenticated user's email and
- * is within the allowed TTL (default 3 minutes) to prevent showing stale numbers.
+ * is within the allowed TTL to prevent showing stale numbers.
  */
 export function getCachedDashboardData(currentUserEmail, maxAgeMs = DEFAULT_DASHBOARD_CACHE_TTL_MS) {
   let normEmail = currentUserEmail ? String(currentUserEmail).toLowerCase().trim() : null;
@@ -57,11 +57,26 @@ export function getCachedDashboardData(currentUserEmail, maxAgeMs = DEFAULT_DASH
     }
   } catch (_) {}
 
+  // Persistent user-specific localStorage fallback
+  if (normEmail) {
+    try {
+      const localStored = localStorage.getItem(`speakmate_dashboard_cache_${normEmail}`);
+      if (localStored) {
+        const parsed = JSON.parse(localStored);
+        const isFresh = parsed._cachedAt && (now - parsed._cachedAt <= maxAgeMs);
+        if (isFresh) {
+          inMemoryDashboardCache = parsed;
+          return parsed;
+        }
+      }
+    } catch (_) {}
+  }
+
   return null;
 }
 
 /**
- * Store dashboard data in memory and sessionStorage tagged with the user's email and timestamp.
+ * Store dashboard data in memory, sessionStorage, and localStorage tagged with the user's email and timestamp.
  */
 export function setCachedDashboardData(data, userEmail) {
   if (!data) return;
@@ -75,6 +90,11 @@ export function setCachedDashboardData(data, userEmail) {
   try {
     sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload));
   } catch (_) {}
+  if (normEmail) {
+    try {
+      localStorage.setItem(`speakmate_dashboard_cache_${normEmail}`, JSON.stringify(payload));
+    } catch (_) {}
+  }
 }
 
 /**

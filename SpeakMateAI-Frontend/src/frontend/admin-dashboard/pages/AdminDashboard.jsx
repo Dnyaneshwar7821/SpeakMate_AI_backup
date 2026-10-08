@@ -296,7 +296,7 @@ export function AdminDashboard() {
         <div className="space-y-5 sm:space-y-6">
             {/* ============ Global Loader (only on cold load if taking > 300ms) ============ */}
             {statsLoading && !stats && showSlowLoader && (
-                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-base)]/70 backdrop-blur-md transition-all duration-300">
+                <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[var(--bg-base)] transition-all duration-300">
                     <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
                         {/* Animated Logo */}
                         <div className="relative flex h-24 w-24 items-center justify-center">

@@ -7,6 +7,7 @@ import BottomNav from "./BottomNav";
 import Footer from "./Footer";
 import useSpeechCleanup from "../../hooks/useSpeechCleanup";
 import { LearnerAssistant } from "@components/assistant";
+import { SpeakMateLoader } from "../common/SpeakMateLoader";
 
 const NO_SIDEBAR_PATHS = [
   ROUTES.HOME,
@@ -20,8 +21,18 @@ const NO_SIDEBAR_PATHS = [
 
 export function Layout({ children }) {
   useSpeechCleanup();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isPostLoginLoading } = useAuth();
   const location = useLocation();
+
+  if (isPostLoginLoading) {
+    return (
+      <SpeakMateLoader
+        fullScreen
+        message="Loading dashboard..."
+        subMessage="Synchronizing your learning stats & streak"
+      />
+    );
+  }
 
   const showSidebar = isAuthenticated && !NO_SIDEBAR_PATHS.includes(location.pathname);
   const showFooter = NO_SIDEBAR_PATHS.includes(location.pathname);
