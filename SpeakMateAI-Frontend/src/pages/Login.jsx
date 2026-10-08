@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import ROUTES from "../constants/routes";
-import { dashboardService, progressService, achievementService } from "../services/appServices";
+import { dashboardService, progressService } from "../services/appServices";
 import { setCachedDashboardData, getCachedDashboardData, clearDashboardCache } from "../utils/dashboardCache";
 import { CurriculumCache } from "../utils/curriculumCache";
 import { syncBackendProgress, getLiveProgressStats } from "../utils/progressTracker";
@@ -150,16 +150,14 @@ export function Login() {
           email: userEmail,
         });
 
-        // 2. Fetch fresh dashboard summary & achievements while the loader is displayed
+        // 2. Fetch fresh dashboard summary while the single post-login loader is displayed (snappy 700ms - 1800ms window)
         try {
-          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 800));
+          const minDelayPromise = new Promise((resolve) => setTimeout(resolve, 700));
           const summaryPromise = dashboardService.summary().catch(() => null);
-          const achsPromise = achievementService.all().catch(() => null);
-          const maxSafetyTimeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 10000));
+          const maxSafetyTimeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1800));
 
-          const [summaryData, achsData] = await Promise.all([
+          const [summaryData] = await Promise.all([
             Promise.race([summaryPromise, maxSafetyTimeoutPromise]),
-            Promise.race([achsPromise, maxSafetyTimeoutPromise]),
             minDelayPromise,
           ]);
 
@@ -167,11 +165,9 @@ export function Login() {
             const synced = syncBackendProgress(summaryData, authenticatedUser);
             const backendStats = summaryData.statistics || {};
             const backendAccuracy = backendStats.averageScore > 0 ? backendStats.averageScore : null;
-            const verifiedAchsCount = Array.isArray(achsData) && achsData.length > 0
-              ? achsData.filter((a) => a.unlocked).length
-              : (Array.isArray(summaryData.achievements) && summaryData.achievements.length > 0
-                ? summaryData.achievements.filter((a) => a.unlocked).length
-                : null);
+            const verifiedAchsCount = Array.isArray(summaryData.achievements) && summaryData.achievements.length > 0
+              ? summaryData.achievements.filter((a) => a.unlocked).length
+              : (summaryData.badgesUnlocked != null ? Number(summaryData.badgesUnlocked) : null);
 
             const finalBadgesUnlocked = verifiedAchsCount != null
               ? verifiedAchsCount

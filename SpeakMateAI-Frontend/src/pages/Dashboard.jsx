@@ -25,7 +25,6 @@ import { CurriculumCache } from "../utils/curriculumCache";
 import { getCachedDashboardData, setCachedDashboardData } from "../utils/dashboardCache";
 import { StreakModal } from "../components/dashboard/StreakModal";
 import { LeaderboardModal } from "../components/dashboard/LeaderboardModal";
-import { SpeakMateLoader } from "../components/common/SpeakMateLoader";
 
 const getRankTier = (xp = 0) => {
   if (xp < 100) return { name: "Bronze III", icon: "🥉", badgeColor: "bg-amber-700/20 text-amber-500 border-amber-600/30" };
@@ -228,19 +227,6 @@ export function Dashboard() {
       badgesUnlocked: Number(cached?.badgesUnlocked ?? synced.badgesUnlocked ?? live.badgesUnlocked ?? 0),
     };
   });
-  const [initialLoading, setInitialLoading] = useState(() => {
-    const cached = getCachedDashboardData(user?.email);
-    const hasMeaningfulData = Boolean(
-      cached && (
-        cached._syncedFromServer ||
-        (Number(cached.xp) > 0) ||
-        (Number(cached.progress?.xp) > 0) ||
-        (Number(cached.statistics?.totalStudyHours) > 0) ||
-        (Number(cached.badgesUnlocked) > 0)
-      )
-    );
-    return !hasMeaningfulData;
-  });
   const [isLoading, setIsLoading] = useState(false);
   const [streakModalOpen, setStreakModalOpen] = useState(false);
   const [leaderboardModalOpen, setLeaderboardModalOpen] = useState(false);
@@ -348,7 +334,6 @@ export function Dashboard() {
       .catch(() => {})
       .finally(() => {
         setIsLoading(false);
-        setInitialLoading(false);
       });
   }, [user]);
 
@@ -664,16 +649,6 @@ export function Dashboard() {
       route: ROUTES.PROGRESS,
     },
   ], [totalLessonsCount, actualCompletedLessons, backendStats, stats]);
-
-  if (initialLoading) {
-    return (
-      <SpeakMateLoader
-        fullScreen
-        message="Loading dashboard..."
-        subMessage="Synchronizing your learning stats & streak"
-      />
-    );
-  }
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 px-2 sm:px-4 lg:px-6 py-2">
