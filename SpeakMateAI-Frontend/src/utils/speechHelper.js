@@ -121,7 +121,7 @@ export const isKnownFemaleVoiceName = (voiceName = "") => {
     "jenny", "zira", "samantha", "victoria", "karen", "susan", "sonia",
     "hazel", "fiona", "kate", "serena", "natasha", "catherine", "libby",
     "mia", "annette", "neerja", "veena", "heera", "female", "woman", "girl",
-    "aria", "ana", "kalpana", "ananya"
+    "aria", "ana", "kalpana", "ananya", "google us english", "google uk english female"
   ];
   return FEMALE_NAMES.some((k) => name.includes(k));
 };
@@ -1427,6 +1427,13 @@ export const selectMaleTeacherVoice = (voices = []) => {
       return { voice: v, score };
     }
 
+    // Must be verified male candidate or have male markers
+    const isMale = isKnownMaleVoiceName(name) || name.includes("male");
+    if (!isMale) {
+      score -= 500;
+      return { voice: v, score };
+    }
+
     // Baseline English male candidate
     score += 100;
 
@@ -1474,14 +1481,17 @@ export const selectMaleTeacherVoice = (voices = []) => {
   const best = scored.find((s) => s.score > 0);
   if (best) return best.voice;
 
-  const fallbackIn = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en-in") && isKnownMaleVoiceName(v.name));
+  const fallbackIn = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en-in") && (isKnownMaleVoiceName(v.name) || (v.name || "").toLowerCase().includes("male")));
   if (fallbackIn) return fallbackIn;
 
-  const fallbackUs = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en-us") && isKnownMaleVoiceName(v.name));
+  const fallbackUs = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en-us") && (isKnownMaleVoiceName(v.name) || (v.name || "").toLowerCase().includes("male")));
   if (fallbackUs) return fallbackUs;
 
-  const fallbackMale = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en") && isKnownMaleVoiceName(v.name));
+  const fallbackMale = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en") && (isKnownMaleVoiceName(v.name) || (v.name || "").toLowerCase().includes("male")));
   if (fallbackMale) return fallbackMale;
+
+  const anyMale = voices.find((v) => isKnownMaleVoiceName(v.name) || (v.name || "").toLowerCase().includes("male"));
+  if (anyMale) return anyMale;
 
   const fallbackEn = voices.find((v) => (v.lang || "").toLowerCase().startsWith("en") && !isKnownFemaleVoiceName(v.name));
   if (fallbackEn) return fallbackEn;

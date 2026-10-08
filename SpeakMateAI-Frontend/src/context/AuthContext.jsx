@@ -97,7 +97,7 @@ export function AuthProvider({ children }) {
 
       const voicePref = userData.preferredVoice || userData.aiVoice;
       if (voicePref) {
-        const existingModel = userData.avatarModel || userData.avatar || localStorage.getItem("speakmate_avatar_model");
+        const existingModel = userData.avatarModel || localStorage.getItem("speakmate_avatar_model") || "haru";
         const existingSource = userData.selectionSource || localStorage.getItem("speakmate_selection_source");
         const canonical = resolveCanonicalTutor(existingModel, voicePref, existingSource);
         setCanonicalState(canonical);

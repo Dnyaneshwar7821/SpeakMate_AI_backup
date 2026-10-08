@@ -313,7 +313,12 @@ export function Profile() {
     settingsService.update({ aiVoice: voiceCode }).catch(() => {});
     onboardingService.update({ preferredVoice: voiceCode }).catch(() => {});
     if (updateUser) {
-      updateUser({ preferredVoice: voiceCode, aiVoice: voiceCode });
+      updateUser({
+        preferredVoice: voiceCode,
+        aiVoice: voiceCode,
+        avatarModel: model,
+        selectionSource: 'AVATAR',
+      });
     }
 
     if (user?.email) {
@@ -537,6 +542,8 @@ export function Profile() {
         email: cleanEmail,
         nativeLanguage: form.nativeLanguage,
         avatar: selectedAvatar,
+        avatarModel: activeAvatarId,
+        selectionSource: 'AVATAR',
         schoolGrade: isStudent ? schoolGrade : null,
         ageGroup: isStudent ? null : ageGroup,
         englishLevel: cefrLevel,
