@@ -22,7 +22,7 @@ import { settingsService, onboardingService, profileService } from '../../servic
 import { VoiceService, VOICE_PROFILES } from '../../services/VoiceService';
 import { OnboardingVoiceService } from '../../services/OnboardingVoiceService';
 import { COLORS } from '../../constants/colors';
-import { DashboardCache } from '../../utils/dashboardCache';
+import { DashboardCache, CurriculumCache } from '../../utils/dashboardCache';
 import { getAvatarById, getCachedAvatarModel, setCachedAvatarModel, getAvatarByVoice, resolveAvatarFromVoice } from '../../config/AvatarCatalog';
 import { NotificationHelper } from '../../services/NotificationHelper';
 import { saveUserPreferenceField } from '../../utils/userPreferences';
@@ -46,23 +46,7 @@ const AGE_OPTIONS = [
 ];
 
 const LANGUAGE_OPTIONS = [
-  { code: 'English', label: 'English 🇺🇸', native: 'English' },
-  { code: 'Spanish', label: 'Spanish 🇪🇸', native: 'Español' },
-  { code: 'French', label: 'French 🇫🇷', native: 'Français' },
-  { code: 'German', label: 'German 🇩🇪', native: 'Deutsch' },
-  { code: 'Japanese', label: 'Japanese 🇯🇵', native: '日本語' },
-  { code: 'Chinese', label: 'Chinese 🇨🇳', native: '中文' },
-  { code: 'Italian', label: 'Italian 🇮🇹', native: 'Italiano' },
-  { code: 'Portuguese', label: 'Portuguese 🇵🇹', native: 'Português' },
-  { code: 'Russian', label: 'Russian 🇷🇺', native: 'Русский' },
-  { code: 'Korean', label: 'Korean 🇰🇷', native: '한국어' },
-  { code: 'Hindi', label: 'Hindi 🇮🇳', native: 'हिन्दी' },
-  { code: 'Arabic', label: 'Arabic 🇦🇪', native: 'العربية' },
-  { code: 'Dutch', label: 'Dutch 🇳🇱', native: 'Nederlands' },
-  { code: 'Turkish', label: 'Turkish 🇹🇷', native: 'Türkçe' },
-  { code: 'Vietnamese', label: 'Vietnamese 🇻🇳', native: 'Tiếng Việt' },
-  { code: 'Swedish', label: 'Swedish 🇸🇪', native: 'Svenska' },
-  { code: 'Polish', label: 'Polish 🇵🇱', native: 'Polski' },
+  { code: 'English', label: 'English', native: 'English' },
 ];
 
 const defaults = {
@@ -84,9 +68,6 @@ export default function SettingsScreen({ navigation }) {
   const [state, setState] = useState({ loading: true, error: '' });
   const [saving, setSaving] = useState(false);
   const [availableVoices, setAvailableVoices] = useState([]);
-  
-  // Search text for language modal
-  const [languageSearch, setLanguageSearch] = useState('');
 
   // Onboarding voice style fallback for system default
   const [onboardingVoiceStyle, setOnboardingVoiceStyle] = useState('Friendly');
@@ -137,6 +118,7 @@ export default function SettingsScreen({ navigation }) {
         savedSound,
         savedNotif,
         savedReminder,
+        savedAgeGroup,
       ] = await Promise.all([
         settingsService.get().catch(() => null),
         VoiceService.getAvailableEnglishVoices(),
@@ -149,11 +131,12 @@ export default function SettingsScreen({ navigation }) {
         AsyncStorage.getItem('speakmate_sound_effects'),
         AsyncStorage.getItem('speakmate_notifications_enabled'),
         AsyncStorage.getItem('speakmate_daily_reminder'),
+        AsyncStorage.getItem('speakmate_age_group'),
       ]);
       if (savedType) setAccountType(savedType);
       const canonical = await getActiveTutorAsync();
-      const effectiveVoice = canonical.aiVoice || savedVoice || settings?.aiVoice || defaults.aiVoice;
-      let effectiveAvatarModel = canonical.avatarModel || savedAvatarModel || getCachedAvatarModel();
+      const effectiveVoice = savedBaselineRef.current?.aiVoice || canonical.aiVoice || savedVoice || settings?.aiVoice || defaults.aiVoice;
+      let effectiveAvatarModel = savedAvatarRef.current || canonical.avatarModel || savedAvatarModel || getCachedAvatarModel();
       if (!effectiveAvatarModel && effectiveVoice) {
         effectiveAvatarModel = resolveAvatarFromVoice(effectiveVoice, onboardingVoice).model;
       }
@@ -162,8 +145,8 @@ export default function SettingsScreen({ navigation }) {
         setCachedAvatarModel(effectiveAvatarModel);
         savedAvatarRef.current = effectiveAvatarModel;
       }
-      const initialAgeGroup = onboardingData?.ageGroup || user?.ageGroup || 'Professional';
-      const initialLanguage = settings?.language || defaults.language;
+      const initialAgeGroup = savedBaselineRef.current?.ageGroup || savedAgeGroup || user?.ageGroup || onboardingData?.ageGroup || 'Professional';
+      const initialLanguage = 'English';
       const effAutoPlay = savedAutoPlay !== null ? savedAutoPlay === 'true' : (settings?.autoPlayAudio ?? false);
       const effSound = savedSound !== null ? savedSound === 'true' : (settings?.soundEffects ?? true);
       const effNotif = savedNotif !== null ? savedNotif === 'true' : (settings?.notificationsEnabled ?? true);
@@ -205,28 +188,15 @@ export default function SettingsScreen({ navigation }) {
     useCallback(() => {
       // 1. Immediately reset any unsaved in-memory draft on focus
       const canonical = getActiveTutorSync();
-      if (canonical?.avatarModel) {
-        setCurrentAvatarModel(canonical.avatarModel);
-        savedAvatarRef.current = canonical.avatarModel;
-      } else {
-        const cachedAvatar = getCachedAvatarModel();
-        if (cachedAvatar) {
-          setCurrentAvatarModel(cachedAvatar);
-          savedAvatarRef.current = cachedAvatar;
-        }
-      }
+      const savedModel = savedAvatarRef.current || canonical?.avatarModel || getCachedAvatarModel() || 'haru';
+      setCurrentAvatarModel(savedModel);
 
       if (savedBaselineRef.current) {
         setForm((current) => ({
           ...current,
-          language: savedBaselineRef.current.language,
-          aiVoice: canonical?.aiVoice || savedBaselineRef.current.aiVoice,
-          ageGroup: savedBaselineRef.current.ageGroup,
-        }));
-      } else if (canonical?.aiVoice) {
-        setForm((current) => ({
-          ...current,
-          aiVoice: canonical.aiVoice,
+          language: savedBaselineRef.current.language || 'English',
+          aiVoice: savedBaselineRef.current.aiVoice || canonical?.aiVoice || 'Default',
+          ageGroup: savedBaselineRef.current.ageGroup || 'Professional',
         }));
       }
 
@@ -237,15 +207,13 @@ export default function SettingsScreen({ navigation }) {
         if (savedBaselineRef.current) {
           setForm((current) => ({
             ...current,
-            language: savedBaselineRef.current.language,
+            language: savedBaselineRef.current.language || 'English',
             aiVoice: savedBaselineRef.current.aiVoice,
             ageGroup: savedBaselineRef.current.ageGroup,
           }));
         }
-        const cached = getCachedAvatarModel();
-        if (cached) {
-          setCurrentAvatarModel(cached);
-          savedAvatarRef.current = cached;
+        if (savedAvatarRef.current) {
+          setCurrentAvatarModel(savedAvatarRef.current);
         }
       };
     }, [])
@@ -260,7 +228,11 @@ export default function SettingsScreen({ navigation }) {
     setSaving(true);
     try {
       // 1. Save Settings (Dark Mode, Voice, Language, Sound Effects, Reminders)
-      const savedSettings = await settingsService.update({ ...form, darkMode: globalIsDark });
+      const savedSettings = await settingsService.update({
+        ...form,
+        language: 'English',
+        darkMode: globalIsDark,
+      });
       if (savedSettings && savedSettings.darkMode !== undefined) {
         await setDarkMode(savedSettings.darkMode);
       }
@@ -286,31 +258,50 @@ export default function SettingsScreen({ navigation }) {
         savedAvatarRef.current = targetModel;
 
         if (user?.email) {
-          saveUserPreferenceField(user.email, 'avatarModel', targetModel);
-          saveUserPreferenceField(user.email, 'aiVoice', canonical.aiVoice);
-          saveUserPreferenceField(user.email, 'selectionSource', canonical.selectionSource);
-          saveUserPreferenceField(user.email, 'voiceGender', targetModel === 'chitose' ? 'male' : 'female');
+          await Promise.all([
+            saveUserPreferenceField(user.email, 'avatarModel', targetModel),
+            saveUserPreferenceField(user.email, 'aiVoice', canonical.aiVoice),
+            saveUserPreferenceField(user.email, 'selectedVoice', canonical.aiVoice),
+            saveUserPreferenceField(user.email, 'voiceCode', canonical.aiVoice),
+            saveUserPreferenceField(user.email, 'selectionSource', canonical.selectionSource),
+            saveUserPreferenceField(user.email, 'voiceGender', targetModel === 'chitose' ? 'male' : 'female'),
+          ]).catch(() => {});
+        }
+
+        if (updateUser) {
+          await updateUser({ preferredVoice: canonical.aiVoice, aiVoice: canonical.aiVoice });
         }
       }
 
       // 3. Sync Age Group via Profile Service, Onboarding Service, AuthContext & AsyncStorage
       if (form.ageGroup && !isStudent) {
         await AsyncStorage.setItem('speakmate_age_group', form.ageGroup);
-        await profileService.update({
-          firstName: user?.firstName,
-          lastName: user?.lastName,
-          email: user?.email,
-          ageGroup: form.ageGroup,
-        }).catch((e) => console.warn('Profile age sync warning:', e));
-        await onboardingService.update({ ageGroup: form.ageGroup }).catch((e) => console.warn('Onboarding age sync warning:', e));
+
+        const nameParts = (user?.name || '').trim().split(/\s+/);
+        const safeFirstName = (user?.firstName || nameParts[0] || 'Learner').trim();
+        const safeLastName = (user?.lastName || nameParts.slice(1).join(' ') || 'User').trim();
+
+        await Promise.all([
+          profileService.update({
+            firstName: safeFirstName,
+            lastName: safeLastName,
+            email: user?.email,
+            ageGroup: form.ageGroup,
+          }).catch((e) => console.warn('Profile age sync warning:', e)),
+          onboardingService.update({ ageGroup: form.ageGroup }).catch((e) => console.warn('Onboarding age sync warning:', e)),
+          user?.email ? saveUserPreferenceField(user.email, 'ageGroup', form.ageGroup) : Promise.resolve(),
+        ]);
+
         if (updateUser) {
           await updateUser({ ageGroup: form.ageGroup });
         }
+
+        CurriculumCache.clear();
       }
 
       // 4. Update saved baseline to reflect committed values
       const committedBaseline = {
-        language: form.language,
+        language: 'English',
         aiVoice: form.aiVoice,
         ageGroup: form.ageGroup,
       };
@@ -380,12 +371,6 @@ export default function SettingsScreen({ navigation }) {
     : (form.aiVoice === 'Default' ? SELECTION_SOURCE.SYSTEM_DEFAULT : canonicalState.selectionSource);
 
   const displayVoiceLabel = formatActiveVoiceLabel(form.aiVoice, activeAvatar.id, currentSource);
-
-  // Filtered languages based on search query
-  const filteredLanguages = LANGUAGE_OPTIONS.filter((lang) => 
-    lang.label.toLowerCase().includes(languageSearch.toLowerCase()) || 
-    lang.native.toLowerCase().includes(languageSearch.toLowerCase())
-  );
 
   return (
     <Screen title="Settings" subtitle="Sync learning preferences with your backend account.">
@@ -488,10 +473,7 @@ export default function SettingsScreen({ navigation }) {
             <TouchableOpacity 
               style={styles.pickerRow} 
               activeOpacity={0.7}
-              onPress={() => {
-                setLanguageSearch('');
-                setShowLanguageModal(true);
-              }}
+              onPress={() => setShowLanguageModal(true)}
             >
               <View style={styles.pickerRowLeft}>
                 <View style={[styles.iconBox, { backgroundColor: isDark ? '#1D2D44' : '#E0F2FE' }]}>
@@ -508,7 +490,7 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={[styles.pendingBadgeText, { color: pendingBadgeTextColor }]}>Pending</Text>
                   </View>
                 )}
-                <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">{form.language}</Text>
+                <Text style={styles.pickerValueText} numberOfLines={1} ellipsizeMode="tail">English</Text>
                 <Ionicons name="chevron-forward" size={16} color={sublabelColor} />
               </View>
             </TouchableOpacity>
@@ -841,7 +823,7 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* ENHANCED LANGUAGE SELECTION MODAL */}
+        {/* LANGUAGE SELECTION MODAL */}
         <Modal
           visible={showLanguageModal}
           transparent={true}
@@ -851,68 +833,49 @@ export default function SettingsScreen({ navigation }) {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: modalBg }]}>
               <View style={[styles.modalHeader, { borderBottomColor: dividerColor }]}>
-                <Text style={[styles.modalTitle, { color: labelColor }]}>Select Language</Text>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.modalTitle, { color: labelColor }]}>Language Focus</Text>
+                  <Text style={{ fontSize: 12, color: sublabelColor, marginTop: 2 }}>
+                    SpeakMate AI is an English speaking and pronunciation trainer.
+                  </Text>
+                </View>
                 <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
                   <Ionicons name="close" size={24} color={sublabelColor} />
                 </TouchableOpacity>
               </View>
 
-              {/* SEARCH INPUT BAR */}
-              <View style={[styles.searchBarContainer, { backgroundColor: isDark ? '#334155' : '#F1F5F9' }]}>
-                <Ionicons name="search" size={18} color={sublabelColor} style={styles.searchIcon} />
-                <TextInput
-                  value={languageSearch}
-                  onChangeText={setLanguageSearch}
-                  placeholder="Search languages..."
-                  placeholderTextColor={sublabelColor}
-                  style={[styles.searchInput, { color: labelColor }]}
-                />
-                {languageSearch.length > 0 && (
-                  <TouchableOpacity onPress={() => setLanguageSearch('')} style={styles.searchClearIcon}>
-                    <Ionicons name="close-circle" size={18} color={sublabelColor} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
               <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScrollView}>
-                {filteredLanguages.length > 0 ? (
-                  filteredLanguages.map((item) => {
-                    const isSelected = form.language === item.code;
-                    return (
-                      <TouchableOpacity
-                        key={item.code}
-                        style={[
-                          styles.modalOptionRow, 
-                          isSelected && { backgroundColor: optionActiveBg }
-                        ]}
-                        onPress={() => {
-                          update('language', item.code);
-                          setShowLanguageModal(false);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={[
-                            styles.modalOptionText, 
-                            { color: isDark ? '#E2E8F0' : '#475569' },
-                            isSelected && { color: COLORS.primary }
-                          ]}>
-                            {item.label}
-                          </Text>
-                          <Text style={[styles.modalOptionSubtext, { color: sublabelColor }]}>{item.native}</Text>
-                        </View>
-                        {isSelected && (
-                          <Ionicons name="checkmark" size={20} color={COLORS.primary} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })
-                ) : (
-                  <View style={styles.noResultsContainer}>
-                    <Ionicons name="search-outline" size={32} color={sublabelColor} />
-                    <Text style={[styles.noResultsText, { color: sublabelColor }]}>No languages match search</Text>
-                  </View>
-                )}
+                {LANGUAGE_OPTIONS.map((item) => {
+                  const isSelected = form.language === item.code;
+                  return (
+                    <TouchableOpacity
+                      key={item.code}
+                      style={[
+                        styles.modalOptionRow, 
+                        isSelected && { backgroundColor: optionActiveBg }
+                      ]}
+                      onPress={() => {
+                        update('language', item.code);
+                        setShowLanguageModal(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={[
+                          styles.modalOptionText, 
+                          { color: isDark ? '#E2E8F0' : '#475569' },
+                          isSelected && { color: COLORS.primary }
+                        ]}>
+                          {item.label}
+                        </Text>
+                        <Text style={[styles.modalOptionSubtext, { color: sublabelColor }]}>{item.native}</Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark" size={20} color={COLORS.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
           </View>
@@ -931,7 +894,7 @@ export default function SettingsScreen({ navigation }) {
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={[styles.modalTitle, { color: labelColor }]}>Choose Speaking Tutor Voice</Text>
                   <Text style={{ fontSize: 12, color: sublabelColor, marginTop: 2 }}>
-                    Selecting a regional voice switches your active tutor to Female Teacher or Male Teacher.
+                    Selecting a voice updates your active tutor when you tap Save Settings.
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowVoiceModal(false)}>
@@ -951,32 +914,23 @@ export default function SettingsScreen({ navigation }) {
                         isSelected && { backgroundColor: optionActiveBg }
                       ]}
                       onPress={async () => {
+                        // 1. Update draft form state only (shows pending badge)
                         update('aiVoice', profile.code);
 
-                        // Selecting a regional voice switches the active tutor to Male or Female Teacher
-                        let nextTutor;
+                        // 2. Play audio voice preview sample without mutating storage or canonical active tutor
+                        const previewAvatar = profile.code.includes('Male') ? 'chitose' : 'haru';
                         if (profile.code === 'Default') {
-                          nextTutor = await setActiveTutorFromSystemDefault();
-                        } else {
-                          nextTutor = await setActiveTutorFromRegional(profile.code);
-                        }
-
-                        setCurrentAvatarModel(nextTutor.avatarModel);
-                        savedAvatarRef.current = nextTutor.avatarModel;
-
-                        // Direct UX: Play audio voice preview sample so user hears the accent immediately with teacher avatar
-                        if (profile.code === 'Default') {
-                          const onboardingConfig = await OnboardingVoiceService.load();
-                          const previewMsg = `Hello! I am your ${onboardingConfig.style.toLowerCase()} English tutor.`;
+                          const onboardingConfig = await OnboardingVoiceService.load().catch(() => ({ style: 'Friendly' }));
+                          const previewMsg = `Hello! I am your ${(onboardingConfig?.style || 'friendly').toLowerCase()} English tutor.`;
                           VoiceService.speak(previewMsg, {
-                            avatarId: nextTutor.avatarModel,
+                            avatarId: previewAvatar,
                             voiceType: 'Default',
                             availableVoices,
                           });
                         } else {
                           const previewMsg = `Hello! I'm your ${profile.accent} English tutor.`;
                           VoiceService.speak(previewMsg, {
-                            avatarId: nextTutor.avatarModel,
+                            avatarId: previewAvatar,
                             voiceType: profile.code,
                             availableVoices,
                           });
