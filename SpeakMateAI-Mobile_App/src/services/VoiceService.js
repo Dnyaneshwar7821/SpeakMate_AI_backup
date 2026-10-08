@@ -182,16 +182,16 @@ const DIRECT_VOICE_GENDERS = {
   'en-us-x-sfg-local': 'female',
   'en-us-x-sfg-network': 'female',
   'en-us-x-sfg': 'female',
-  'en-us-x-iol-local': 'female',
-  'en-us-x-iol-network': 'female',
-  'en-us-x-iol': 'female',
-  'en-us-x-iom-local': 'female',
-  'en-us-x-iom-network': 'female',
-  'en-us-x-iom': 'female',
   'en-us-x-rgf-local': 'female',
   'en-us-x-rgf-network': 'female',
   'en-us-x-rgf': 'female',
   // Male
+  'en-us-x-iol-local': 'male',
+  'en-us-x-iol-network': 'male',
+  'en-us-x-iol': 'male',
+  'en-us-x-iom-local': 'male',
+  'en-us-x-iom-network': 'male',
+  'en-us-x-iom': 'male',
   'en-us-x-iog-local': 'male',
   'en-us-x-iog-network': 'male',
   'en-us-x-iog': 'male',
@@ -377,7 +377,7 @@ const isFemalePattern = (id, name, voiceGender) => {
     'salli', 'emma', 'amy', 'jessa', 'claire', 'vicki', 'lekha', 'veena', 'heera', 'zira',
     'hazel', 'zosia', 'zoe', 'susan', 'aria', 'jenny', 'natasha', 'female', 'woman',
     '#female', 'female_', '-female', '_female',
-    'sfg', 'iol', 'iom', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aum', 'auc', 'auf', 'aug',
+    'sfg', 'rgf', 'gba', 'gbb', 'gbf', 'gbg', 'fis', 'aum', 'auc', 'auf', 'aug',
     'cta', 'ctc', 'inf', 'ing', 'inm', 'cbf', 'ena', 'enc', 'caa', 'cad',
     '_f00', '_f01', '-f00', '-f01', 'smtf00', 'smtf01'
   ];
@@ -391,7 +391,7 @@ const isFemalePattern = (id, name, voiceGender) => {
     'ravi', 'prabhat', 'aaron', 'guy', 'mister', 'mike', 'james', 'mark', 'paul',
     'richard', 'robert', 'stephen', 'william', 'russell', 'neel', 'lee', 'ralph',
     '#male', 'male_', '-male', '_male',
-    'tpf', 'iog', 'tpc', 'tpd', 'iod', 'iob', 'gbc', 'gbd', 'rjs', 'aub', 'aud', 'ctb', 'ctd',
+    'tpf', 'iog', 'iol', 'iom', 'tpc', 'tpd', 'iod', 'iob', 'gbc', 'gbd', 'rjs', 'aub', 'aud', 'ctb', 'ctd',
     'ind', 'inc', 'inb', 'end', 'ene', 'enf', 'cab', 'cac',
     '_m00', '_m01', '-m00', '-m01', 'smtm00', 'smtm01'
   ];
@@ -864,7 +864,7 @@ export const VoiceService = {
     // 2. For US Male specifically:
     if (isAmerican && isMale) {
       // Prioritize confirmed Google TTS & system US male voices (no loose 'male' keyword)
-      const US_MALE_KEYS = ['iog', 'tpf', 'tpc', 'tpd', 'iod', 'iob', 'david', 'alex', 'guy', 'mark', 'fred', 'tom', 'm00', 'aaron'];
+      const US_MALE_KEYS = ['iol', 'iom', 'iog', 'tpf', 'tpc', 'tpd', 'iod', 'iob', 'david', 'alex', 'guy', 'mark', 'fred', 'tom', 'm00', 'aaron'];
       for (const key of US_MALE_KEYS) {
         const usMaleVoice = availableVoices.find(v => {
           const id = (v.identifier || '').toLowerCase();
@@ -899,7 +899,7 @@ export const VoiceService = {
 
     // 3. For US Female specifically:
     if (isAmerican && !isMale) {
-      const US_FEMALE_KEYS = ['sfg', 'iol', 'iom', 'rgf', 'samantha', 'victoria', 'karen', 'zira', 'jenny', 'female'];
+      const US_FEMALE_KEYS = ['sfg', 'rgf', 'samantha', 'victoria', 'karen', 'zira', 'jenny', 'female'];
       for (const key of US_FEMALE_KEYS) {
         const usFemVoice = availableVoices.find(v => {
           const id = (v.identifier || '').toLowerCase();
@@ -1266,7 +1266,7 @@ export const VoiceService = {
     let basePitchForUtterance = avatarProfile.basePitch;
     if (effectiveVoiceGender === 'male' && avatarProfile.intendedGender === 'female') {
       // User selected a regional male voice (e.g. US Male) with female avatar baseline
-      basePitchForUtterance = 0.98;
+      basePitchForUtterance = 0.92;
     } else if (effectiveVoiceGender === 'female' && avatarProfile.intendedGender === 'male') {
       basePitchForUtterance = 1.12;
     }
@@ -1300,7 +1300,12 @@ export const VoiceService = {
         } else if (effectiveVoiceGender === 'female' && !isActuallyFemale) {
           effectivePitch = Math.max(effectivePitch, 1.16); // Shift up if forced on male hardware voice
         } else if (effectiveVoiceGender === 'male' && !isActuallyFemale) {
-          effectivePitch = Math.min(effectivePitch, 1.02); // Natural male ceiling
+          // For iol/iom American male voice, apply the calibrated resonant male pitch profile from commit 4e330d61
+          if (vid.includes('iol') || vid.includes('iom')) {
+            effectivePitch = Math.min(effectivePitch, 0.88);
+          } else {
+            effectivePitch = Math.min(effectivePitch, 1.02); // Natural male ceiling
+          }
         }
 
         // Deep voice lift for youthful male cartoon characters
