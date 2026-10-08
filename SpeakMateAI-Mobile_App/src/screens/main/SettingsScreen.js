@@ -53,7 +53,7 @@ const defaults = {
   darkMode: false,
   notificationsEnabled: true,
   language: 'English',
-  aiVoice: 'Default',
+  aiVoice: 'Teacher',
   ageGroup: 'Professional',
   soundEffects: true,
   autoPlayAudio: false,
@@ -135,8 +135,8 @@ export default function SettingsScreen({ navigation }) {
       ]);
       if (savedType) setAccountType(savedType);
       const canonical = await getActiveTutorAsync();
-      const effectiveVoice = savedBaselineRef.current?.aiVoice || canonical.aiVoice || savedVoice || settings?.aiVoice || defaults.aiVoice;
-      let effectiveAvatarModel = savedAvatarRef.current || canonical.avatarModel || savedAvatarModel || getCachedAvatarModel();
+      const effectiveVoice = canonical.aiVoice || savedVoice || settings?.aiVoice || defaults.aiVoice;
+      let effectiveAvatarModel = canonical.avatarModel || savedAvatarModel || getCachedAvatarModel() || 'haru';
       if (!effectiveAvatarModel && effectiveVoice) {
         effectiveAvatarModel = resolveAvatarFromVoice(effectiveVoice, onboardingVoice).model;
       }
@@ -186,35 +186,44 @@ export default function SettingsScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      // 1. Immediately reset any unsaved in-memory draft on focus
+      // 1. Immediately reset any unsaved in-memory draft on focus to canonical active tutor
       const canonical = getActiveTutorSync();
-      const savedModel = savedAvatarRef.current || canonical?.avatarModel || getCachedAvatarModel() || 'haru';
-      setCurrentAvatarModel(savedModel);
+      const activeModel = canonical?.avatarModel || getCachedAvatarModel() || 'haru';
+      const activeVoice = canonical?.aiVoice || 'Teacher';
 
-      if (savedBaselineRef.current) {
-        setForm((current) => ({
-          ...current,
-          language: savedBaselineRef.current.language || 'English',
-          aiVoice: savedBaselineRef.current.aiVoice || canonical?.aiVoice || 'Default',
-          ageGroup: savedBaselineRef.current.ageGroup || 'Professional',
-        }));
-      }
+      setCurrentAvatarModel(activeModel);
+      savedAvatarRef.current = activeModel;
+
+      const currentBaseline = {
+        language: savedBaselineRef.current?.language || 'English',
+        aiVoice: activeVoice,
+        ageGroup: savedBaselineRef.current?.ageGroup || 'Professional',
+      };
+      savedBaselineRef.current = currentBaseline;
+      setSavedBaseline(currentBaseline);
+
+      setForm((current) => ({
+        ...current,
+        language: currentBaseline.language,
+        aiVoice: activeVoice,
+        ageGroup: currentBaseline.ageGroup,
+      }));
 
       load();
 
       // 2. Discard uncommitted changes immediately when leaving/escaping screen
       return () => {
-        if (savedBaselineRef.current) {
-          setForm((current) => ({
-            ...current,
-            language: savedBaselineRef.current.language || 'English',
-            aiVoice: savedBaselineRef.current.aiVoice,
-            ageGroup: savedBaselineRef.current.ageGroup,
-          }));
-        }
-        if (savedAvatarRef.current) {
-          setCurrentAvatarModel(savedAvatarRef.current);
-        }
+        const canonicalOnExit = getActiveTutorSync();
+        const exitVoice = canonicalOnExit?.aiVoice || 'Teacher';
+        const exitModel = canonicalOnExit?.avatarModel || 'haru';
+        savedAvatarRef.current = exitModel;
+        setCurrentAvatarModel(exitModel);
+        setForm((current) => ({
+          ...current,
+          language: savedBaselineRef.current?.language || 'English',
+          aiVoice: exitVoice,
+          ageGroup: savedBaselineRef.current?.ageGroup || 'Professional',
+        }));
       };
     }, [])
   );
@@ -269,7 +278,13 @@ export default function SettingsScreen({ navigation }) {
         }
 
         if (updateUser) {
-          await updateUser({ preferredVoice: canonical.aiVoice, aiVoice: canonical.aiVoice });
+          await updateUser({
+            preferredVoice: canonical.aiVoice,
+            aiVoice: canonical.aiVoice,
+            avatar: targetModel,
+            avatarModel: targetModel,
+            selectionSource: canonical.selectionSource,
+          });
         }
       }
 

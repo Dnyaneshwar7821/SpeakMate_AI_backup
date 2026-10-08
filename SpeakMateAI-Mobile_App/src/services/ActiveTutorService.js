@@ -53,8 +53,8 @@ export const REGIONAL_VOICE_LABELS = {
 };
 
 export const AVATAR_OWN_VOICE_LABELS = {
-  haru: 'Female Voice',
-  chitose: 'Male Voice',
+  haru: 'Teacher Voice',
+  chitose: 'Male Teacher Voice',
   robopaws: 'Doraemon Voice',
   shizuku: 'Shizuka Voice',
   spongebob: 'SpongeBob Voice',
@@ -117,16 +117,17 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
   const normVoice = normalizeVoiceCode(rawVoice);
   let normSource = rawSource;
 
-  // 1. Explicit valid selection source
+  // 1. Explicit valid selection source: AVATAR
   if (normSource === SELECTION_SOURCE.AVATAR && rawModel) {
     const avatar = getAvatarById(rawModel);
     return {
       avatarModel: avatar.id,
-      aiVoice: normVoice || avatar.voiceProfile,
+      aiVoice: avatar.voiceProfile,
       selectionSource: SELECTION_SOURCE.AVATAR,
     };
   }
 
+  // 2. Explicit valid selection source: REGIONAL
   if (normSource === SELECTION_SOURCE.REGIONAL && normVoice && REGIONAL_VOICE_CODES.includes(normVoice)) {
     const isMale = normVoice.includes('Male');
     return {
@@ -136,7 +137,8 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  if (normSource === SELECTION_SOURCE.SYSTEM_DEFAULT || normVoice === 'Default') {
+  // 3. Explicit valid selection source: SYSTEM_DEFAULT (Only if explicitly selected)
+  if (normSource === SELECTION_SOURCE.SYSTEM_DEFAULT && normVoice === 'Default') {
     return {
       avatarModel: 'haru',
       aiVoice: 'Default',
@@ -144,7 +146,7 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  // 2. Infer from voice code if source is missing (Legacy Migration)
+  // 4. Infer from regional voice code if present
   if (normVoice && REGIONAL_VOICE_CODES.includes(normVoice)) {
     const isMale = normVoice.includes('Male');
     return {
@@ -154,16 +156,8 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  if (normVoice === 'Default') {
-    return {
-      avatarModel: 'haru',
-      aiVoice: 'Default',
-      selectionSource: SELECTION_SOURCE.SYSTEM_DEFAULT,
-    };
-  }
-
-  // 3. Avatar-specific voices (e.g. 'Doraemon', 'MaleTeacher', 'Teacher', etc.)
-  if (normVoice) {
+  // 5. Avatar-specific voices (e.g. 'Doraemon', 'MaleTeacher', 'Teacher', etc.)
+  if (normVoice && normVoice !== 'Default') {
     const lowerV = normVoice.toLowerCase();
     if (lowerV.includes('doraemon')) return { avatarModel: 'robopaws', aiVoice: 'Doraemon', selectionSource: SELECTION_SOURCE.AVATAR };
     if (lowerV.includes('shizuka')) return { avatarModel: 'shizuku', aiVoice: 'Shizuka', selectionSource: SELECTION_SOURCE.AVATAR };
@@ -177,7 +171,7 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     if (lowerV.includes('teacher') || lowerV === 'femalevoice') return { avatarModel: 'haru', aiVoice: 'Teacher', selectionSource: SELECTION_SOURCE.AVATAR };
   }
 
-  // 4. Fallback to model if present
+  // 6. Fallback to model if present
   if (rawModel) {
     const avatar = getAvatarById(rawModel);
     return {
@@ -187,7 +181,7 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  // Final safety fallback
+  // Final safety fallback: Female Teacher with Teacher Voice
   return {
     avatarModel: 'haru',
     aiVoice: 'Teacher',
@@ -235,11 +229,11 @@ export async function getActiveTutorAsync() {
 export function resetActiveTutorCache() {
   _activeTutorCache = {
     avatarModel: 'haru',
-    aiVoice: 'Default',
-    selectionSource: SELECTION_SOURCE.SYSTEM_DEFAULT,
+    aiVoice: 'Teacher',
+    selectionSource: SELECTION_SOURCE.AVATAR,
   };
   _hasHydrated = false;
-  setCachedAvatarModel(null);
+  setCachedAvatarModel('haru');
 }
 
 /**
@@ -403,8 +397,6 @@ export function formatActiveVoiceLabel(aiVoice, avatarModel, selectionSource) {
   }
 
   if (selectionSource === SELECTION_SOURCE.AVATAR) {
-    if (avatar.id === 'chitose') return 'Male Voice';
-    if (avatar.id === 'haru') return 'Female Voice';
     return AVATAR_OWN_VOICE_LABELS[avatar.id] || `${avatar.name} Voice`;
   }
 

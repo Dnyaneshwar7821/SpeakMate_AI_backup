@@ -31,7 +31,7 @@ import { AVATAR_LIST, getAvatarById, setCachedAvatarModel, getCachedAvatarModel,
 import { prepareAvatarAsync, isImageUri, AVATAR_CATEGORIES, PRESET_EMOJI_AVATARS } from '../../utils/imageUtils';
 import { VoiceService } from '../../services/VoiceService';
 import { saveUserPreferenceField } from '../../utils/userPreferences';
-import { getActiveTutorAsync, getActiveTutorSync, setActiveTutorFromAvatar } from '../../services/ActiveTutorService';
+import { getActiveTutorAsync, getActiveTutorSync, setActiveTutorFromAvatar, formatActiveVoiceLabel } from '../../services/ActiveTutorService';
 
 const PRESET_AVATARS = PRESET_EMOJI_AVATARS;
 
@@ -502,6 +502,16 @@ export default function ProfileScreen({ navigation }) {
 
       if (voiceCode) {
         settingsService.update({ aiVoice: voiceCode }).catch(() => {});
+      }
+
+      if (updateUser) {
+        await updateUser({
+          preferredVoice: voiceCode,
+          aiVoice: voiceCode,
+          avatar: model,
+          avatarModel: model,
+          selectionSource: 'AVATAR',
+        }).catch(() => {});
       }
 
       if (user?.email) {
@@ -1110,9 +1120,11 @@ export default function ProfileScreen({ navigation }) {
 
         {/* AI Speaking Tutor Avatar Active Card */}
         {(() => {
-          const effectiveTutorModel = getCachedAvatarModel() || selectedAvatarId || savedAvatarIdRef.current || 'haru';
+          const canonical = getActiveTutorSync();
+          const effectiveTutorModel = canonical?.avatarModel || getCachedAvatarModel() || selectedAvatarId || savedAvatarIdRef.current || 'haru';
           const activeTutor = getAvatarById(effectiveTutorModel);
           const isSpeakingActive = playingTutorId === activeTutor.id;
+          const displayVoice = formatActiveVoiceLabel(canonical?.aiVoice, activeTutor.id, canonical?.selectionSource);
           return (
             <Card style={{ backgroundColor: cardBg, marginBottom: 14 }}>
               <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1151,7 +1163,7 @@ export default function ProfileScreen({ navigation }) {
                       {activeTutor.subtitle}
                     </Text>
                     <Text style={[styles.activeTutorVoiceText, { color: COLORS.primary }]} numberOfLines={1}>
-                      🎙️ {activeTutor.voiceLabel}
+                      🎙️ {displayVoice}
                     </Text>
                   </View>
                 </View>
