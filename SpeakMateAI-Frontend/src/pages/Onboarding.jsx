@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import ROUTES from "../constants/routes";
+import { setActiveTutorFromSystemDefault } from "../services/ActiveTutorService";
 
 // ─── Constants (Identical to Mobile App) ───
 const LANGUAGES = [
@@ -267,6 +268,7 @@ export function Onboarding() {
     localStorage.setItem("speakmate_voice_persona", aiVoice);
     localStorage.setItem("speakmate_ai_voice", "Default");
     localStorage.setItem("speakmate_daily_goal", String(dailyGoal));
+    setActiveTutorFromSystemDefault();
 
     await completeOnboarding({
       nativeLanguage: language,
@@ -277,7 +279,11 @@ export function Onboarding() {
       englishLevel: finalLevel,
       schoolGrade: finalGrade,
       interests,
-      aiVoice,
+      aiVoice: "Default",
+      preferredVoice: aiVoice,
+      onboardingVoice: aiVoice,
+      selectionSource: "SYSTEM_DEFAULT",
+      avatarModel: "haru",
       commitment: `${dailyGoal} min`,
       dailyGoalMinutes: parseInt(dailyGoal, 10) || 15,
       reminderTime,

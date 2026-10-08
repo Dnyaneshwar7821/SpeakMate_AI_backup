@@ -95,10 +95,10 @@ export function AuthProvider({ children }) {
         localStorage.setItem("speakmate_voice_accent", userData.preferredAccent);
       }
 
-      const voicePref = userData.aiVoice || userData.preferredVoice;
+      const voicePref = userData.preferredVoice || userData.aiVoice;
       if (voicePref) {
-        const existingModel = localStorage.getItem("speakmate_avatar_model");
-        const existingSource = localStorage.getItem("speakmate_selection_source");
+        const existingModel = userData.avatarModel || userData.avatar || localStorage.getItem("speakmate_avatar_model");
+        const existingSource = userData.selectionSource || localStorage.getItem("speakmate_selection_source");
         const canonical = resolveCanonicalTutor(existingModel, voicePref, existingSource);
         setCanonicalState(canonical);
       }

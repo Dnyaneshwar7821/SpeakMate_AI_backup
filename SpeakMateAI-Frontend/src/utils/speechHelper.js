@@ -49,17 +49,17 @@ export const VOICE_PERSONAS = [
     pitch: 1.15,
     rate: 1.0,
     gender: "female",
-    previewText: "Hello, I am your Friendly Persona English tutor.",
+    previewText: "Hello there! I am your friendly AI English tutor. I am excited to practice English with you!",
   },
   {
     key: "Professional",
     label: "Professional Executive",
     icon: "💼",
     desc: "Formal, polished business tone",
-    pitch: 0.9,
-    rate: 0.9,
-    gender: "male",
-    previewText: "Hello, I am your Professional Executive English tutor.",
+    pitch: 1.0,
+    rate: 0.95,
+    gender: "female",
+    previewText: "Hello. I am your professional AI tutor. Let's work together to polish your English communication skills.",
   },
   {
     key: "Energetic",
@@ -67,39 +67,39 @@ export const VOICE_PERSONAS = [
     icon: "⚡",
     desc: "High energy, fast-paced practice",
     pitch: 1.15,
-    rate: 1.2,
+    rate: 1.15,
     gender: "female",
-    previewText: "Hello, I am your Energetic Coach English tutor.",
+    previewText: "Hey! Ready to level up your English? Let's get started and have some fun!",
   },
   {
     key: "Calm",
     label: "Calm Tutor",
     icon: "🌧️",
     desc: "Relaxed, patient guidance and soft pace",
-    pitch: 0.95,
-    rate: 0.85,
-    gender: "male",
-    previewText: "Hello, I am your Calm Tutor English tutor.",
+    pitch: 0.98,
+    rate: 0.88,
+    gender: "female",
+    previewText: "Welcome. I am your calm AI tutor. We will practice English step by step at your own pace.",
   },
   {
     key: "Teacher",
     label: "Patient Teacher",
     icon: "🏫",
     desc: "Detailed corrections and step-by-step guidance",
-    pitch: 1.05,
-    rate: 0.95,
+    pitch: 1.08,
+    rate: 0.96,
     gender: "female",
-    previewText: "Hello, I am your Patient Teacher English tutor.",
+    previewText: "Hello. I am your English teacher. Today we will focus on building your confidence in speaking.",
   },
   {
     key: "Native Speaker",
     label: "Native Speaker",
-    icon: "🌐",
+    icon: "🌍",
     desc: "Natural, fluent conversational flow",
-    pitch: 1.0,
-    rate: 1.05,
-    gender: "male",
-    previewText: "Hello, I am your Native Speaker English tutor.",
+    pitch: 1.02,
+    rate: 1.02,
+    gender: "female",
+    previewText: "Hey friend! I'm your native speaker tutor. Let's practice speaking naturally and fluently.",
   },
 ];
 
@@ -1689,7 +1689,9 @@ export const getSavedVoiceSettings = (overrideVoiceCode = null, overrideModel = 
     aiVoice = "SpongeBob";
     selectedVoiceName = "";
   } else if (isTeacherAvatar) {
-    if (!isRegionalVoice) {
+    if (aiVoice === "Default" || canonical?.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT) {
+      aiVoice = "Default";
+    } else if (!isRegionalVoice) {
       aiVoice = "Teacher";
     }
     if (selectedVoiceName && isKnownMaleVoiceName(selectedVoiceName)) {
@@ -1729,12 +1731,12 @@ export const getSavedVoiceSettings = (overrideVoiceCode = null, overrideModel = 
     selectedVoiceName = "";
   }
 
-  const isDefault = aiVoice === "Default" || !aiVoice;
+  const isDefault = aiVoice === "Default" || !aiVoice || canonical?.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT;
   const effectiveVoiceCode = isDefault ? onboardingVoice : aiVoice;
 
   // Check if effectiveVoiceCode matches a VOICE_PROFILE or VOICE_PERSONA
   const profile = VOICE_PROFILES.find((p) => p.code.toLowerCase() === effectiveVoiceCode.toLowerCase());
-  const personaObj = VOICE_PERSONAS.find((p) => p.key === effectiveVoiceCode) || VOICE_PERSONAS[0];
+  const personaObj = VOICE_PERSONAS.find((p) => p.key.toLowerCase() === effectiveVoiceCode.toLowerCase()) || VOICE_PERSONAS[0];
 
   let targetLang = accent === "UK" ? "en-GB" : accent === "AU" ? "en-AU" : accent === "IN" ? "en-IN" : "en-US";
   let gender = personaObj ? personaObj.gender : "female";
@@ -1912,8 +1914,8 @@ export const applyGlobalVoiceSettings = (utterance, speedMultiplier = 1.0, overr
     "in male", "in female"
   ];
   const isRegionalActive = REGIONAL_VOICES.includes(effCode);
-  const isTeacherNativeActive = !isRegionalActive && isTeacherActive;
-  const isMaleTeacherNativeActive = !isRegionalActive && isMaleTeacherActive;
+  const isTeacherNativeActive = !isRegionalActive && !settings.isDefault && isTeacherActive;
+  const isMaleTeacherNativeActive = !isRegionalActive && !settings.isDefault && isMaleTeacherActive;
 
     if (isSpongeBobActive) {
       // ── SPONGEBOB DEDICATED YOUTHFUL BOY VOICE LOCK ──

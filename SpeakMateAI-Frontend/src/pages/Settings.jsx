@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { speakGlobalText, VOICE_PROFILES, ACCENT_LIST, resolveAvatarFromVoice } from "../utils/speechHelper";
+import { speakGlobalText, VOICE_PROFILES, VOICE_PERSONAS, ACCENT_LIST, resolveAvatarFromVoice } from "../utils/speechHelper";
 import { EventBus, AVATAR_EVENTS } from "../services/live2d/EventBus";
 import { settingsService, onboardingService, profileService } from "../services/appServices";
 import { getAvatarById } from "../config/AvatarCatalog";
@@ -111,7 +111,7 @@ export function Settings() {
     canonicalState.selectionSource
   );
 
-  const playVoicePreview = (voiceCode, previewMsg) => {
+  const playVoicePreview = (voiceCode, previewMsg, modelOverride = null) => {
     const targetCode = voiceCode || selectedVoice || activeAvatar.voiceProfile;
     let textToSpeak = previewMsg;
     const profile = VOICE_PROFILES.find((p) => p.code.toLowerCase() === (targetCode || "").toLowerCase());
@@ -119,15 +119,18 @@ export function Settings() {
     if (profile) {
       textToSpeak = textToSpeak || profile.previewText;
     } else if (targetCode === "Default") {
-      textToSpeak = `Hello! I am your System Default English tutor using the ${onboardingVoiceStyle} voice selected during onboarding.`;
+      const personaObj = VOICE_PERSONAS.find((p) => p.key.toLowerCase() === (onboardingVoiceStyle || "").toLowerCase());
+      textToSpeak = textToSpeak || personaObj?.previewText || `Hello! I am your System Default English tutor using the ${onboardingVoiceStyle} voice selected during onboarding.`;
     } else {
       textToSpeak = textToSpeak || `Hello! I am ${activeAvatar.name}. I am excited to practice English with you!`;
     }
 
+    const effectiveModel = modelOverride || (targetCode && targetCode.toLowerCase().includes("male") && !targetCode.toLowerCase().includes("female") ? "chitose" : currentModelKey);
+
     setPlayingVoice(targetCode);
     speakGlobalText(textToSpeak, speechSpeed, {
       overrideVoiceCode: targetCode,
-      avatarModel: currentModelKey,
+      avatarModel: effectiveModel,
       onend: () => setPlayingVoice(null),
       onerror: () => setPlayingVoice(null),
     });
@@ -168,15 +171,19 @@ export function Settings() {
       setAccent(newAccent);
       localStorage.setItem("speakmate_voice_accent", newAccent);
       onboardingService.update({ preferredAccent: newAccent }).catch(() => {});
-      if (updateUser) {
-        updateUser({ preferredAccent: newAccent });
-      }
     }
 
     settingsService.update({ aiVoice: nextTutor.aiVoice }).catch(() => {});
     onboardingService.update({ preferredVoice: nextTutor.aiVoice }).catch(() => {});
     if (updateUser) {
-      updateUser({ preferredVoice: nextTutor.aiVoice });
+      updateUser({
+        preferredVoice: nextTutor.aiVoice,
+        aiVoice: nextTutor.aiVoice,
+        avatarModel: nextTutor.avatarModel,
+        avatar: nextTutor.avatarModel,
+        selectionSource: nextTutor.selectionSource,
+        ...(newAccent ? { preferredAccent: newAccent } : {}),
+      });
     }
 
     if (user?.email) {
@@ -190,7 +197,7 @@ export function Settings() {
     }));
     toast.success("AI tutor voice applied ✓");
 
-    playVoicePreview(nextTutor.aiVoice, previewText);
+    playVoicePreview(nextTutor.aiVoice, previewText, nextTutor.avatarModel);
   };
 
   const handleSelectSpeed = (spd) => {
@@ -596,10 +603,9 @@ export function Settings() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* 1. System Default Option */}
                 {(() => {
-                  const isRegionalOrSysDefault =
-                    canonicalState.selectionSource === SELECTION_SOURCE.REGIONAL ||
-                    canonicalState.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT;
-                  const isSysDefaultSelected = isRegionalOrSysDefault && (selectedVoice === "Default" || !selectedVoice);
+                  const isSysDefaultSelected =
+                    canonicalState.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT ||
+                    (selectedVoice === "Default" && canonicalState.selectionSource !== SELECTION_SOURCE.AVATAR);
 
                   return (
                     <div
@@ -639,10 +645,9 @@ export function Settings() {
 
                 {/* 8 Regional Voice Profiles */}
                 {VOICE_PROFILES.filter((vp) => REGIONAL_VOICE_CODES.includes(vp.code)).map((profile, idx) => {
-                  const isRegionalOrSysDefault =
-                    canonicalState.selectionSource === SELECTION_SOURCE.REGIONAL ||
-                    canonicalState.selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT;
-                  const isSelected = isRegionalOrSysDefault && selectedVoice === profile.code;
+                  const isSelected =
+                    canonicalState.selectionSource === SELECTION_SOURCE.REGIONAL &&
+                    selectedVoice === profile.code;
                   const flagMap = {
                     American: "🇺🇸",
                     British: "🇬🇧",

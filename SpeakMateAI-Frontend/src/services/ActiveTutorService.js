@@ -65,11 +65,11 @@ export const AVATAR_OWN_VOICE_LABELS = {
   puppy: 'Scooby-Doo Voice',
 };
 
-// In-memory cache for instant 0ms synchronous reads
+// In-memory cache for instant 0ms synchronous reads (defaults to System Default onboarding tutor)
 let _activeTutorCache = {
   avatarModel: 'haru',
-  aiVoice: 'Teacher',
-  selectionSource: SELECTION_SOURCE.AVATAR,
+  aiVoice: 'Default',
+  selectionSource: SELECTION_SOURCE.SYSTEM_DEFAULT,
 };
 
 let _hasHydrated = false;
@@ -119,34 +119,27 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
   const normVoice = normalizeVoiceCode(rawVoice);
   let normSource = rawSource;
 
-  // 1. Explicit valid selection source
-  if (normSource === SELECTION_SOURCE.AVATAR && rawModel) {
-    const avatar = getAvatarById(rawModel);
-    return {
-      avatarModel: avatar.id,
-      aiVoice: normVoice || avatar.voiceProfile,
-      selectionSource: SELECTION_SOURCE.AVATAR,
-    };
+  const ONBOARDING_VOICE_KEYS = [
+    'friendly',
+    'professional',
+    'energetic',
+    'calm',
+    'teacher',
+    'native speaker',
+    'nativespeaker',
+  ];
+  const cleanRawVoice = String(rawVoice || '').trim().toLowerCase();
+  const isRawOnboardingVoice = ONBOARDING_VOICE_KEYS.includes(cleanRawVoice);
+
+  if (isRawOnboardingVoice && isBrowser) {
+    try {
+      localStorage.setItem('speakmate_onboarding_voice', String(rawVoice).trim());
+      localStorage.setItem('speakmate_voice_persona', String(rawVoice).trim());
+    } catch (_) {}
   }
 
-  if (normSource === SELECTION_SOURCE.REGIONAL && normVoice && REGIONAL_VOICE_CODES.includes(normVoice)) {
-    const isMale = normVoice.includes('Male');
-    return {
-      avatarModel: isMale ? 'chitose' : 'haru',
-      aiVoice: normVoice,
-      selectionSource: SELECTION_SOURCE.REGIONAL,
-    };
-  }
-
-  if (normSource === SELECTION_SOURCE.SYSTEM_DEFAULT || normVoice === 'Default') {
-    return {
-      avatarModel: 'haru',
-      aiVoice: 'Default',
-      selectionSource: SELECTION_SOURCE.SYSTEM_DEFAULT,
-    };
-  }
-
-  // 2. Infer from voice code if source is missing (Legacy Migration)
+  // 1. Explicit Regional Voice (Highest priority for Regional Roster selection)
+  // Any voice belonging to REGIONAL_VOICE_CODES is strictly REGIONAL source
   if (normVoice && REGIONAL_VOICE_CODES.includes(normVoice)) {
     const isMale = normVoice.includes('Male');
     return {
@@ -156,7 +149,12 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  if (normVoice === 'Default') {
+  // 2. Explicit System Default Voice or Onboarding Persona Voice
+  if (
+    normSource === SELECTION_SOURCE.SYSTEM_DEFAULT ||
+    normVoice === 'Default' ||
+    (isRawOnboardingVoice && normSource !== SELECTION_SOURCE.AVATAR)
+  ) {
     return {
       avatarModel: 'haru',
       aiVoice: 'Default',
@@ -164,8 +162,18 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  // 3. Infer from avatar model if model is present
-  if (rawModel) {
+  // 3. Explicit Avatar Selection (Character Avatars or explicit Avatar tutor)
+  if (normSource === SELECTION_SOURCE.AVATAR && rawModel) {
+    const avatar = getAvatarById(rawModel);
+    return {
+      avatarModel: avatar.id,
+      aiVoice: normVoice || avatar.voiceProfile,
+      selectionSource: SELECTION_SOURCE.AVATAR,
+    };
+  }
+
+  // 4. Character Avatar Model without regional selection
+  if (rawModel && !['haru', 'chitose'].includes(rawModel.toLowerCase())) {
     const avatar = getAvatarById(rawModel);
     return {
       avatarModel: avatar.id,
@@ -174,7 +182,7 @@ export function resolveCanonicalTutor(rawModel, rawVoice, rawSource) {
     };
   }
 
-  // 4. Default fallback: Haru Teacher with default onboarding voice
+  // 5. Default fallback: Haru with System Default onboarding voice
   return {
     avatarModel: 'haru',
     aiVoice: 'Default',
@@ -395,7 +403,8 @@ export function formatActiveVoiceLabel(aiVoice, avatarModel, selectionSource) {
   const avatar = getAvatarById(avatarModel);
 
   if (selectionSource === SELECTION_SOURCE.SYSTEM_DEFAULT || normVoice === 'Default') {
-    return 'System Default';
+    const onboardingVoice = (isBrowser && (localStorage.getItem('speakmate_onboarding_voice') || localStorage.getItem('speakmate_voice_persona'))) || '';
+    return onboardingVoice ? `System Default (${onboardingVoice})` : 'System Default';
   }
 
   if (selectionSource === SELECTION_SOURCE.REGIONAL && REGIONAL_VOICE_LABELS[normVoice]) {
