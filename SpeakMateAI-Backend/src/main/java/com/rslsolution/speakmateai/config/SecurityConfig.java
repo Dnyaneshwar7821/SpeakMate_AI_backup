@@ -155,8 +155,8 @@ public class SecurityConfig {
 		origins.add("http://127.0.0.1:5173");
 		origins.add("http://127.0.0.1:3000");
 		origins.add("http://127.0.0.1:8081");
-		origins.add("https://*.onrender.com");
-		origins.add("https://*.vercel.app");
+		origins.add("https://speakmate-ai-28z5.onrender.com");
+		origins.add("https://speak-mate-ai-nine.vercel.app/");
 		origins.add("https://*.netlify.app");
 		if (customAllowedOrigins != null && !customAllowedOrigins.isBlank()) {
 			for (String o : customAllowedOrigins.split(",")) {
