@@ -55,13 +55,16 @@ public class SecurityConfig {
 								"/api/auth/admin/forgot-password", "/api/auth/admin/verify-otp",
 								"/api/auth/admin/reset-password", "/api/auth/admin/refresh-token")
 						.permitAll()
-						.requestMatchers("/api/admin/**", "/api/v1/integrations/**").hasAnyAuthority("ROLE_SUPER_ADMIN", "ROLE_ADMIN")
+						.requestMatchers("/api/admin/**", "/api/v1/integrations/**")
+						.hasAnyAuthority("ROLE_SUPER_ADMIN", "ROLE_ADMIN")
 
 						// Announcements & Student Assignments (accessible by student and learner roles)
 						.requestMatchers("/api/v1/school/announcements", "/api/v1/announcements")
-						.hasAnyAuthority("ROLE_USER", "ROLE_STUDENT", "ROLE_TEACHER", "ROLE_SCHOOL_ADMIN", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+						.hasAnyAuthority("ROLE_USER", "ROLE_STUDENT", "ROLE_TEACHER", "ROLE_SCHOOL_ADMIN", "ROLE_ADMIN",
+								"ROLE_SUPER_ADMIN")
 						.requestMatchers("/api/v1/student/**")
-						.hasAnyAuthority("ROLE_USER", "ROLE_STUDENT", "ROLE_TEACHER", "ROLE_SCHOOL_ADMIN", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+						.hasAnyAuthority("ROLE_USER", "ROLE_STUDENT", "ROLE_TEACHER", "ROLE_SCHOOL_ADMIN", "ROLE_ADMIN",
+								"ROLE_SUPER_ADMIN")
 
 						// School Portal Auth and Features
 						.requestMatchers("/api/auth/**").permitAll()
@@ -84,7 +87,7 @@ public class SecurityConfig {
 
 						// Auth endpoints for mobile & learners
 						.requestMatchers(
-								"/api/users/register", "/api/users/login",
+								"/api/users/register", "/api/users/login", "/api/users/logout",
 								"/api/users/google-login", "/api/users/send-registration-otp",
 								"/api/users/verify-registration-otp",
 								"/api/users/send-delete-account-otp", "/api/users/verify-delete-account-otp",
@@ -140,41 +143,11 @@ public class SecurityConfig {
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
-
-		List<String> origins = new ArrayList<>(List.of(
-				"http://localhost:5173",
-				"http://localhost:3000",
-				"http://localhost:8081",
-				"http://localhost:8080",
-				"http://localhost:4173",
-				"http://127.0.0.1:5173",
-				"https://*.vercel.app",
-				"https://*.onrender.com",
-				"https://speakmate-ai-28z5.onrender.com"
-		));
-
-		if (customAllowedOrigins != null && !customAllowedOrigins.isBlank()) {
-			for (String o : customAllowedOrigins.split(",")) {
-				String trimmed = o.trim();
-				if (!trimmed.isEmpty() && !origins.contains(trimmed)) {
-					origins.add(trimmed);
-				}
-			}
-		}
-
-		configuration.setAllowedOriginPatterns(origins);
-		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
-		configuration.setAllowedHeaders(List.of(
-				"Authorization",
-				"Content-Type",
-				"Accept",
-				"Origin",
-				"X-Requested-With",
-				"Access-Control-Request-Method",
-				"Access-Control-Request-Headers"
-		));
-		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
-		configuration.setAllowCredentials(false);
+		configuration.setAllowedOriginPatterns(List.of("*"));
+		configuration.setAllowedMethods(List.of("*"));
+		configuration.setAllowedHeaders(List.of("*"));
+		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition", "Set-Cookie"));
+		configuration.setAllowCredentials(true);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);

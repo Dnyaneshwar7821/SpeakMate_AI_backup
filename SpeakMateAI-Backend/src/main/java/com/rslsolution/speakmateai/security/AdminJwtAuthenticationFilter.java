@@ -46,13 +46,26 @@ public class AdminJwtAuthenticationFilter extends OncePerRequestFilter {
 			throws ServletException, IOException {
 
 		String authHeader = request.getHeader("Authorization");
+		String token = null;
 
-		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+		if (authHeader != null && authHeader.startsWith("Bearer ")) {
+			token = authHeader.substring(7);
+		} else if (request.getCookies() != null) {
+			for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+				if ("speakmate_token".equals(cookie.getName()) || "speakmate_admin_token".equals(cookie.getName())) {
+					String cookieVal = cookie.getValue();
+					if (cookieVal != null && !cookieVal.isBlank() && !"null".equals(cookieVal) && !"undefined".equals(cookieVal)) {
+						token = cookieVal;
+						break;
+					}
+				}
+			}
+		}
+
+		if (token == null || token.isBlank()) {
 			filterChain.doFilter(request, response);
 			return;
 		}
-
-		String token = authHeader.substring(7);
 
 		try {
 			if (token != null && !token.isBlank() && !"null".equals(token) && !"undefined".equals(token)) {

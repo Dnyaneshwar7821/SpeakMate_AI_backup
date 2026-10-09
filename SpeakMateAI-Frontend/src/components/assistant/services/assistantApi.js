@@ -17,6 +17,9 @@ const extractErrorMessage = (error, fallback) => {
 export const assistantApi = {
     /**
      * Send one user message to the assistant.
+     * Note: `role` is an optional client-side hint passed to the local apiClient
+     * solely to select which local storage token to attach (learner vs admin).
+     * The backend strictly authorizes and scopes access using the validated JWT / cookie principal.
      */
     sendMessage: async ({ sessionId, message, currentRoute, history, role }) => {
         const payload = {

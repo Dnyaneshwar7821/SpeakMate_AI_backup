@@ -30,7 +30,7 @@ src/
 │   ├── speech/
 │   │   └── SpeechService.js   # Web Speech API & OpenAI TTS + Audio Analyzer
 │   └── ai/
-│       └── AIService.js       # SpeakMate AI backend & OpenAI connector
+│       └── AIService.js       # SpeakMate AI backend connector (secure server credentials)
 ├── hooks/
 │   ├── useAvatar.js           # Reactive avatar state
 │   ├── useLipSync.js          # ParamMouthOpenY audio binding

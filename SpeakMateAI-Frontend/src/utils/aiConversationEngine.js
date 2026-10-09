@@ -151,6 +151,7 @@ export function generateDynamicCoachingResponse(userText, scenario = "Daily Conv
     followUpQuestion,
     pronunciationScore: 92 + (count % 6),
     fluencyScore: 88 + (count % 8),
+    isLocalFallback: true,
   };
 }
 

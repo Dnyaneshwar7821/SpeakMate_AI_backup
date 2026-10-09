@@ -105,7 +105,50 @@ import ProtectedRoute from "./ProtectedRoute";
 import PublicRoute from "./PublicRoute";
 
 function RouteFallback() {
-  return null;
+  return (
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6 animate-pulse">
+      {/* Top Header / Breadcrumb Placeholder */}
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200/60 dark:border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800" />
+          <div className="space-y-1.5">
+            <div className="w-32 h-4 rounded-md bg-slate-200 dark:bg-slate-800" />
+            <div className="w-20 h-2.5 rounded-md bg-slate-100 dark:bg-slate-700" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-20 h-8 rounded-xl bg-slate-200 dark:bg-slate-800" />
+          <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800" />
+        </div>
+      </div>
+
+      {/* Metric Cards Skeleton Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="p-4 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/50 dark:bg-slate-800/40 space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-16 h-3 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="w-6 h-6 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20" />
+            </div>
+            <div className="w-24 h-6 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="w-32 h-2 rounded bg-slate-100 dark:bg-slate-700" />
+          </div>
+        ))}
+      </div>
+
+      {/* Main Content Area Skeleton with Center Brand Spinner */}
+      <div className="min-h-[380px] p-6 rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="flex flex-col items-center gap-3 z-10">
+          <div className="w-9 h-9 border-3 border-[#6C63FF]/30 border-t-[#6C63FF] rounded-full animate-spin" />
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Loading module...</span>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">Preparing your interactive learning view</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PageTransition({ children }) {
@@ -130,7 +173,14 @@ export function AppRoutes() {
         <Route
           path="/avatar-embed"
           element={
-            <Suspense fallback={<div className="w-full h-full bg-transparent" />}>
+            <Suspense
+              fallback={
+                <div className="w-full h-full min-h-[400px] flex flex-col items-center justify-center gap-3 bg-transparent">
+                  <div className="w-8 h-8 border-2 border-[#6C63FF]/30 border-t-[#6C63FF] rounded-full animate-spin" />
+                  <span className="text-xs font-semibold text-slate-400">Loading Avatar...</span>
+                </div>
+              }
+            >
               <AvatarEmbed />
             </Suspense>
           }
