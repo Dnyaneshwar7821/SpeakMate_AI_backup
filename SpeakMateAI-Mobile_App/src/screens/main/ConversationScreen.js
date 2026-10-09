@@ -32,7 +32,7 @@ import {
   checkAndRequestMicPermissions,
   promptOpenSettingsForMic,
 } from '../../utils/speechRecognitionService';
-import { VoiceRecorder } from '../../utils/audioRecorder';
+import { VoiceRecorder, deleteAudioFileAsync } from '../../utils/audioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { speechService, speakingService, settingsService, profileService } from '../../services/appServices';
 import { COLORS } from '../../constants/colors';
@@ -240,6 +240,7 @@ export default function ConversationScreen({ navigation, route }) {
 
   const [sessionId, setSessionId] = useState(initialSessionId || null);
   const sessionIdRef = useRef(initialSessionId || null);
+  const sessionPromiseRef = useRef(sessionPromise || null);
 
   const [messages, setMessages] = useState([]);
   const [corrections, setCorrections] = useState(null); // Latest message correction feedback
@@ -325,11 +326,11 @@ export default function ConversationScreen({ navigation, route }) {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
 
-  // Start backend session in background upon mount without blocking avatar speech or UI
+  // Start backend session upon mount without blocking avatar speech or UI
   useEffect(() => {
     let isMounted = true;
-    if (!sessionIdRef.current) {
-      speakingService.start({
+    if (!sessionIdRef.current && !sessionPromiseRef.current) {
+      sessionPromiseRef.current = speakingService.start({
         scenario: scenario || 'General Conversation',
         difficulty: difficulty || 'Intermediate',
         estimatedDuration: estimatedDuration || 5,
@@ -339,9 +340,19 @@ export default function ConversationScreen({ navigation, route }) {
           sessionIdRef.current = res.id;
           setSessionId(res.id);
         }
+        return res?.id || null;
       }).catch((err) => {
         console.warn("Background session link note:", err);
+        return null;
       });
+    } else if (sessionPromiseRef.current && !sessionIdRef.current) {
+      sessionPromiseRef.current.then((res) => {
+        const sid = res?.id || res;
+        if (isMounted && sid) {
+          sessionIdRef.current = sid;
+          setSessionId(sid);
+        }
+      }).catch(() => {});
     }
     return () => {
       isMounted = false;
@@ -1353,42 +1364,47 @@ export default function ConversationScreen({ navigation, route }) {
           return;
         }
 
-        const uri = await recorder.stop();
-        await VoiceRecorder.resetAudioMode();
+        let uri = null;
+        try {
+          uri = await recorder.stop();
+          await VoiceRecorder.resetAudioMode();
 
-        if (!uri) {
+          if (!uri) {
+            setStatusText('Waiting for Response');
+            stoppingRef.current = false;
+            return;
+          }
+
+          isSendingRef.current = true;
+          setLoading(true);
+
+          const stt = await speechService.speechToText({
+            uri,
+            name: 'recording.m4a',
+            type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+          });
+
+          if (!stt || !stt.transcript || !stt.transcript.trim()) {
+            Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Tap mic and try speaking again.');
+            setStatusText('Waiting for Response');
+            return;
+          }
+
+          const userText = stt.transcript.trim();
+          await sendUserText(userText);
+        } catch (error) {
+          console.warn('Fallback audio sending failed:', error);
+          Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
           setStatusText('Waiting for Response');
+        } finally {
+          if (uri) {
+            deleteAudioFileAsync(uri).catch(() => {});
+          }
+          setLoading(false);
           stoppingRef.current = false;
-          return;
+          isSendingRef.current = false;
         }
-
-        isSendingRef.current = true;
-        setLoading(true);
-
-        const stt = await speechService.speechToText({
-          uri,
-          name: 'recording.m4a',
-          type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-        });
-
-        if (!stt || !stt.transcript || !stt.transcript.trim()) {
-          Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Tap mic and try speaking again.');
-          setStatusText('Waiting for Response');
-          return;
-        }
-
-        const userText = stt.transcript.trim();
-        await sendUserText(userText);
-      } catch (error) {
-        console.warn('Fallback audio sending failed:', error);
-        Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
-        setStatusText('Waiting for Response');
-      } finally {
-        setLoading(false);
-        stoppingRef.current = false;
-        isSendingRef.current = false;
       }
-    }
   };
 
   const handleToggleRecording = () => {
@@ -1417,7 +1433,23 @@ export default function ConversationScreen({ navigation, route }) {
       setMessages((prev) => [...prev, tempUserMsg]);
 
       let feedback;
-      const sid = sessionIdRef.current || sessionId;
+      let sid = sessionIdRef.current || sessionId;
+      if (!sid && sessionPromiseRef.current) {
+        // Queue/await in-flight backend session establishment to ensure first message attaches to real session
+        try {
+          const resolved = await Promise.race([
+            sessionPromiseRef.current,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Session init timeout')), 3500)),
+          ]);
+          if (resolved) {
+            const resolvedId = resolved?.id || resolved;
+            sid = resolvedId;
+            sessionIdRef.current = resolvedId;
+            setSessionId(resolvedId);
+          }
+        } catch (_) {}
+      }
+
       if (sid && !String(sid).startsWith('sim_')) {
         feedback = await speakingService.sendMessage({
           sessionId: sid,

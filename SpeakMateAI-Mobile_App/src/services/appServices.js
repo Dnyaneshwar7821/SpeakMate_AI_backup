@@ -4,10 +4,13 @@ const optionalGet = (url, fallback) =>
   api.get(url)
     .then((res) => res.data)
     .catch((error) => {
-      if (error.response?.status === 404 || error.response?.status === 401 || error.response?.status === 500) {
+      // 404 Not Found or 204 No Content indicates an empty or uninitialized resource; return fallback.
+      if (error.response?.status === 404 || error.response?.status === 204) {
         return fallback;
       }
-      return fallback;
+      // Preserve error state for network outages, connection timeouts, and 5xx errors
+      // so the UI can distinguish "empty" from "unavailable".
+      throw error;
     });
 
 export const profileService = {
@@ -119,7 +122,26 @@ export const speakingService = {
 };
 
 export const progressService = {
-  get: () => optionalGet('/api/progress/get-progress', { xp: 0, level: 1, currentStreak: 0, longestStreak: 0, totalPracticeMinutes: 0, totalSpeakingSessions: 0, totalGrammarChecks: 0, totalVocabularyWords: 0 }),
+  get: () =>
+    api.get('/api/progress/get-progress')
+      .then((res) => res.data)
+      .catch((error) => {
+        // Safe default only for new learners whose progress record does not exist yet (404/204)
+        if (error.response?.status === 404 || error.response?.status === 204) {
+          return {
+            xp: 0,
+            level: 1,
+            currentStreak: 0,
+            longestStreak: 0,
+            totalPracticeMinutes: 0,
+            totalSpeakingSessions: 0,
+            totalGrammarChecks: 0,
+            totalVocabularyWords: 0,
+          };
+        }
+        // Preserve error state for server failure or network outages so UI can show error
+        throw error;
+      }),
   create: (payload) => api.post('/api/progress/create-progress', payload).then((res) => res.data),
   update: (payload) => api.put('/api/progress/update-progress', payload).then((res) => res.data),
   buyFreeze: () => api.post('/api/progress/buy-freeze').then((res) => res.data),

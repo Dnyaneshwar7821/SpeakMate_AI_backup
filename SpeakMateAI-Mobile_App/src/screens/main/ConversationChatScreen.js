@@ -33,7 +33,7 @@ import {
   checkAndRequestMicPermissions,
   promptOpenSettingsForMic,
 } from '../../utils/speechRecognitionService';
-import { VoiceRecorder } from '../../utils/audioRecorder';
+import { VoiceRecorder, deleteAudioFileAsync } from '../../utils/audioRecorder';
 import { COLORS } from '../../constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { chatService, speechService, settingsService, profileService } from '../../services/appServices';
@@ -1441,42 +1441,47 @@ export default function ConversationChatScreen({ navigation, route }) {
           return;
         }
 
-        const uri = await recorder.stop();
-        await VoiceRecorder.resetAudioMode();
+        let uri = null;
+        try {
+          uri = await recorder.stop();
+          await VoiceRecorder.resetAudioMode();
 
-        if (!uri) {
+          if (!uri) {
+            setStatusText('Waiting for Response');
+            stoppingRef.current = false;
+            return;
+          }
+
+          isSendingRef.current = true;
+          setLoading(true);
+
+          const res = await speechService.speechToText({
+            uri,
+            name: 'chat_recording.m4a',
+            type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+          });
+
+          if (res && res.transcript && res.transcript.trim()) {
+            const spoken = res.transcript.trim();
+            setInputText(spoken);
+            await handleSendMessage(spoken);
+          } else {
+            Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Please try speaking again.');
+            setStatusText('Waiting for Response');
+          }
+        } catch (err) {
+          console.warn('Fallback voice chat audio processing failed:', err);
+          Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
           setStatusText('Waiting for Response');
+        } finally {
+          if (uri) {
+            deleteAudioFileAsync(uri).catch(() => {});
+          }
+          setLoading(false);
           stoppingRef.current = false;
-          return;
+          isSendingRef.current = false;
         }
-
-        isSendingRef.current = true;
-        setLoading(true);
-
-        const res = await speechService.speechToText({
-          uri,
-          name: 'chat_recording.m4a',
-          type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-        });
-
-        if (res && res.transcript && res.transcript.trim()) {
-          const spoken = res.transcript.trim();
-          setInputText(spoken);
-          await handleSendMessage(spoken);
-        } else {
-          Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Please try speaking again.');
-          setStatusText('Waiting for Response');
-        }
-      } catch (err) {
-        console.warn('Fallback voice chat audio processing failed:', err);
-        Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
-        setStatusText('Waiting for Response');
-      } finally {
-        setLoading(false);
-        stoppingRef.current = false;
-        isSendingRef.current = false;
       }
-    }
   };
 
   const handleToggleRecording = () => {

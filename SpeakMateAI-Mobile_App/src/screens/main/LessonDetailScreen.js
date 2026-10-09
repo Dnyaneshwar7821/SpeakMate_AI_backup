@@ -34,6 +34,7 @@ import { getActiveTutorAsync } from '../../services/ActiveTutorService';
 import { COLORS } from '../../constants/colors';
 import { findStandardLesson, getMasterclassForLesson } from '../../constants/standardLessons';
 import { CurriculumCache } from '../../utils/dashboardCache';
+import { deleteAudioFileAsync } from '../../utils/audioRecorder';
 
 // ─── Helpers & Quizzes ────────────────────────────────────────────────────────
 
@@ -899,11 +900,12 @@ export default function LessonDetailScreen({ navigation, route }) {
 
     setIsVoiceRecording(false);
     setIsTranscribing(true);
+    let uri = null;
     try {
       if (audioRecorder.isRecording) {
         await audioRecorder.stop();
       }
-      const uri = audioRecorder.uri;
+      uri = audioRecorder.uri;
       if (!uri) throw new Error('Recording URI not found');
       const res = await speechService.speechToText({
         uri,
@@ -922,6 +924,9 @@ export default function LessonDetailScreen({ navigation, route }) {
       console.warn('Transcription failed:', err);
       Alert.alert('Transcription Failed', 'Make sure you have an active internet connection and try again.');
     } finally {
+      if (uri) {
+        deleteAudioFileAsync(uri).catch(() => {});
+      }
       setIsTranscribing(false);
       stoppingRef.current = false;
     }

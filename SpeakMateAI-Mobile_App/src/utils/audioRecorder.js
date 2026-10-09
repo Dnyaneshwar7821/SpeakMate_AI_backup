@@ -157,6 +157,25 @@ class VoiceRecorder {
   }
 }
 
+/**
+ * Safely delete a temporary local audio recording file from the device filesystem.
+ * Handles both file:// URIs and raw paths idempotently without throwing.
+ */
+export const deleteAudioFileAsync = async (uri) => {
+  if (!uri || typeof uri !== 'string') return;
+  try {
+    const FileSystem = require('expo-file-system');
+    if (FileSystem && typeof FileSystem.deleteAsync === 'function') {
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    }
+  } catch (err) {
+    // Non-fatal if file was already moved or removed by the OS
+    console.warn('[VoiceRecorder] Audio file deletion note:', err?.message);
+  }
+};
+
+VoiceRecorder.deleteAudioFileAsync = deleteAudioFileAsync;
+
 export {
   VoiceRecorder,
   setAudioModeAsync,

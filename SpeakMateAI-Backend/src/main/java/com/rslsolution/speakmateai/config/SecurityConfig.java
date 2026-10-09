@@ -1,7 +1,9 @@
 package com.rslsolution.speakmateai.config;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -143,11 +145,45 @@ public class SecurityConfig {
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
-		configuration.setAllowedOriginPatterns(List.of("*"));
-		configuration.setAllowedMethods(List.of("*"));
-		configuration.setAllowedHeaders(List.of("*"));
+
+		// Origin patterns must not be wildcard "*"
+		Set<String> origins = new LinkedHashSet<>();
+		origins.add("http://localhost:5173");
+		origins.add("http://localhost:3000");
+		origins.add("http://localhost:8080");
+		origins.add("http://localhost:8081");
+		origins.add("http://127.0.0.1:5173");
+		origins.add("http://127.0.0.1:3000");
+		origins.add("http://127.0.0.1:8081");
+		origins.add("https://*.onrender.com");
+		origins.add("https://*.vercel.app");
+		origins.add("https://*.netlify.app");
+		if (customAllowedOrigins != null && !customAllowedOrigins.isBlank()) {
+			for (String o : customAllowedOrigins.split(",")) {
+				if (o != null && !o.isBlank() && !"*".equals(o.trim())) {
+					origins.add(o.trim());
+				}
+			}
+		}
+		configuration.setAllowedOriginPatterns(new ArrayList<>(origins));
+
+		// Methods must NOT be wildcard "*"
+		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
+
+		// Headers must NOT be wildcard "*"
+		configuration.setAllowedHeaders(List.of(
+				"Authorization",
+				"Content-Type",
+				"Accept",
+				"Origin",
+				"X-Requested-With",
+				"Access-Control-Request-Method",
+				"Access-Control-Request-Headers",
+				"Cache-Control"
+		));
 		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition", "Set-Cookie"));
 		configuration.setAllowCredentials(true);
+		configuration.setMaxAge(3600L);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);

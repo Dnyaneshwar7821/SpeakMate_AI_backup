@@ -22,7 +22,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { ExpoSpeechRecognitionModule, isNativeSpeechRecognitionAvailable } from '../../utils/speechRecognitionService';
-import { VoiceRecorder } from '../../utils/audioRecorder';
+import { VoiceRecorder, deleteAudioFileAsync } from '../../utils/audioRecorder';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -537,36 +537,41 @@ export function AssistantModal({
           return;
         }
 
-        const uri = await recorder.stop();
-        await VoiceRecorder.resetAudioMode();
+        let uri = null;
+        try {
+          uri = await recorder.stop();
+          await VoiceRecorder.resetAudioMode();
 
-        if (!uri) {
+          if (!uri) {
+            stoppingRef.current = false;
+            return;
+          }
+
+          isSendingRef.current = true;
+          const res = await speechService.speechToText({
+            uri,
+            name: 'assistant_voice.m4a',
+            type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+          });
+
+          if (res && res.transcript && res.transcript.trim()) {
+            const transcribed = res.transcript.trim();
+            setDraft(transcribed);
+            await handleSend(transcribed);
+          } else {
+            Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Please try speaking again.');
+          }
+        } catch (err) {
+          console.warn('[AssistantModal] Fallback audio processing error:', err);
+          Alert.alert('Voice Input Failed', 'Could not process audio.');
+        } finally {
+          if (uri) {
+            deleteAudioFileAsync(uri).catch(() => {});
+          }
           stoppingRef.current = false;
-          return;
+          isSendingRef.current = false;
         }
-
-        isSendingRef.current = true;
-        const res = await speechService.speechToText({
-          uri,
-          name: 'assistant_voice.m4a',
-          type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-        });
-
-        if (res && res.transcript && res.transcript.trim()) {
-          const transcribed = res.transcript.trim();
-          setDraft(transcribed);
-          await handleSend(transcribed);
-        } else {
-          Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Please try speaking again.');
-        }
-      } catch (err) {
-        console.warn('[AssistantModal] Fallback audio processing error:', err);
-        Alert.alert('Voice Input Failed', 'Could not process audio.');
-      } finally {
-        stoppingRef.current = false;
-        isSendingRef.current = false;
       }
-    }
   };
 
   const startRecording = async () => {
