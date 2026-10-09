@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { authService } from "../services/authService";
 import { subscriptionService } from "../services/appServices";
-import { setLogoutCallback } from "../services/api";
+import api, { setLogoutCallback } from "../services/api";
+import tokenStorage from "../services/tokenStorage";
 import { syncBackendProgress } from "../utils/progressTracker";
 
 const AuthContext = createContext(null);
@@ -22,13 +23,13 @@ export function AuthProvider({ children }) {
       return stored ? JSON.parse(stored) : null;
     } catch { return null; }
   });
-  const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEYS.token) || null);
+  const [token, setToken] = useState(() => tokenStorage.getToken() || null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.onboardingCompleted) === "true";
   });
   const [loading, setLoading] = useState(() => {
     try {
-      const storedToken = localStorage.getItem(STORAGE_KEYS.token);
+      const storedToken = tokenStorage.getToken();
       return !storedToken;
     } catch {
       return false;
@@ -107,6 +108,8 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     try {
+      tokenStorage.clearToken();
+      api.post("/api/users/logout").catch(() => {});
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -120,7 +123,7 @@ export function AuthProvider({ children }) {
       const sessionKeysToRemove = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
-        if (key && key.startsWith("speakmate_") && !key.startsWith("speakmate_assistant_")) {
+        if (key && key.startsWith("speakmate_")) {
           sessionKeysToRemove.push(key);
         }
       }
@@ -150,7 +153,7 @@ export function AuthProvider({ children }) {
         }
       }
 
-      const storedToken = localStorage.getItem(STORAGE_KEYS.token);
+      const storedToken = tokenStorage.getToken();
       const storedUser = localStorage.getItem(STORAGE_KEYS.user);
       const storedOnboardingCompleted = localStorage.getItem(STORAGE_KEYS.onboardingCompleted) === "true";
 
@@ -232,7 +235,7 @@ export function AuthProvider({ children }) {
   }, [logout]);
 
   const refreshUserProfile = useCallback(async () => {
-    const currentToken = localStorage.getItem(STORAGE_KEYS.token);
+    const currentToken = tokenStorage.getToken();
     if (!currentToken || currentToken === "null" || currentToken === "undefined") return;
     try {
       const me = await authService.me().catch(() => null);
@@ -316,15 +319,20 @@ export function AuthProvider({ children }) {
         const sessionKeys = [];
         for (let i = 0; i < sessionStorage.length; i++) {
           const k = sessionStorage.key(i);
-          if (k && k.startsWith("speakmate_dashboard_")) sessionKeys.push(k);
+          if (
+            k &&
+            (k.startsWith("speakmate_dashboard_") ||
+              k.startsWith("speakmate_assistant_") ||
+              k === "speakmate_chat_history_cache")
+          ) {
+            sessionKeys.push(k);
+          }
         }
         sessionKeys.forEach((k) => sessionStorage.removeItem(k));
       } catch (_) {}
       const response = await authService.login(credentials);
       if (response && response.token) {
-        const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
-        localStorage.setItem(STORAGE_KEYS.sessionExpiresAt, String(expiresAt));
-        localStorage.setItem(STORAGE_KEYS.token, response.token);
+        tokenStorage.setToken(response.token);
         setToken(response.token);
         if (response.user) {
           syncUserProfile(response.user);
@@ -356,9 +364,7 @@ export function AuthProvider({ children }) {
     try {
       const response = await authService.register(userData);
       if (response && response.token) {
-        const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
-        localStorage.setItem(STORAGE_KEYS.sessionExpiresAt, String(expiresAt));
-        localStorage.setItem(STORAGE_KEYS.token, response.token);
+        tokenStorage.setToken(response.token);
         setToken(response.token);
         if (response.user) {
           syncUserProfile(response.user);

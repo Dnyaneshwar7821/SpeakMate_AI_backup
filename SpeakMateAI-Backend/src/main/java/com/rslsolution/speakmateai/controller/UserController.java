@@ -27,12 +27,68 @@ import com.rslsolution.speakmateai.dto.response.UserResponse;
 import com.rslsolution.speakmateai.dto.response.VerifyOtpResponse;
 import com.rslsolution.speakmateai.service.UserService;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.util.HtmlUtils;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.time.Duration;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/users")
 @CrossOrigin(origins = "*")
 public class UserController {
+
+	private static final Pattern VALID_TOKEN_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{16,128}$");
+	private static final Pattern VALID_EXPO_URL_PATTERN = Pattern.compile("^(exp://|https?://)[a-zA-Z0-9.:/_~%+-]{3,150}$");
+
+	private static boolean isValidExpoUrl(String url) {
+		if (url == null || url.isBlank() || url.length() > 150) {
+			return false;
+		}
+		if (url.contains("<") || url.contains(">") || url.contains("\"") || url.contains("'")
+				|| url.contains(";") || url.contains("\n") || url.contains("\r")
+				|| url.contains("`") || url.contains("\\") || url.contains(" ")) {
+			return false;
+		}
+		return VALID_EXPO_URL_PATTERN.matcher(url).matches();
+	}
+
+	private void attachAuthCookie(HttpServletResponse response, HttpServletRequest request, String jwtToken) {
+		if (response == null || jwtToken == null || jwtToken.isBlank()) {
+			return;
+		}
+		boolean isSecure = request != null && (request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto")));
+		ResponseCookie cookie = ResponseCookie.from("speakmate_token", jwtToken)
+				.httpOnly(true)
+				.secure(isSecure)
+				.path("/")
+				.maxAge(Duration.ofHours(24))
+				.sameSite(isSecure ? "None" : "Lax")
+				.build();
+		response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+	}
+
+	private void clearAuthCookie(HttpServletResponse response, HttpServletRequest request) {
+		if (response == null) {
+			return;
+		}
+		boolean isSecure = request != null && (request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto")));
+		ResponseCookie cookie = ResponseCookie.from("speakmate_token", "")
+				.httpOnly(true)
+				.secure(isSecure)
+				.path("/")
+				.maxAge(Duration.ZERO)
+				.sameSite(isSecure ? "None" : "Lax")
+				.build();
+		response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+	}
 
 	@Autowired
 	private UserService userService;
@@ -60,8 +116,9 @@ public class UserController {
 	}
 
 	@PostMapping("/delete-account")
-	public String deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
+	public String deleteAccount(@Valid @RequestBody DeleteAccountRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
 		userService.deleteAccountWithOtp(request);
+		clearAuthCookie(httpResponse, httpRequest);
 		return "Account deleted successfully.";
 	}
 
@@ -71,8 +128,18 @@ public class UserController {
 	}
 
 	@PostMapping("/login")
-	public AuthResponse login(@Valid @RequestBody LoginRequest request) {
-		return userService.login(request);
+	public AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+		AuthResponse authResponse = userService.login(request);
+		if (authResponse != null && authResponse.getToken() != null) {
+			attachAuthCookie(httpResponse, httpRequest, authResponse.getToken());
+		}
+		return authResponse;
+	}
+
+	@PostMapping("/logout")
+	public ResponseEntity<?> logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+		clearAuthCookie(httpResponse, httpRequest);
+		return ResponseEntity.ok(java.util.Map.of("message", "Logged out successfully"));
 	}
 
 	@PostMapping("/forgot-password")
@@ -95,9 +162,13 @@ public class UserController {
 	private static String lastRegisteredExpoUrl = null;
 
 	@PostMapping("/register-expo-url")
-	public void registerExpoUrl(@RequestBody java.util.Map<String, String> payload) {
-		String url = payload.get("url");
+	public ResponseEntity<?> registerExpoUrl(@RequestBody java.util.Map<String, String> payload) {
+		String url = payload != null ? payload.get("url") : null;
 		if (url != null) {
+			url = url.trim();
+			if (!isValidExpoUrl(url)) {
+				return ResponseEntity.badRequest().body(java.util.Map.of("message", "Invalid Expo URL format. Allowed schemes: exp://, http://, https://"));
+			}
 			if (url.endsWith("/")) {
 				url = url.substring(0, url.length() - 1);
 			}
@@ -106,32 +177,68 @@ public class UserController {
 			}
 			lastRegisteredExpoUrl = url;
 			System.out.println("[Expo URL Registered] Active developer Expo URL: " + lastRegisteredExpoUrl);
+			return ResponseEntity.ok(java.util.Map.of("message", "Expo URL registered successfully"));
 		}
+		return ResponseEntity.badRequest().body(java.util.Map.of("message", "URL is required"));
 	}
 
-	@GetMapping(value = "/reset-redirect", produces = org.springframework.http.MediaType.TEXT_HTML_VALUE)
-	public String resetRedirect(@org.springframework.web.bind.annotation.RequestParam String token, jakarta.servlet.http.HttpServletRequest request) {
+	@GetMapping(value = "/reset-redirect", produces = MediaType.TEXT_HTML_VALUE)
+	public ResponseEntity<String> resetRedirect(
+			@org.springframework.web.bind.annotation.RequestParam(required = false) String token,
+			HttpServletRequest request) {
+
+		// 1. Strict input validation on reset token (alphanumeric/UUID only)
+		if (token == null || !VALID_TOKEN_PATTERN.matcher(token).matches()) {
+			String safeErrorHtml = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">" +
+					"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+					"<title>SpeakMateAI - Invalid Reset Link</title>" +
+					"<style>" +
+					"body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0F172A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; text-align: center; }" +
+					".card { background-color: #1E293B; border-radius: 24px; padding: 32px; border: 1px solid #334155; max-width: 440px; width: 100%; box-sizing: border-box; }" +
+					".logo { font-size: 26px; font-weight: 900; color: #6366F1; margin-bottom: 16px; }" +
+					"h1 { font-size: 20px; font-weight: 700; margin-bottom: 12px; color: #F43F5E; }" +
+					"p { font-size: 14px; color: #94A3B8; line-height: 22px; margin-bottom: 0; }" +
+					"</style></head><body>" +
+					"<div class=\"card\">" +
+					"<div class=\"logo\">SpeakMateAI</div>" +
+					"<h1>Invalid or Expired Link</h1>" +
+					"<p>The password reset token is missing, malformed, or expired. Please return to the app or website to request a new password reset code.</p>" +
+					"</div></body></html>";
+
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline';")
+					.header("X-Content-Type-Options", "nosniff")
+					.header("X-Frame-Options", "DENY")
+					.header("Referrer-Policy", "no-referrer")
+					.header("Cache-Control", "no-store, no-cache, must-revalidate")
+					.body(safeErrorHtml);
+		}
+
+		// 2. Validate host and construct safe default Expo URL
 		String host = request.getHeader("Host");
-		if (host == null || host.isEmpty()) {
-			host = "localhost:9091";
-		}
-		if (host.endsWith("/")) {
-			host = host.substring(0, host.length() - 1);
-		}
-		String ipAddress = host;
-		if (ipAddress.contains(":")) {
-			ipAddress = ipAddress.split(":")[0];
+		String ipAddress = "localhost";
+		if (host != null && host.matches("^[a-zA-Z0-9.:-]+$")) {
+			if (host.endsWith("/")) {
+				host = host.substring(0, host.length() - 1);
+			}
+			ipAddress = host.contains(":") ? host.split(":")[0] : host;
 		}
 
 		String expoUrlToUse = lastRegisteredExpoUrl;
-		if (expoUrlToUse == null) {
+		if (expoUrlToUse == null || !isValidExpoUrl(expoUrlToUse)) {
 			expoUrlToUse = "exp://" + ipAddress + ":8081";
 		}
 
-		return String.format(
+		// 3. Strict HTML-escaping of all dynamic values before rendering
+		String safeToken = HtmlUtils.htmlEscape(token);
+		String safeExpoUrl = HtmlUtils.htmlEscape(expoUrlToUse);
+
+		// 4. Safe HTML template: Data is placed in data-* attributes rather than inline script interpolation
+		String html = String.format(
 			"<!DOCTYPE html>\n" +
-			"<html>\n" +
+			"<html lang=\"en\">\n" +
 			"<head>\n" +
+			"    <meta charset=\"UTF-8\">\n" +
 			"    <title>Opening SpeakMateAI...</title>\n" +
 			"    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
 			"    <style>\n" +
@@ -148,7 +255,7 @@ public class UserController {
 			"    </style>\n" +
 			"</head>\n" +
 			"<body>\n" +
-			"    <div class=\"card\">\n" +
+			"    <div class=\"card\" id=\"reset-container\" data-token=\"%s\" data-expo-url=\"%s\">\n" +
 			"        <div class=\"logo\">SpeakMateAI</div>\n" +
 			"        <h1>Reset Password</h1>\n" +
 			"        <p>Choose an option below to open the password reset page in your app.</p>\n" +
@@ -160,7 +267,7 @@ public class UserController {
 			"            <label style=\"font-size: 12px; color: #94A3B8; font-weight: bold; display: block; margin-bottom: 8px;\">Testing with Expo Tunnel?</label>\n" +
 			"            <div style=\"display: flex; gap: 8px;\">\n" +
 			"                <input id=\"tunnel-input\" type=\"text\" placeholder=\"exp://xxxx.exp.direct\" style=\"flex: 1; background-color: #0F172A; border: 1px solid #475569; border-radius: 8px; color: #FFFFFF; padding: 8px 12px; font-size: 13px;\" />\n" +
-			"                <button onclick=\"openTunnelLink()\" style=\"background-color: #3B82F6; color: #FFFFFF; border: none; border-radius: 8px; padding: 8px 14px; font-weight: bold; cursor: pointer; font-size: 13px;\">Open</button>\n" +
+			"                <button id=\"tunnel-btn\" style=\"background-color: #3B82F6; color: #FFFFFF; border: none; border-radius: 8px; padding: 8px 14px; font-weight: bold; cursor: pointer; font-size: 13px;\">Open</button>\n" +
 			"            </div>\n" +
 			"        </div>\n" +
 			"        \n" +
@@ -168,33 +275,52 @@ public class UserController {
 			"    </div>\n" +
 			"    \n" +
 			"    <script>\n" +
-			"        const token = \"%s\";\n" +
-			"        const activeExpoUrl = \"%s\";\n" +
-			"        \n" +
-			"        // Auto-redirect attempts\n" +
-			"        setTimeout(function() { \n" +
-			"            window.location.href = activeExpoUrl + \"/--/auth/reset-password?token=\" + token;\n" +
-			"        }, 300);\n" +
-			"        setTimeout(function() { \n" +
-			"            window.location.href = \"speakmateai://auth/reset-password?token=\" + token; \n" +
-			"        }, 1500);\n" +
+			"        (function() {\n" +
+			"            var container = document.getElementById('reset-container');\n" +
+			"            if (!container) return;\n" +
+			"            var token = container.getAttribute('data-token') || '';\n" +
+			"            var activeExpoUrl = container.getAttribute('data-expo-url') || '';\n" +
+			"            \n" +
+			"            if (activeExpoUrl) {\n" +
+			"                setTimeout(function() { \n" +
+			"                    window.location.href = activeExpoUrl + '/--/auth/reset-password?token=' + encodeURIComponent(token);\n" +
+			"                }, 300);\n" +
+			"            }\n" +
+			"            setTimeout(function() { \n" +
+			"                window.location.href = 'speakmateai://auth/reset-password?token=' + encodeURIComponent(token); \n" +
+			"            }, 1500);\n" +
 			"\n" +
-			"        function openTunnelLink() {\n" +
-			"            let base = document.getElementById('tunnel-input').value.trim();\n" +
-			"            if (!base) {\n" +
-			"                alert('Please enter your Expo URL (starts with exp://)');\n" +
-			"                return;\n" +
+			"            var tunnelBtn = document.getElementById('tunnel-btn');\n" +
+			"            if (tunnelBtn) {\n" +
+			"                tunnelBtn.addEventListener('click', function() {\n" +
+			"                    var inputEl = document.getElementById('tunnel-input');\n" +
+			"                    var base = inputEl ? inputEl.value.trim() : '';\n" +
+			"                    if (!base || !base.startsWith('exp://')) {\n" +
+			"                        alert('Please enter a valid Expo URL (starts with exp://)');\n" +
+			"                        return;\n" +
+			"                    }\n" +
+			"                    base = base.replace(/\\/+$/, '');\n" +
+			"                    if (base.indexOf('/--') !== -1) {\n" +
+			"                        base = base.split('/--')[0];\n" +
+			"                    }\n" +
+			"                    window.location.href = base + '/--/auth/reset-password?token=' + encodeURIComponent(token);\n" +
+			"                });\n" +
 			"            }\n" +
-			"            base = base.replace(/\\/$/, '');\n" +
-			"            if (base.includes('/--')) {\n" +
-			"                base = base.split('/--')[0];\n" +
-			"            }\n" +
-			"            window.location.href = base + '/--/auth/reset-password?token=' + token;\n" +
-			"        }\n" +
+			"        })();\n" +
 			"    </script>\n" +
 			"</body>\n" +
-			"</html>", expoUrlToUse, token, token, token, expoUrlToUse
+			"</html>",
+			safeToken, safeExpoUrl, safeExpoUrl, safeToken, safeToken
 		);
+
+		return ResponseEntity.ok()
+				.header("Content-Security-Policy",
+						"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; object-src 'none'; base-uri 'self';")
+				.header("X-Content-Type-Options", "nosniff")
+				.header("X-Frame-Options", "DENY")
+				.header("Referrer-Policy", "no-referrer")
+				.header("Cache-Control", "no-store, no-cache, must-revalidate")
+				.body(html);
 	}
 
 	@GetMapping("/me")

@@ -53,6 +53,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			}
 		}
 
+		// Fallback to server-managed HttpOnly cookie for web clients
+		if ((token == null || token.isBlank()) && request.getCookies() != null) {
+			for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+				if ("speakmate_token".equals(cookie.getName())) {
+					String cookieVal = cookie.getValue();
+					if (cookieVal != null && !cookieVal.isBlank() && !"null".equals(cookieVal) && !"undefined".equals(cookieVal)) {
+						token = cookieVal;
+						break;
+					}
+				}
+			}
+		}
+
 		if (token == null || token.isBlank()) {
 			filterChain.doFilter(request, response);
 			return;

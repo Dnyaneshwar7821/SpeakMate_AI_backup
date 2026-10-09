@@ -52,6 +52,7 @@ const getBaseUrl = () => {
 const apiClient = axios.create({
   baseURL: getBaseUrl(),
   timeout: 65000,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
@@ -59,6 +60,9 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
+    // Note: X-Assistant-Role is an internal client hint used strictly to select the appropriate
+    // localStorage token (learner vs admin) when both exist. The header is stripped before sending.
+    // The backend is the sole authority: it resolves identity and permissions via the validated JWT / session cookie.
     const activeRole = config.headers["X-Assistant-Role"];
     const token = getSessionToken(activeRole);
     if (token) {

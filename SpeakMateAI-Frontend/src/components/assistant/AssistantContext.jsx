@@ -54,6 +54,12 @@ const createAssistantMessage = (content, meta = {}) => ({
     suggestions: meta.suggestions || [],
 });
 
+/**
+ * Provides state and actions for the SpeakMate assistant widget.
+ * Note: The `role` prop configures the client-side UI persona and session storage cache namespace.
+ * It is also provided as a hint to apiClient to disambiguate local token storage.
+ * All backend API access is strictly authorized by Spring Security using the JWT / session cookie.
+ */
 export function AssistantProvider({ children, role: explicitRole, user: explicitUser }) {
     const fallbackAuth = useAuth();
     const user = explicitUser || fallbackAuth.user;

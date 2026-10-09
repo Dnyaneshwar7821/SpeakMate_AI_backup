@@ -1,3 +1,14 @@
+import api from "./api";
+
+/**
+ * @deprecated This module is a legacy prototype chat helper.
+ * Active application features should use `aiService.chat` from `src/services/appServices`
+ * or `AIService` from `src/services/ai/AIService`.
+ *
+ * If called, `sendMessage` attempts to route to the backend `/api/ai/chat` service,
+ * gracefully falling back to local heuristic responses tagged with `isLocalFallback: true`.
+ */
+
 const buildReply = (message) => {
   const normalized = message.toLowerCase().trim();
 
@@ -68,12 +79,22 @@ const buildReply = (message) => {
 };
 
 export const sendMessage = async (message) => {
-  const reply = buildReply(message);
+  try {
+    const res = await api.post("/api/ai/chat", { prompt: message });
+    const reply = res?.data?.response || res?.data?.message || res?.data?.reply;
+    if (reply) {
+      return { data: { reply, isLocalFallback: false } };
+    }
+  } catch (error) {
+    console.warn("Backend AI chat request failed, falling back to local heuristic reply:", error);
+  }
 
+  // Graceful fallback to heuristic mock reply
+  const reply = buildReply(message);
   return new Promise((resolve) => {
     window.setTimeout(() => {
-      resolve({ data: { reply } });
-    }, 700);
+      resolve({ data: { reply, isLocalFallback: true } });
+    }, 400);
   });
 };
 

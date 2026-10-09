@@ -78,7 +78,7 @@ public class SecurityConfig {
 
 						// Auth endpoints for mobile & learners
 						.requestMatchers(
-								"/api/users/register", "/api/users/login",
+								"/api/users/register", "/api/users/login", "/api/users/logout",
 								"/api/users/google-login", "/api/users/send-registration-otp",
 								"/api/users/verify-registration-otp",
 								"/api/users/send-delete-account-otp", "/api/users/verify-delete-account-otp",
@@ -134,8 +134,8 @@ public class SecurityConfig {
 		configuration.setAllowedOriginPatterns(List.of("*"));
 		configuration.setAllowedMethods(List.of("*"));
 		configuration.setAllowedHeaders(List.of("*"));
-		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
-		configuration.setAllowCredentials(false);
+		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition", "Set-Cookie"));
+		configuration.setAllowCredentials(true);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);

@@ -122,7 +122,7 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   if (!feedback) return null;
-  const { grammarCorrection, betterSentence, fluencyTip, followUpQuestion, vocabularySuggestions } = feedback;
+  const { grammarCorrection, betterSentence, fluencyTip, followUpQuestion, vocabularySuggestions, isLocalFallback } = feedback;
 
   const hasBetter = Boolean(
     betterSentence &&
@@ -175,22 +175,39 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-5 h-5 rounded-md bg-[#6c63ff]/10 text-[#6c63ff] dark:text-[#A5B4FC] flex items-center justify-center text-xs shrink-0 font-bold">
-            ✨
+          <div className={`w-5 h-5 rounded-md flex items-center justify-center text-xs shrink-0 font-bold ${
+            isLocalFallback
+              ? "bg-amber-500/10 text-amber-500 dark:text-amber-400"
+              : "bg-[#6c63ff]/10 text-[#6c63ff] dark:text-[#A5B4FC]"
+          }`}>
+            {isLocalFallback ? "⚡" : "✨"}
           </div>
           <span
             className={`text-[11px] font-bold tracking-wider uppercase truncate ${
               isDark ? "text-slate-200" : "text-slate-800"
             }`}
           >
-            Coach Insights
+            {isLocalFallback ? "Offline Heuristic Coach" : "Coach Insights"}
           </span>
           <span className="hidden sm:inline text-[10px] text-slate-400 font-normal">
-            · live speech analysis
+            {isLocalFallback ? "· offline rule-based fallback" : "· live speech analysis"}
           </span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {isLocalFallback && (
+            <span
+              className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                isDark
+                  ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                  : "bg-amber-50 border-amber-200 text-amber-800"
+              }`}
+              title="Remote AI was unreachable. Rule-based heuristic coaching used."
+            >
+              <span>⚡ Offline Fallback</span>
+            </span>
+          )}
+
           {hasGrammar && (
             <span
               className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
@@ -223,6 +240,22 @@ function CoachCard({ feedback, isDark, onSpeakText }) {
           </button>
         </div>
       </div>
+
+      {/* Fallback Notice Banner */}
+      {isLocalFallback && isExpanded && (
+        <div
+          className={`px-3.5 py-2 text-[10px] font-medium flex items-center gap-2 border-b ${
+            isDark
+              ? "bg-amber-950/25 border-amber-500/20 text-amber-300/90"
+              : "bg-amber-50/90 border-amber-200 text-amber-900"
+          }`}
+        >
+          <span className="text-xs shrink-0">ℹ️</span>
+          <span>
+            <strong>Offline Heuristic:</strong> Remote AI evaluation was unreachable. This feedback is rule-based coaching so your practice continues smoothly without interruption.
+          </span>
+        </div>
+      )}
 
       {/* Expanded Unified Body */}
       {isExpanded && (
@@ -814,16 +847,19 @@ export function ConversationSession() {
               vocabularySuggestions: null,
               explanation: null,
               followUpQuestion: null,
+              isLocalFallback: false,
             };
           }
         } catch (e2) {
           // Dynamic offline conversation engine fallback
           feedback = generateDynamicCoachingResponse(text, scenario, messages);
+          if (feedback) feedback.isLocalFallback = true;
         }
       }
 
       if (!feedback) {
         feedback = generateDynamicCoachingResponse(text, scenario, messages);
+        if (feedback) feedback.isLocalFallback = true;
       }
 
       if (feedback?.suggestedResponses && Array.isArray(feedback.suggestedResponses) && feedback.suggestedResponses.length >= 2) {
@@ -884,12 +920,15 @@ export function ConversationSession() {
         ? cleanDialogueText(feedback.vocabularySuggestions)
         : null;
 
+      const isFallback = Boolean(feedback?.isLocalFallback);
+
       const coachFeedback = {
         grammarCorrection: cleanCorrection || (feedback.grammarCorrection ? cleanDialogueText(feedback.grammarCorrection) : "✅ Great pronunciation and grammar!"),
         betterSentence: cleanBetter,
         fluencyTip: cleanNativeTip,
         followUpQuestion: cleanFollowUp,
         vocabularySuggestions: cleanVocab,
+        isLocalFallback: isFallback,
       };
 
       const hasCoachingContent = hasBetter || !isGrammarCorrect || Boolean(cleanNativeTip) || Boolean(cleanFollowUp) || Boolean(cleanVocab);
@@ -899,6 +938,7 @@ export function ConversationSession() {
         sender: "ai",
         message: cleanAiReply || "That is very interesting! Can you tell me more about that?",
         coachFeedback: hasCoachingContent ? coachFeedback : null,
+        isLocalFallback: isFallback,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -1273,8 +1313,20 @@ export function ConversationSession() {
                   }`}
               >
                 <div className="flex items-center justify-between gap-4">
-                  <span className={`text-[10px] font-black uppercase tracking-wide flex items-center gap-1.5 ${m.sender === "user" ? "text-white/90" : isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    {m.sender === "user" ? "👤 You" : "🤖 SpeakMate AI Tutor"}
+                  <span className={`text-[10px] font-black uppercase tracking-wide flex items-center flex-wrap gap-1.5 ${m.sender === "user" ? "text-white/90" : isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    <span>{m.sender === "user" ? "👤 You" : "🤖 SpeakMate AI Tutor"}</span>
+                    {m.sender === "ai" && m.isLocalFallback && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold normal-case tracking-normal border ${
+                          isDark
+                            ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                            : "bg-amber-50 border-amber-200 text-amber-800"
+                        }`}
+                        title="Generated by local heuristic generator, not remote AI evaluation."
+                      >
+                        ⚡ Offline Heuristic Fallback
+                      </span>
+                    )}
                   </span>
                   {m.sender === "ai" && (
                     <button

@@ -41,7 +41,13 @@ export function clearAdminAuthenticated() {
     const toRemove = [];
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i);
-      if (k && k.startsWith("speakmate_assistant_")) {
+      if (
+        k &&
+        (k.startsWith("speakmate_assistant_") ||
+          k.includes("admin_dashboard_cache") ||
+          k.includes("school_dashboard_cache") ||
+          k.includes("teacher_dashboard_cache"))
+      ) {
         toRemove.push(k);
       }
     }
