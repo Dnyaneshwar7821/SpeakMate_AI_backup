@@ -1,4 +1,5 @@
-import { NativeModules } from 'react-native';
+import { Alert, Linking, NativeModules } from 'react-native';
+import { VoiceRecorder } from './audioRecorder';
 
 /**
  * Safe Speech Recognition Service Adapter
@@ -67,6 +68,16 @@ export const ExpoSpeechRecognitionModule = {
     }
     return Promise.resolve();
   },
+  getPermissionsAsync: async () => {
+    if (rawModule && typeof rawModule.getPermissionsAsync === 'function') {
+      try {
+        return await rawModule.getPermissionsAsync();
+      } catch (e) {
+        console.warn('[speechRecognitionService] getPermissionsAsync error:', e);
+      }
+    }
+    return { status: 'undetermined', granted: false, canAskAgain: true };
+  },
   requestPermissionsAsync: async () => {
     if (rawModule && typeof rawModule.requestPermissionsAsync === 'function') {
       try {
@@ -98,3 +109,71 @@ export const ExpoSpeechRecognitionModule = {
     return { remove: () => {} };
   },
 };
+
+/**
+ * Checks and requests microphone and speech recognition permissions explicitly.
+ * Distinguishes between standard denials and permanent denials (canAskAgain === false).
+ */
+export const checkAndRequestMicPermissions = async () => {
+  try {
+    if (isNativeSpeechRecognitionAvailable) {
+      const current = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      if (current?.granted) {
+        return { granted: true, permanentlyDenied: false };
+      }
+
+      if (current?.canAskAgain ?? true) {
+        const requested = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (requested?.granted) {
+          return { granted: true, permanentlyDenied: false };
+        }
+        return {
+          granted: false,
+          permanentlyDenied: requested?.canAskAgain === false,
+        };
+      }
+
+      return { granted: false, permanentlyDenied: true };
+    } else {
+      const hasPermission = await VoiceRecorder.getPermissions();
+      if (hasPermission) {
+        return { granted: true, permanentlyDenied: false };
+      }
+      const granted = await VoiceRecorder.requestPermissions();
+      return {
+        granted: Boolean(granted),
+        permanentlyDenied: !granted,
+      };
+    }
+  } catch (err) {
+    console.warn('[checkAndRequestMicPermissions] error:', err);
+    return { granted: false, permanentlyDenied: false };
+  }
+};
+
+/**
+ * Displays a friendly guidance dialog offering to open device Settings if permissions were permanently denied.
+ */
+export const promptOpenSettingsForMic = (
+  title = 'Microphone Access Required',
+  message = 'SpeakMate AI needs microphone access to listen to your voice during speaking practice. Please enable microphone permissions in your device settings.'
+) => {
+  Alert.alert(
+    title,
+    message,
+    [
+      { text: 'Not Now', style: 'cancel' },
+      {
+        text: 'Open Settings',
+        onPress: () => {
+          try {
+            Linking.openSettings();
+          } catch (err) {
+            console.warn('[speechRecognitionService] Failed to open settings:', err);
+          }
+        },
+      },
+    ]
+  );
+};
+

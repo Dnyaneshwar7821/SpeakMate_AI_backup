@@ -27,7 +27,12 @@ if (Platform.OS === 'android' && !global.nativeFabricUIManager && UIManager.setL
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ExpoSpeechRecognitionModule, isNativeSpeechRecognitionAvailable } from '../../utils/speechRecognitionService';
+import {
+  ExpoSpeechRecognitionModule,
+  isNativeSpeechRecognitionAvailable,
+  checkAndRequestMicPermissions,
+  promptOpenSettingsForMic,
+} from '../../utils/speechRecognitionService';
 import { VoiceRecorder } from '../../utils/audioRecorder';
 import { COLORS } from '../../constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1263,13 +1268,24 @@ export default function ConversationChatScreen({ navigation, route }) {
         silenceTimerRef.current = null;
       }
 
-      if (isNativeSpeechRecognitionAvailable) {
-        const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-        if (!granted?.granted) {
-          Alert.alert('Microphone Access Denied', 'Please allow microphone access to use voice chat.');
-          startingRef.current = false;
-          return;
+      const permResult = await checkAndRequestMicPermissions();
+      if (!permResult.granted) {
+        startingRef.current = false;
+        if (permResult.permanentlyDenied) {
+          promptOpenSettingsForMic(
+            'Microphone Permission Required',
+            'SpeakMate AI needs microphone access to listen to your voice. Please enable microphone permissions in your device settings.'
+          );
+        } else {
+          Alert.alert(
+            'Microphone Access Needed',
+            'Please allow microphone access to practice speaking with your AI tutor.'
+          );
         }
+        return;
+      }
+
+      if (isNativeSpeechRecognitionAvailable) {
 
         const activeSessionId = recordingSessionIdRef.current + 1;
         recordingSessionIdRef.current = activeSessionId;

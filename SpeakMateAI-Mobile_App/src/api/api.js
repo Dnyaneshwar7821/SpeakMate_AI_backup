@@ -74,6 +74,15 @@ api.interceptors.response.use(
       config.url.includes('/api/v1/')
     );
 
+    // Determine if request is safe/idempotent to retry
+    const method = (config?.method || 'get').toLowerCase();
+    const SAFE_METHODS = ['get', 'head', 'options'];
+    const isSafeMethod = SAFE_METHODS.includes(method);
+
+    const isExplicitlyRetryable = config?.retry === true;
+    const isExplicitlyDisabled = config?.retry === false;
+    const canRetry = !isExplicitlyDisabled && (isExplicitlyRetryable || isSafeMethod);
+
     // Retry on network timeout, connection error, or Render free-tier cold starts (502, 503, 504)
     const isColdStartOrNetwork =
       !error.response ||
@@ -83,13 +92,17 @@ api.interceptors.response.use(
       status === 503 ||
       status === 504;
 
-    if (config && isColdStartOrNetwork && (!config._retryCount || config._retryCount < 2)) {
+    if (config && isColdStartOrNetwork && canRetry && (!config._retryCount || config._retryCount < 2)) {
       config._retryCount = (config._retryCount || 0) + 1;
       if (!isBackgroundEndpoint) {
-        console.warn(`[Axios] Render cold start / gateway wakeup retry #${config._retryCount} (${config.url})...`);
+        console.warn(`[Axios] Render cold start / gateway wakeup retry #${config._retryCount} for safe ${method.toUpperCase()} (${config.url})...`);
       }
       await new Promise((resolve) => setTimeout(resolve, 4000));
       return api(config);
+    }
+
+    if (config && isColdStartOrNetwork && !canRetry && !isExplicitlyDisabled && !isBackgroundEndpoint) {
+      console.warn(`[Axios] Skipping automatic retry for non-idempotent ${method.toUpperCase()} ${config.url} to prevent duplicate side effects.`);
     }
 
     if (status === 401) {

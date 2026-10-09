@@ -25,24 +25,29 @@ export default function SpeakingSummaryScreen({ navigation, route }) {
   const { summary } = route.params || {};
   const { showToast, triggerConfetti } = useToast();
 
-  const score = summary?.score || 0;
-  const xp = summary?.xpEarned ?? summary?.xp ?? 0;
+  const isUnsaved = Boolean(summary?.isUnsavedPractice || summary?.isLocalFallback || summary?.score === null || summary?.score === undefined);
+  const score = typeof summary?.score === 'number' ? summary.score : 0;
+  const xp = isUnsaved ? 0 : (summary?.xpEarned ?? summary?.xp ?? 0);
   const durationSecs = summary?.durationSeconds ?? summary?.duration ?? 0;
   const mins = Math.floor(durationSecs / 60);
   const secs = durationSecs % 60;
 
   useEffect(() => {
-    triggerConfetti();
-    if (xp > 0) {
-      showToast(`Session Complete! +${xp} XP`, 'xp', `Practiced for ${mins}m ${secs}s`);
+    if (!isUnsaved) {
+      triggerConfetti();
+      if (xp > 0) {
+        showToast(`Session Complete! +${xp} XP`, 'xp', `Practiced for ${mins}m ${secs}s`);
+      } else {
+        showToast('Session Complete! 🎙️', 'info', 'Keep practicing daily to earn XP!');
+      }
     } else {
-      showToast('Session Complete! 🎙️', 'info', 'Keep practicing daily to earn XP!');
+      showToast('Offline Practice Completed 🎙️', 'info', 'Unsaved session — connect to internet to sync XP.');
     }
 
-    // Auto submit student homework assignment ONLY if this was an actual assigned homework task
+    // Auto submit student homework assignment ONLY if verified by backend and not an offline fallback
     const isStudentUser = Boolean(user?.isSchoolStudent || user?.accountType === 'STUDENT' || user?.role === 'STUDENT' || user?.schoolId || user?.schoolCode);
     const assignmentId = summary?.assignmentId || route.params?.assignmentId;
-    if (isStudentUser && assignmentId && score >= 70) {
+    if (isStudentUser && assignmentId && !isUnsaved && score >= 70) {
       assignmentService.submit(assignmentId, { score: Math.round(score), status: 'SUBMITTED' })
         .then(() => {
           showToast('Homework Submitted to Teacher! 📝', 'success', `Scored ${Math.round(score)}% (Target >= 70%)`);
@@ -68,31 +73,72 @@ export default function SpeakingSummaryScreen({ navigation, route }) {
       {/* ── Top Header ── */}
       <LinearGradient colors={['#0F172A', '#1E1B4B']} style={styles.header}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Session Results</Text>
+          <Text style={styles.headerTitle}>{isUnsaved ? 'Offline Practice Results' : 'Session Results'}</Text>
         </View>
 
         {/* Score Ring */}
         <View style={styles.scoreRingWrapper}>
-          <View style={styles.scoreRing}>
-            <Text style={styles.scoreText}>{Math.round(score)}%</Text>
-            <Text style={styles.scoreLabel}>Overall Score</Text>
+          <View style={[styles.scoreRing, isUnsaved && { borderColor: '#F59E0B' }]}>
+            <Text style={[styles.scoreText, isUnsaved && { fontSize: 20 }]}>
+              {isUnsaved ? 'Done' : `${Math.round(score)}%`}
+            </Text>
+            <Text style={styles.scoreLabel}>
+              {isUnsaved ? 'Unsaved Practice' : 'Overall Score'}
+            </Text>
           </View>
         </View>
 
         <Text style={styles.congratsText}>
-          {score >= 80 ? 'Excellent Work! 🎉' : score >= 50 ? 'Good Practice! 👍' : score > 0 ? 'Keep Going! 💪' : 'Session Ended 🎙️'}
+          {isUnsaved
+            ? 'Practice Completed 🎙️'
+            : score >= 80
+            ? 'Excellent Work! 🎉'
+            : score >= 50
+            ? 'Good Practice! 👍'
+            : score > 0
+            ? 'Keep Going! 💪'
+            : 'Session Ended 🎙️'}
         </Text>
         <Text style={styles.motivationText}>
-          {summary?.motivationalMessage || "Keep practicing every day to sound more natural and confident."}
+          {summary?.motivationalMessage || (isUnsaved
+            ? 'Offline sessions are not recorded on cloud profile or leaderboard. Keep practicing to build confidence!'
+            : 'Keep practicing every day to sound more natural and confident.')}
         </Text>
       </LinearGradient>
 
+      {/* ── Offline Banner ── */}
+      {isUnsaved && (
+        <View
+          style={[
+            styles.offlineBanner,
+            {
+              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+              borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
+            },
+          ]}
+        >
+          <Ionicons name="cloud-offline-outline" size={20} color="#D97706" />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={[styles.offlineBannerTitle, { color: isDark ? '#FCD34D' : '#92400E' }]}>
+              Offline Practice — Unsaved Session
+            </Text>
+            <Text style={[styles.offlineBannerSubtitle, { color: isDark ? '#FDE68A' : '#B45309' }]}>
+              This practice session was not recorded on the server. Connect to the internet to record verified evaluations and earn XP.
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* ── Key Metrics ── */}
-      <View style={styles.metricsRow}>
+      <View style={[styles.metricsRow, isUnsaved && { marginTop: 12 }]}>
         <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
-          <Ionicons name="flash-outline" size={20} color="#F59E0B" />
-          <Text style={[styles.metricVal, { color: theme.textPrimary }]}>+{xp} XP</Text>
-          <Text style={[styles.metricLbl, { color: theme.textSecondary }]}>XP Awarded</Text>
+          <Ionicons name="flash-outline" size={20} color={isUnsaved ? '#64748B' : '#F59E0B'} />
+          <Text style={[styles.metricVal, { color: isUnsaved ? '#64748B' : theme.textPrimary }]}>
+            {isUnsaved ? '0 XP' : `+${xp} XP`}
+          </Text>
+          <Text style={[styles.metricLbl, { color: theme.textSecondary }]}>
+            {isUnsaved ? 'Unsaved (Offline)' : 'XP Awarded'}
+          </Text>
         </View>
         <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
           <Ionicons name="time-outline" size={20} color={COLORS.primary} />
@@ -103,7 +149,7 @@ export default function SpeakingSummaryScreen({ navigation, route }) {
         </View>
         <View style={[styles.metricCard, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder, borderWidth: isDark ? 1 : 0 }]}>
           <Ionicons name="chatbubbles-outline" size={20} color={COLORS.secondary} />
-          <Text style={[styles.metricVal, { color: theme.textPrimary }]}>{summary?.messagesExchanged || 0}</Text>
+          <Text style={[styles.metricVal, { color: theme.textPrimary }]}>{summary?.messagesExchanged || summary?.totalMessages || 0}</Text>
           <Text style={[styles.metricLbl, { color: theme.textSecondary }]}>Turns Made</Text>
         </View>
       </View>
@@ -221,4 +267,30 @@ const styles = StyleSheet.create({
 
   doneBtn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 10 },
   doneBtnText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
+
+  // Offline Warning Banner
+  offlineBanner: {
+    marginHorizontal: 16,
+    marginTop: -16,
+    marginBottom: 4,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  offlineBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  offlineBannerSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
 });
+

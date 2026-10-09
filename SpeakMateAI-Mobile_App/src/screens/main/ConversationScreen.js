@@ -26,7 +26,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Speech from 'expo-speech';
-import { ExpoSpeechRecognitionModule, isNativeSpeechRecognitionAvailable } from '../../utils/speechRecognitionService';
+import {
+  ExpoSpeechRecognitionModule,
+  isNativeSpeechRecognitionAvailable,
+  checkAndRequestMicPermissions,
+  promptOpenSettingsForMic,
+} from '../../utils/speechRecognitionService';
 import { VoiceRecorder } from '../../utils/audioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { speechService, speakingService, settingsService, profileService } from '../../services/appServices';
@@ -1176,13 +1181,24 @@ export default function ConversationScreen({ navigation, route }) {
         silenceTimerRef.current = null;
       }
 
-      if (isNativeSpeechRecognitionAvailable) {
-        const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-        if (!granted?.granted) {
-          Alert.alert('Microphone Access Denied', 'Please grant microphone and speech recognition permissions to speak with your AI tutor.');
-          startingRef.current = false;
-          return;
+      const permResult = await checkAndRequestMicPermissions();
+      if (!permResult.granted) {
+        startingRef.current = false;
+        if (permResult.permanentlyDenied) {
+          promptOpenSettingsForMic(
+            'Microphone Permission Required',
+            'SpeakMate AI needs microphone access to listen to your voice during practice. Please enable microphone permissions in your device settings.'
+          );
+        } else {
+          Alert.alert(
+            'Microphone Access Needed',
+            'Please grant microphone and speech recognition permissions to speak with your AI tutor.'
+          );
         }
+        return;
+      }
+
+      if (isNativeSpeechRecognitionAvailable) {
 
         const activeSessionId = recordingSessionIdRef.current + 1;
         recordingSessionIdRef.current = activeSessionId;
@@ -1509,21 +1525,19 @@ export default function ConversationScreen({ navigation, route }) {
               }
               throw new Error('Local session summary fallback');
             } catch (e) {
-              const calcXp = (dur) => {
-                const mins = Math.floor((dur || 0) / 60);
-                return Math.min(40, Math.max(25, 20 + mins * 3 + 5));
-              };
               const sessionDur = timer || 0;
               const fallbackSummary = {
-                score: 85,
-                summary: 'Completed speaking practice session.',
+                score: null, // Clear indicator that cloud evaluation was not performed
+                isUnsavedPractice: true,
+                isLocalFallback: true,
+                summary: 'Offline speaking practice session completed. Note: This session was not recorded on the cloud server.',
                 durationSeconds: sessionDur,
                 totalMessages: Array.isArray(messages) ? messages.length : 0,
                 vocabularyLearned: 'General conversation vocabulary.',
-                grammarCorrections: 'Good effort in sentence structure.',
-                betterSentences: 'Keep practicing daily to improve fluency!',
-                motivationalMessage: 'Great job completing your speaking practice today! 🌟',
-                xpEarned: calcXp(sessionDur),
+                grammarCorrections: 'Cloud grammar analysis unavailable for offline sessions.',
+                betterSentences: 'Keep practicing daily to build speaking confidence!',
+                motivationalMessage: 'Great job completing your speaking practice! Note: Because this was an offline practice session, XP was not awarded and progress is unsaved.',
+                xpEarned: 0, // Unsaved offline session awards zero XP
               };
               navigation.replace('SpeakingSummary', { summary: fallbackSummary });
             } finally {
