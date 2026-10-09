@@ -155,8 +155,10 @@ public class SecurityConfig {
 		origins.add("http://127.0.0.1:5173");
 		origins.add("http://127.0.0.1:3000");
 		origins.add("http://127.0.0.1:8081");
-		origins.add("https://*.onrender.com");
+		origins.add("https://speak-mate-ai-nine.vercel.app");
 		origins.add("https://*.vercel.app");
+		origins.add("https://speakmate-ai-28z5.onrender.com");
+		origins.add("https://*.onrender.com");
 		origins.add("https://*.netlify.app");
 		if (customAllowedOrigins != null && !customAllowedOrigins.isBlank()) {
 			for (String o : customAllowedOrigins.split(",")) {
@@ -170,16 +172,20 @@ public class SecurityConfig {
 		// Methods must NOT be wildcard "*"
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
 
-		// Headers must NOT be wildcard "*"
+		// Headers must NOT be wildcard "*" - includes X-Client-Platform sent by Web and Mobile clients
 		configuration.setAllowedHeaders(List.of(
 				"Authorization",
 				"Content-Type",
 				"Accept",
 				"Origin",
 				"X-Requested-With",
+				"X-Client-Platform",
+				"x-client-platform",
 				"Access-Control-Request-Method",
 				"Access-Control-Request-Headers",
-				"Cache-Control"
+				"Cache-Control",
+				"Pragma",
+				"Accept-Language"
 		));
 		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition", "Set-Cookie"));
 		configuration.setAllowCredentials(true);

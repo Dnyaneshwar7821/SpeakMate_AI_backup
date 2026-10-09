@@ -69,7 +69,7 @@ public class SchoolTeacherServiceImpl implements SchoolTeacherService {
 	private final NotificationService notificationService;
 	private final EmailService emailService;
 
-	@Value("${app.frontend.url:http://localhost:5173}")
+	@Value("${app.frontend.url:https://speak-mate-ai-nine.vercel.app}")
 	private String frontendUrl;
 
 	@Autowired(required = false)
@@ -748,7 +748,7 @@ public class SchoolTeacherServiceImpl implements SchoolTeacherService {
 							assignedClasses);
 					emailService.sendHtmlEmail(savedTeacher.getEmail(), subject, html, text);
 				} else {
-					String loginUrl = (frontendUrl != null ? frontendUrl : "http://localhost:5173") + "/teacher/login";
+					String loginUrl = (frontendUrl != null ? frontendUrl : "https://speak-mate-ai-nine.vercel.app") + "/teacher/login";
 					String text = "Hello " + (teacherName.isEmpty() ? "Teacher" : teacherName) + ",\n\n"
 							+ "You have been registered as a Teacher for " + schoolName + " on SpeakMate AI.\n\n"
 							+ "School Code: " + schoolCode + "\n"

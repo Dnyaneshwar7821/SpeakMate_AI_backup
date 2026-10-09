@@ -13,11 +13,11 @@ import java.time.Year;
 @Service
 public class EmailTemplateService {
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://speak-mate-ai-nine.vercel.app}")
     private String frontendUrl;
 
     public String getLoginUrl() {
-        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "http://localhost:5173";
+        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "https://speak-mate-ai-nine.vercel.app";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
@@ -25,7 +25,7 @@ public class EmailTemplateService {
     }
 
     public String getTeacherLoginUrl() {
-        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "http://localhost:5173";
+        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "https://speak-mate-ai-nine.vercel.app";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
@@ -33,7 +33,7 @@ public class EmailTemplateService {
     }
 
     public String getSchoolAdminLoginUrl() {
-        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "http://localhost:5173";
+        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "https://speak-mate-ai-nine.vercel.app";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }

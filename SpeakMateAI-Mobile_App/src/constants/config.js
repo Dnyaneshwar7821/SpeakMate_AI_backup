@@ -30,6 +30,7 @@ const resolveBaseUrl = () => {
 };
 
 export const BASE_URL = resolveBaseUrl();
+export const WEB_APP_URL = 'https://speak-mate-ai-nine.vercel.app';
 
 export const getWebAvatarEmbedUrl = (model = 'haru') => {
   const customUrl = process.env.EXPO_PUBLIC_WEB_AVATAR_URL;
@@ -44,5 +45,5 @@ export const getWebAvatarEmbedUrl = (model = 'haru') => {
     const hostIp = getDevHostIp();
     return `http://${hostIp}:5173/avatar-embed?model=${model}&framing=faceToChest`;
   }
-  return `https://speakmate-ai-28z5.onrender.com/avatar-embed?model=${model}&framing=faceToChest`;
+  return `https://speak-mate-ai-nine.vercel.app/avatar-embed?model=${model}&framing=faceToChest`;
 };

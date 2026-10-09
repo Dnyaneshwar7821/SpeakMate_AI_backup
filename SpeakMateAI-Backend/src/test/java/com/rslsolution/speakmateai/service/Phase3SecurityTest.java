@@ -401,10 +401,14 @@ public class Phase3SecurityTest {
 		assertFalse(config.getAllowedHeaders().contains("*"));
 		assertTrue(config.getAllowedHeaders().contains("Authorization"));
 		assertTrue(config.getAllowedHeaders().contains("Content-Type"));
+		assertTrue(config.getAllowedHeaders().contains("X-Client-Platform"));
 
 		// Origin patterns must not be wildcard "*"
 		assertFalse(config.getAllowedOriginPatterns().contains("*"));
 		assertTrue(config.getAllowedOriginPatterns().contains("http://localhost:5173"));
+		assertTrue(config.getAllowedOriginPatterns().contains("https://speak-mate-ai-nine.vercel.app"));
+		assertTrue(config.getAllowedOriginPatterns().contains("https://*.vercel.app"));
+		assertTrue(config.getAllowedOriginPatterns().contains("https://speakmate-ai-28z5.onrender.com"));
 		assertTrue(config.getAllowedOriginPatterns().contains("https://*.onrender.com"));
 	}
 }

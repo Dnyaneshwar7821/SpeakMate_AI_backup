@@ -85,7 +85,7 @@ public class SchoolServiceImpl implements SchoolService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.rslsolution.speakmateai.service.EntityCascadeDeletionService entityCascadeDeletionService;
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://speak-mate-ai-nine.vercel.app}")
     private String frontendUrl;
 
     @Value("${razorpay.key.id:rzp_test_SpeakMateAiDev}")
@@ -304,7 +304,7 @@ public class SchoolServiceImpl implements SchoolService {
             String contactPhone,
             SubscriptionPlan plan,
             String paymentId) {
-        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "http://localhost:5173";
+        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "https://speak-mate-ai-nine.vercel.app";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
@@ -445,7 +445,7 @@ public class SchoolServiceImpl implements SchoolService {
             String contactPhone,
             SubscriptionPlan plan,
             String paymentId) {
-        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "http://localhost:5173";
+        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "https://speak-mate-ai-nine.vercel.app";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
