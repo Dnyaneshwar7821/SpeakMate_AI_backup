@@ -117,6 +117,26 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 				.orElseThrow(() -> new UserNotFoundException("User not found"));
 	}
 
+	private void validateSessionOwnership(SpeakingSession session) {
+		if (session == null || session.getUser() == null) {
+			return;
+		}
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication == null || !authentication.isAuthenticated()
+				|| "anonymousUser".equals(authentication.getName())) {
+			throw new org.springframework.security.access.AccessDeniedException("User not authenticated");
+		}
+		boolean isAdmin = authentication.getAuthorities().stream().anyMatch(a ->
+				"ROLE_SUPER_ADMIN".equals(a.getAuthority()) || "ROLE_ADMIN".equals(a.getAuthority())
+		);
+		if (!isAdmin) {
+			User user = currentUser();
+			if (!session.getUser().getId().equals(user.getId())) {
+				throw new org.springframework.security.access.AccessDeniedException("You do not have permission to access or modify this speaking session");
+			}
+		}
+	}
+
 	private static final List<String> FALLBACK_MODELS = List.of(
 			"openai/gpt-oss-120b",
 			"qwen/qwen3.6-27b",
@@ -337,6 +357,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	public SpeakingSessionResponse getSessionById(Long id) {
 		SpeakingSession session = speakingSessionRepository.findById(id)
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Speaking session not found"));
+		validateSessionOwnership(session);
 		return mapToResponse(session);
 	}
 
@@ -344,6 +365,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	public void deleteSession(Long id) {
 		SpeakingSession session = speakingSessionRepository.findById(id)
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Speaking session not found"));
+		validateSessionOwnership(session);
 		try {
 			feedbackRepository.findBySession(session).ifPresent(feedbackRepository::delete);
 		} catch (Exception ignored) {
@@ -780,6 +802,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	public SpeakingMessageResponse processMessage(SpeakingMessageRequest request) {
 		SpeakingSession session = speakingSessionRepository.findById(request.getSessionId())
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Session not found"));
+		validateSessionOwnership(session);
 
 		// 1. Save user message
 		ConversationMessage userMsg = ConversationMessage.builder()
@@ -1040,6 +1063,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	public SpeakingEndResponse endSession(Long id) {
 		SpeakingSession session = speakingSessionRepository.findById(id)
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Session not found"));
+		validateSessionOwnership(session);
 
 		List<ConversationMessage> history = messageRepository.findBySessionOrderByTimestampAsc(session);
 
@@ -1400,6 +1424,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	public SpeakingSessionDetailResponse getSessionDetail(Long id) {
 		SpeakingSession s = speakingSessionRepository.findById(id)
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Session not found"));
+		validateSessionOwnership(s);
 
 		List<SpeakingSessionDetailResponse.MessageDto> msgs = messageRepository.findBySessionOrderByTimestampAsc(s)
 				.stream()
@@ -1443,6 +1468,7 @@ public class SpeakingSessionServiceImpl implements SpeakingSessionService {
 	public List<String> getHints(Long id) {
 		SpeakingSession session = speakingSessionRepository.findById(id)
 				.orElseThrow(() -> new SpeakingSessionNotFoundException("Session not found"));
+		validateSessionOwnership(session);
 
 		List<ConversationMessage> history = messageRepository.findBySessionOrderByTimestampAsc(session);
 		User user = session.getUser();

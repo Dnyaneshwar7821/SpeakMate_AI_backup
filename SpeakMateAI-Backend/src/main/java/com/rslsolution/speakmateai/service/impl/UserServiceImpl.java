@@ -742,8 +742,33 @@ public class UserServiceImpl implements UserService {
 		userRepository.save(user);
 	}
 
+	private void validateUserOwnershipOrAdmin(User targetUser) {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+			throw new org.springframework.security.access.AccessDeniedException("Authentication required.");
+		}
+		boolean isAdmin = auth.getAuthorities().stream().anyMatch(a ->
+				"ROLE_SUPER_ADMIN".equals(a.getAuthority()) || "ROLE_ADMIN".equals(a.getAuthority())
+		);
+		if (!isAdmin) {
+			String currentEmail = auth.getName();
+			if (targetUser.getEmail() == null || !targetUser.getEmail().equalsIgnoreCase(currentEmail)) {
+				throw new org.springframework.security.access.AccessDeniedException("You do not have permission to access or modify this user account.");
+			}
+		}
+	}
+
 	@Override
 	public List<UserResponse> getAllUsers() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+			boolean isAdmin = auth.getAuthorities().stream().anyMatch(a ->
+					"ROLE_SUPER_ADMIN".equals(a.getAuthority()) || "ROLE_ADMIN".equals(a.getAuthority())
+			);
+			if (!isAdmin) {
+				throw new org.springframework.security.access.AccessDeniedException("Access denied: only administrators can list all users.");
+			}
+		}
 
 		List<User> users = userRepository.findAll();
 
@@ -758,18 +783,17 @@ public class UserServiceImpl implements UserService {
 
 	@Override
 	public UserResponse getUserById(Long id) {
-
 		User user = userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found"));
-
+		validateUserOwnershipOrAdmin(user);
 		return mapToUserResponse(user);
 	}
 
 	@Override
 	public UserResponse updateUser(Long id, RegisterRequest request) {
-
 		User user = userRepository.findById(id).orElseThrow(() -> new UserNotFoundException("User not found"));
+		validateUserOwnershipOrAdmin(user);
 
-		if (!user.getEmail().equals(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
+		if (!user.getEmail().equalsIgnoreCase(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
 			throw new DuplicateEmailException("Email already exists.");
 		}
 
@@ -778,7 +802,16 @@ public class UserServiceImpl implements UserService {
 		user.setEmail(request.getEmail());
 
 		if (request.getPassword() != null && !request.getPassword().isBlank()) {
-			user.setPassword(passwordEncoder.encode(request.getPassword()));
+			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+			boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a ->
+					"ROLE_SUPER_ADMIN".equals(a.getAuthority()) || "ROLE_ADMIN".equals(a.getAuthority())
+			);
+			if (isAdmin) {
+				validatePasswordStrength(request.getPassword());
+				user.setPassword(passwordEncoder.encode(request.getPassword()));
+			} else {
+				throw new IllegalArgumentException("Password changes cannot be performed via profile update. Please use the change password endpoint.");
+			}
 		}
 
 		User updatedUser = userRepository.save(user);
@@ -990,8 +1023,20 @@ public class UserServiceImpl implements UserService {
 	@Override
 	@org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
 	public void deleteUser(Long id) {
-		if (!userRepository.existsById(id)) {
-			throw new UserNotFoundException("User not found with id: " + id);
+		User targetUser = userRepository.findById(id)
+				.orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+			boolean isAdmin = auth.getAuthorities().stream().anyMatch(a ->
+					"ROLE_SUPER_ADMIN".equals(a.getAuthority()) || "ROLE_ADMIN".equals(a.getAuthority())
+			);
+			if (!isAdmin) {
+				String currentEmail = auth.getName();
+				if (targetUser.getEmail() == null || !targetUser.getEmail().equalsIgnoreCase(currentEmail)) {
+					throw new org.springframework.security.access.AccessDeniedException("You do not have permission to delete this user account.");
+				}
+			}
 		}
 
 		java.util.Set<String> existingTables = new java.util.HashSet<>();

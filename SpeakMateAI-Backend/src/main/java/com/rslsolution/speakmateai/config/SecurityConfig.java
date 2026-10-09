@@ -100,6 +100,10 @@ public class SecurityConfig {
 								"/api/lesson/get-lesson/*")
 						.permitAll()
 
+						// Administrative user operations
+						.requestMatchers("/api/users/get-all-users", "/api/users/delete-user/**")
+						.hasAnyAuthority("ROLE_SUPER_ADMIN", "ROLE_ADMIN")
+
 						// Learner features
 						.requestMatchers("/api/users/**", "/api/lessons/**", "/api/lesson/**", "/api/speech/**",
 								"/api/speaking/**", "/api/progress/**", "/api/achievement/**",

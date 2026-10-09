@@ -27,6 +27,9 @@ import com.rslsolution.speakmateai.dto.response.UserResponse;
 import com.rslsolution.speakmateai.dto.response.VerifyOtpResponse;
 import com.rslsolution.speakmateai.service.UserService;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.util.HtmlUtils;
+
 import jakarta.validation.Valid;
 
 @RestController
@@ -98,6 +101,12 @@ public class UserController {
 	public void registerExpoUrl(@RequestBody java.util.Map<String, String> payload) {
 		String url = payload.get("url");
 		if (url != null) {
+			url = url.trim();
+			// Validate protocol and reject any script injection, quotes, or whitespace
+			if (!url.matches("^(exp|https?)://[a-zA-Z0-9\\-\\._:]+(/[a-zA-Z0-9\\-\\._~:/?#\\[\\]@!$&'()*+,;=]*)?$")
+					|| url.contains("<") || url.contains(">") || url.contains("\"") || url.contains("'")) {
+				throw new IllegalArgumentException("Invalid URL format or scheme for Expo development endpoint.");
+			}
 			if (url.endsWith("/")) {
 				url = url.substring(0, url.length() - 1);
 			}
@@ -105,12 +114,15 @@ public class UserController {
 				url = url.substring(0, url.length() - 3);
 			}
 			lastRegisteredExpoUrl = url;
-			System.out.println("[Expo URL Registered] Active developer Expo URL: " + lastRegisteredExpoUrl);
 		}
 	}
 
 	@GetMapping(value = "/reset-redirect", produces = org.springframework.http.MediaType.TEXT_HTML_VALUE)
 	public String resetRedirect(@org.springframework.web.bind.annotation.RequestParam String token, jakarta.servlet.http.HttpServletRequest request) {
+		if (token == null || !token.matches("^[a-zA-Z0-9\\-_]{8,128}$")) {
+			throw new IllegalArgumentException("Invalid password reset token format.");
+		}
+
 		String host = request.getHeader("Host");
 		if (host == null || host.isEmpty()) {
 			host = "localhost:9091";
@@ -118,15 +130,18 @@ public class UserController {
 		if (host.endsWith("/")) {
 			host = host.substring(0, host.length() - 1);
 		}
-		String ipAddress = host;
-		if (ipAddress.contains(":")) {
-			ipAddress = ipAddress.split(":")[0];
+		String ipAddress = host.contains(":") ? host.split(":")[0] : host;
+		if (!ipAddress.matches("^[a-zA-Z0-9\\-\\.]+$")) {
+			ipAddress = "localhost";
 		}
 
 		String expoUrlToUse = lastRegisteredExpoUrl;
-		if (expoUrlToUse == null) {
+		if (expoUrlToUse == null || !expoUrlToUse.matches("^(exp|https?)://[a-zA-Z0-9\\-\\._:]+(/[a-zA-Z0-9\\-\\._~:/?#\\[\\]@!$&'()*+,;=]*)?$")) {
 			expoUrlToUse = "exp://" + ipAddress + ":8081";
 		}
+
+		String safeToken = HtmlUtils.htmlEscape(token);
+		String safeExpoUrl = HtmlUtils.htmlEscape(expoUrlToUse);
 
 		return String.format(
 			"<!DOCTYPE html>\n" +
@@ -148,6 +163,7 @@ public class UserController {
 			"    </style>\n" +
 			"</head>\n" +
 			"<body>\n" +
+			"    <div id=\"app-meta\" data-token=\"%s\" data-expo-url=\"%s\" style=\"display:none;\"></div>\n" +
 			"    <div class=\"card\">\n" +
 			"        <div class=\"logo\">SpeakMateAI</div>\n" +
 			"        <h1>Reset Password</h1>\n" +
@@ -168,12 +184,15 @@ public class UserController {
 			"    </div>\n" +
 			"    \n" +
 			"    <script>\n" +
-			"        const token = \"%s\";\n" +
-			"        const activeExpoUrl = \"%s\";\n" +
+			"        const meta = document.getElementById('app-meta');\n" +
+			"        const token = encodeURIComponent(meta.getAttribute('data-token') || '');\n" +
+			"        const activeExpoUrl = encodeURI(meta.getAttribute('data-expo-url') || '');\n" +
 			"        \n" +
 			"        // Auto-redirect attempts\n" +
 			"        setTimeout(function() { \n" +
-			"            window.location.href = activeExpoUrl + \"/--/auth/reset-password?token=\" + token;\n" +
+			"            if (activeExpoUrl) {\n" +
+			"                window.location.href = activeExpoUrl + \"/--/auth/reset-password?token=\" + token;\n" +
+			"            }\n" +
 			"        }, 300);\n" +
 			"        setTimeout(function() { \n" +
 			"            window.location.href = \"speakmateai://auth/reset-password?token=\" + token; \n" +
@@ -181,19 +200,19 @@ public class UserController {
 			"\n" +
 			"        function openTunnelLink() {\n" +
 			"            let base = document.getElementById('tunnel-input').value.trim();\n" +
-			"            if (!base) {\n" +
-			"                alert('Please enter your Expo URL (starts with exp://)');\n" +
+			"            if (!base || !base.startsWith('exp://')) {\n" +
+			"                alert('Please enter a valid Expo URL starting with exp://');\n" +
 			"                return;\n" +
 			"            }\n" +
 			"            base = base.replace(/\\/$/, '');\n" +
 			"            if (base.includes('/--')) {\n" +
 			"                base = base.split('/--')[0];\n" +
 			"            }\n" +
-			"            window.location.href = base + '/--/auth/reset-password?token=' + token;\n" +
+			"            window.location.href = encodeURI(base) + '/--/auth/reset-password?token=' + token;\n" +
 			"        }\n" +
 			"    </script>\n" +
 			"</body>\n" +
-			"</html>", expoUrlToUse, token, token, token, expoUrlToUse
+			"</html>", safeToken, safeExpoUrl, safeExpoUrl, safeToken, safeToken
 		);
 	}
 
@@ -208,6 +227,7 @@ public class UserController {
 	}
 
 	@GetMapping("/get-all-users")
+	@PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ADMIN')")
 	public List<UserResponse> getAllUsers() {
 		return userService.getAllUsers();
 	}
@@ -222,7 +242,8 @@ public class UserController {
 		return userService.updateUser(id, request);
 	}
 
-	@DeleteMapping("delete-user/{id}")
+	@DeleteMapping("/delete-user/{id}")
+	@PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ADMIN')")
 	public String deleteUser(@PathVariable Long id) {
 		userService.deleteUser(id);
 		return "User deleted successfully.";
