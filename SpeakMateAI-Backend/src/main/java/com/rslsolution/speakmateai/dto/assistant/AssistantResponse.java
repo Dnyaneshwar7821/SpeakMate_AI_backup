@@ -18,6 +18,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AssistantResponse {
 
+	@Builder.Default
+	private boolean success = true;
+
+	private String errorMessage;
+
 	private String markdown;
 
 	private String intent;

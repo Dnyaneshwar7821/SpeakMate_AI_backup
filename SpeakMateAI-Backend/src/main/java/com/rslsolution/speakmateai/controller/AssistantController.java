@@ -35,7 +35,14 @@ public class AssistantController {
 	@PostMapping("/message")
 	public ResponseEntity<AssistantResponse> message(@Valid @RequestBody AssistantRequest request) {
 		String email = currentPrincipalEmail();
-		return ResponseEntity.ok(assistantService.answer(email, request));
+		AssistantResponse response = assistantService.answer(email, request);
+		if (!response.isSuccess()) {
+			if (response.getErrorMessage() != null && response.getErrorMessage().contains("Rate limit")) {
+				return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS).body(response);
+			}
+			return ResponseEntity.status(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE).body(response);
+		}
+		return ResponseEntity.ok(response);
 	}
 
 	private String currentPrincipalEmail() {

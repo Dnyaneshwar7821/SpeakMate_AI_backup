@@ -92,20 +92,44 @@ public class UserServiceImpl implements UserService {
 	@Value("${brevo.api.key:${BREVO_API_KEY:}}")
 	private String configuredBrevoApiKey;
 
+	private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
+	private static final int MAX_OTP_ATTEMPTS = 5;
+	private static final int OTP_COOLDOWN_SECONDS = 30;
+	private static final java.util.Map<String, LocalDateTime> otpCooldownMap = new java.util.concurrent.ConcurrentHashMap<>();
+
 	private static final java.util.Map<String, RegistrationOtpDetails> registrationOtpMap = new java.util.concurrent.ConcurrentHashMap<>();
 	private static final java.util.Map<String, RegistrationOtpDetails> deleteAccountOtpMap = new java.util.concurrent.ConcurrentHashMap<>();
 
 	private static class RegistrationOtpDetails {
 		private final String otp;
 		private final LocalDateTime expiry;
+		private int attempts = 0;
 
 		public RegistrationOtpDetails(String otp, LocalDateTime expiry) {
 			this.otp = otp;
 			this.expiry = expiry;
+			this.attempts = 0;
 		}
 
 		public String getOtp() { return otp; }
 		public LocalDateTime getExpiry() { return expiry; }
+		public int getAttempts() { return attempts; }
+		public int incrementAttempts() { return ++this.attempts; }
+	}
+
+	private String generateSecureOtp() {
+		return String.format("%06d", SECURE_RANDOM.nextInt(1000000));
+	}
+
+	private void checkOtpCooldown(String email) {
+		if (email == null || email.isBlank()) return;
+		String key = email.trim().toLowerCase();
+		LocalDateTime lastSent = otpCooldownMap.get(key);
+		if (lastSent != null && lastSent.plusSeconds(OTP_COOLDOWN_SECONDS).isAfter(LocalDateTime.now())) {
+			long wait = java.time.Duration.between(LocalDateTime.now(), lastSent.plusSeconds(OTP_COOLDOWN_SECONDS)).getSeconds();
+			throw new IllegalArgumentException("Please wait " + Math.max(1, wait) + " seconds before requesting another verification code.");
+		}
+		otpCooldownMap.put(key, LocalDateTime.now());
 	}
 
 	@Override
@@ -119,10 +143,10 @@ public class UserServiceImpl implements UserService {
 			throw new DuplicateEmailException("Email is already registered. Please sign in instead.");
 		}
 
-		String otp = String.format("%06d", new java.util.Random().nextInt(1000000));
-		registrationOtpMap.put(cleanEmail, new RegistrationOtpDetails(otp, LocalDateTime.now().plusMinutes(10)));
+		checkOtpCooldown(cleanEmail);
 
-		System.out.println("[Registration OTP Generated] OTP for " + cleanEmail + " is: " + otp);
+		String otp = generateSecureOtp();
+		registrationOtpMap.put(cleanEmail, new RegistrationOtpDetails(otp, LocalDateTime.now().plusMinutes(10)));
 
 		String htmlContent = String.format(
 			"<!DOCTYPE html>\n" +
@@ -180,7 +204,17 @@ public class UserServiceImpl implements UserService {
 			throw new IllegalArgumentException("OTP verification code has expired. Please request a new code.");
 		}
 
+		if (otpDetails.getAttempts() >= MAX_OTP_ATTEMPTS) {
+			registrationOtpMap.remove(email);
+			throw new IllegalArgumentException("Maximum verification attempts exceeded. Please request a new verification code.");
+		}
+
 		if (!otpDetails.getOtp().trim().equals(otp)) {
+			int currentAttempts = otpDetails.incrementAttempts();
+			if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+				registrationOtpMap.remove(email);
+				throw new IllegalArgumentException("Maximum verification attempts exceeded. Please request a new verification code.");
+			}
 			throw new IllegalArgumentException("Invalid OTP verification code. Please check your email and try again.");
 		}
 
@@ -207,14 +241,31 @@ public class UserServiceImpl implements UserService {
 		// Verify registration OTP
 		RegistrationOtpDetails otpDetails = registrationOtpMap.get(cleanEmail);
 		String inputOtp = request.getOtp() != null ? request.getOtp().trim() : "";
-		if (otpDetails == null || !otpDetails.getOtp().trim().equals(inputOtp)) {
-			throw new IllegalArgumentException("Invalid OTP verification code. Please check your email and try again.");
+		if (otpDetails == null) {
+			throw new IllegalArgumentException("No OTP verification code requested for this email or it has expired. Please tap Send OTP again.");
 		}
 
 		if (otpDetails.getExpiry().isBefore(LocalDateTime.now())) {
 			registrationOtpMap.remove(cleanEmail);
 			throw new IllegalArgumentException("OTP verification code has expired. Please request a new code.");
 		}
+
+		if (otpDetails.getAttempts() >= MAX_OTP_ATTEMPTS) {
+			registrationOtpMap.remove(cleanEmail);
+			throw new IllegalArgumentException("Maximum verification attempts exceeded. Please request a new verification code.");
+		}
+
+		if (!otpDetails.getOtp().trim().equals(inputOtp)) {
+			int currentAttempts = otpDetails.incrementAttempts();
+			if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+				registrationOtpMap.remove(cleanEmail);
+				throw new IllegalArgumentException("Maximum verification attempts exceeded. Please request a new verification code.");
+			}
+			throw new IllegalArgumentException("Invalid OTP verification code. Please check your email and try again.");
+		}
+
+		// Invalidate OTP after successful registration
+		registrationOtpMap.remove(cleanEmail);
 
 		validatePasswordStrength(request.getPassword());
 
@@ -512,6 +563,7 @@ public class UserServiceImpl implements UserService {
 			user.setResetPasswordTokenExpiry(null);
 			user.setResetOtp(null);
 			user.setResetOtpExpiry(null);
+			user.setResetOtpAttempts(0);
 			userRepository.save(user);
 			return;
 		}
@@ -603,12 +655,13 @@ public class UserServiceImpl implements UserService {
 		User user = userRepository.findByEmailIgnoreCase(lookupEmail)
 				.orElseThrow(() -> new IllegalArgumentException("No registered account found with email: " + lookupEmail));
 
-		String otp = String.format("%06d", new java.util.Random().nextInt(1000000));
+		checkOtpCooldown(lookupEmail);
+
+		String otp = generateSecureOtp();
 		user.setResetOtp(otp);
 		user.setResetOtpExpiry(LocalDateTime.now().plusMinutes(10));
+		user.setResetOtpAttempts(0);
 		userRepository.save(user);
-
-		System.out.println("[Forgot Password OTP Generated] OTP for " + user.getEmail() + " is: " + otp);
 
 		// Send branded HTML OTP email using Spring Boot Mail
 		String htmlContent = String.format(
@@ -688,13 +741,36 @@ public class UserServiceImpl implements UserService {
 				.orElseGet(() -> userRepository.findByEmail(lookupEmail)
 						.orElseThrow(() -> new IllegalArgumentException("Invalid email or user not found.")));
 
-		String inputOtp = request.getOtp() != null ? request.getOtp().trim() : "";
-		if (user.getResetOtp() == null || !user.getResetOtp().equals(inputOtp)) {
-			throw new IllegalArgumentException("Invalid OTP code. Please check your email and try again.");
+		int attempts = user.getResetOtpAttempts() != null ? user.getResetOtpAttempts() : 0;
+		if (attempts >= MAX_OTP_ATTEMPTS) {
+			user.setResetOtp(null);
+			user.setResetOtpExpiry(null);
+			user.setResetOtpAttempts(0);
+			userRepository.save(user);
+			throw new IllegalArgumentException("Maximum OTP verification attempts exceeded. Please request a new OTP.");
 		}
 
 		if (user.getResetOtpExpiry() == null || user.getResetOtpExpiry().isBefore(LocalDateTime.now())) {
+			user.setResetOtp(null);
+			user.setResetOtpExpiry(null);
+			user.setResetOtpAttempts(0);
+			userRepository.save(user);
 			throw new IllegalArgumentException("OTP code has expired. Please request a new OTP.");
+		}
+
+		String inputOtp = request.getOtp() != null ? request.getOtp().trim() : "";
+		if (user.getResetOtp() == null || !user.getResetOtp().equals(inputOtp)) {
+			int updatedAttempts = attempts + 1;
+			user.setResetOtpAttempts(updatedAttempts);
+			if (updatedAttempts >= MAX_OTP_ATTEMPTS) {
+				user.setResetOtp(null);
+				user.setResetOtpExpiry(null);
+			}
+			userRepository.save(user);
+			if (updatedAttempts >= MAX_OTP_ATTEMPTS) {
+				throw new IllegalArgumentException("Maximum OTP verification attempts exceeded. Please request a new OTP.");
+			}
+			throw new IllegalArgumentException("Invalid OTP code. Please check your email and try again.");
 		}
 
 		// Generate session token for reset password
@@ -704,6 +780,7 @@ public class UserServiceImpl implements UserService {
 		// Clear OTP once verified
 		user.setResetOtp(null);
 		user.setResetOtpExpiry(null);
+		user.setResetOtpAttempts(0);
 		userRepository.save(user);
 
 		return VerifyOtpResponse.builder()
@@ -739,6 +816,7 @@ public class UserServiceImpl implements UserService {
 		user.setPassword(passwordEncoder.encode(request.getNewPassword()));
 		user.setResetPasswordToken(null);
 		user.setResetPasswordTokenExpiry(null);
+		user.setResetOtpAttempts(0);
 		userRepository.save(user);
 	}
 
@@ -913,10 +991,10 @@ public class UserServiceImpl implements UserService {
 		User user = userRepository.findByEmailIgnoreCase(lookupEmail)
 				.orElseThrow(() -> new UserNotFoundException("No account found registered with email: " + lookupEmail));
 
-		String otp = String.format("%06d", new java.util.Random().nextInt(1000000));
-		deleteAccountOtpMap.put(user.getEmail().trim().toLowerCase(), new RegistrationOtpDetails(otp, LocalDateTime.now().plusMinutes(10)));
+		checkOtpCooldown(lookupEmail);
 
-		System.out.println("[Delete Account OTP Generated] OTP for " + lookupEmail + " is: " + otp);
+		String otp = generateSecureOtp();
+		deleteAccountOtpMap.put(user.getEmail().trim().toLowerCase(), new RegistrationOtpDetails(otp, LocalDateTime.now().plusMinutes(10)));
 
 		String htmlContent = String.format(
 			"<!DOCTYPE html>\n" +
@@ -983,7 +1061,17 @@ public class UserServiceImpl implements UserService {
 			throw new IllegalArgumentException("The OTP verification code has expired. Please tap 'Resend Code' to get a new code.");
 		}
 
+		if (otpDetails.getAttempts() >= MAX_OTP_ATTEMPTS) {
+			deleteAccountOtpMap.remove(user.getEmail().trim().toLowerCase());
+			throw new IllegalArgumentException("Maximum verification attempts exceeded. Please request a new code.");
+		}
+
 		if (!otpDetails.getOtp().trim().equals(otp)) {
+			int currentAttempts = otpDetails.incrementAttempts();
+			if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+				deleteAccountOtpMap.remove(user.getEmail().trim().toLowerCase());
+				throw new IllegalArgumentException("Maximum verification attempts exceeded. Please request a new code.");
+			}
 			throw new IllegalArgumentException("The 6-digit OTP code is incorrect. Please check your email.");
 		}
 
@@ -1009,7 +1097,17 @@ public class UserServiceImpl implements UserService {
 			throw new InvalidCredentialsException("The OTP verification code has expired. Please tap 'Send OTP' to get a new code.");
 		}
 
+		if (otpDetails.getAttempts() >= MAX_OTP_ATTEMPTS) {
+			deleteAccountOtpMap.remove(lookupEmail);
+			throw new InvalidCredentialsException("Maximum verification attempts exceeded. Please request a new code.");
+		}
+
 		if (!otpDetails.getOtp().trim().equals(otp)) {
+			int currentAttempts = otpDetails.incrementAttempts();
+			if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+				deleteAccountOtpMap.remove(lookupEmail);
+				throw new InvalidCredentialsException("Maximum verification attempts exceeded. Please request a new code.");
+			}
 			throw new InvalidCredentialsException("The 6-digit OTP code is incorrect. Please check your email.");
 		}
 
@@ -1266,11 +1364,11 @@ public class UserServiceImpl implements UserService {
 					mailSender.send(message);
 					System.out.println("[SMTP Email Sent] Successfully sent to: " + toEmail);
 				} else {
-					System.out.println("[SMTP Offline] OTP for " + toEmail + " is: " + otp);
+					System.out.println("[SMTP Offline] Email sender not configured; cannot deliver verification message to: " + toEmail);
 				}
 			} catch (Exception ex) {
 				System.err.println("[SMTP Error] Failed to send email to " + toEmail + ": " + ex.getMessage());
-				System.out.println("[Fallback Log] OTP for " + toEmail + " is: " + otp);
+				System.out.println("[Fallback Log] Email delivery failed for: " + toEmail);
 			}
 		});
 	}

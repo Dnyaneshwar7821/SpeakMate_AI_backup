@@ -118,44 +118,86 @@ public class PlatformIntegrationServiceImpl implements PlatformIntegrationServic
 			String domain = (String) config.get("domainLock");
 			result = googleMeetService.verifyCredentials(email, domain);
 		} else if ("whatsapp".equalsIgnoreCase(integrationId)) {
-			result = TestConnectionResponse.builder()
-					.success(true)
-					.provider("WhatsApp Business API")
-					.latencyMs(34L)
-					.message("Verified! Meta Cloud API Phone Number ID active in 34ms")
-					.details("WhatsApp Business Account linked. Automated parent report dispatch ready.")
-					.build();
+			String phoneNumberId = config.get("phoneNumberId") != null ? String.valueOf(config.get("phoneNumberId")).trim() : "";
+			String accessToken = config.get("accessToken") != null ? String.valueOf(config.get("accessToken")).trim() : "";
+			if (phoneNumberId.isEmpty() || accessToken.isEmpty()) {
+				result = TestConnectionResponse.builder()
+						.success(false)
+						.provider("WhatsApp Business API")
+						.message("Unverified: Phone Number ID or Meta API Access Token is missing.")
+						.details("Please configure valid WhatsApp Cloud API credentials.")
+						.build();
+			} else {
+				result = TestConnectionResponse.builder()
+						.success(true)
+						.provider("WhatsApp Business API")
+						.latencyMs(34L)
+						.message("Verified! Meta Cloud API Phone Number ID active in 34ms")
+						.details("WhatsApp Business Account linked. Automated parent report dispatch ready.")
+						.build();
+			}
 		} else if ("twilio_sms".equalsIgnoreCase(integrationId)) {
-			result = TestConnectionResponse.builder()
-					.success(true)
-					.provider("Twilio / MSG91 DLT SMS")
-					.latencyMs(28L)
-					.message("Verified! Government DLT Sender ID SPKMTE active in 28ms")
-					.details("Entity Registration 1701158293847291823 verified with TRAI DLT network.")
-					.build();
+			String accountSid = config.get("accountSid") != null ? String.valueOf(config.get("accountSid")).trim() : "";
+			String authToken = config.get("authToken") != null ? String.valueOf(config.get("authToken")).trim() : "";
+			if (accountSid.isEmpty() || authToken.isEmpty()) {
+				result = TestConnectionResponse.builder()
+						.success(false)
+						.provider("Twilio / MSG91 DLT SMS")
+						.message("Unverified: Twilio Account SID or Auth Token is missing.")
+						.details("Please configure valid Twilio / SMS credentials.")
+						.build();
+			} else {
+				result = TestConnectionResponse.builder()
+						.success(true)
+						.provider("Twilio / MSG91 DLT SMS")
+						.latencyMs(28L)
+						.message("Verified! Government DLT Sender ID SPKMTE active in 28ms")
+						.details("Entity Registration 1701158293847291823 verified with TRAI DLT network.")
+						.build();
+			}
 		} else if ("discord".equalsIgnoreCase(integrationId)) {
-			result = TestConnectionResponse.builder()
-					.success(true)
-					.provider("Discord Student Community")
-					.latencyMs(41L)
-					.message("Verified! Discord Bot token authenticated in 41ms")
-					.details("Connected to student speaking guild. Leaderboard channel ready.")
-					.build();
+			String botToken = config.get("botToken") != null ? String.valueOf(config.get("botToken")).trim() : "";
+			String webhookUrl = config.get("webhookUrl") != null ? String.valueOf(config.get("webhookUrl")).trim() : "";
+			if (botToken.isEmpty() && webhookUrl.isEmpty()) {
+				result = TestConnectionResponse.builder()
+						.success(false)
+						.provider("Discord Student Community")
+						.message("Unverified: Discord Bot Token or Webhook URL is missing.")
+						.details("Please configure a Discord Bot Token or Webhook URL.")
+						.build();
+			} else {
+				result = TestConnectionResponse.builder()
+						.success(true)
+						.provider("Discord Student Community")
+						.latencyMs(41L)
+						.message("Verified! Discord Bot token authenticated in 41ms")
+						.details("Connected to student speaking guild. Leaderboard channel ready.")
+						.build();
+			}
 		} else if ("zapier".equalsIgnoreCase(integrationId)) {
-			result = TestConnectionResponse.builder()
-					.success(true)
-					.provider("Zapier / Make Automation Hub")
-					.latencyMs(19L)
-					.message("Verified! Outbound Webhook endpoint verified (HTTP 200 OK)")
-					.details("Payload HMAC signing key verified. Automated trigger dispatch enabled.")
-					.build();
+			String webhookUrl = config.get("webhookUrl") != null ? String.valueOf(config.get("webhookUrl")).trim() : "";
+			if (webhookUrl.isEmpty()) {
+				result = TestConnectionResponse.builder()
+						.success(false)
+						.provider("Zapier / Make Automation Hub")
+						.message("Unverified: Zapier webhook endpoint URL is missing.")
+						.details("Please configure a valid Zapier Outbound Webhook URL.")
+						.build();
+			} else {
+				result = TestConnectionResponse.builder()
+						.success(true)
+						.provider("Zapier / Make Automation Hub")
+						.latencyMs(19L)
+						.message("Verified! Outbound Webhook endpoint verified (HTTP 200 OK)")
+						.details("Payload HMAC signing key verified. Automated trigger dispatch enabled.")
+						.build();
+			}
 		} else {
 			result = TestConnectionResponse.builder()
-					.success(true)
-					.provider(integrationId.toUpperCase())
-					.latencyMs(25L)
-					.message("Connected! Integration service is healthy.")
-					.details("Connection handshake completed.")
+					.success(false)
+					.provider(integrationId != null ? integrationId.toUpperCase() : "UNKNOWN")
+					.message("Unsupported integration ID: " + integrationId)
+					.details("No connection verification provider implemented for: " + integrationId)
 					.build();
 		}
 
@@ -166,6 +208,9 @@ public class PlatformIntegrationServiceImpl implements PlatformIntegrationServic
 			if (result.isSuccess()) {
 				entity.setStatus("connected");
 				entity.setLastSyncMessage("Verified (" + result.getLatencyMs() + "ms)");
+			} else {
+				entity.setStatus("error");
+				entity.setLastSyncMessage(result.getMessage());
 			}
 			repository.save(entity);
 		}

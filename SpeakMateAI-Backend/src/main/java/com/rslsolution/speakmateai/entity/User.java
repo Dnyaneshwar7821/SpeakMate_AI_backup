@@ -109,6 +109,9 @@ public class User {
 
 	private LocalDateTime resetOtpExpiry;
 
+	@Builder.Default
+	private Integer resetOtpAttempts = 0;
+
 	// Onboarding fields
 	private String nativeLanguage;
 
@@ -243,6 +246,9 @@ public class User {
 
 	public LocalDateTime getResetOtpExpiry() { return resetOtpExpiry; }
 	public void setResetOtpExpiry(LocalDateTime resetOtpExpiry) { this.resetOtpExpiry = resetOtpExpiry; }
+
+	public Integer getResetOtpAttempts() { return resetOtpAttempts != null ? resetOtpAttempts : 0; }
+	public void setResetOtpAttempts(Integer resetOtpAttempts) { this.resetOtpAttempts = resetOtpAttempts; }
 
 	public String getNativeLanguage() { return nativeLanguage; }
 	public void setNativeLanguage(String nativeLanguage) { this.nativeLanguage = nativeLanguage; }

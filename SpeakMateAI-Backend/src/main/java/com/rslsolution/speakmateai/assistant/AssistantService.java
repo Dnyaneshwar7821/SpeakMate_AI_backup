@@ -55,6 +55,24 @@ public class AssistantService {
 		this.registry = registry;
 	}
 
+	private static final int MAX_REQUESTS_PER_MINUTE = 30;
+	private final java.util.Map<String, java.util.concurrent.ConcurrentLinkedQueue<Long>> requestTimestamps = new java.util.concurrent.ConcurrentHashMap<>();
+
+	private boolean isRateLimited(String email) {
+		if (email == null || email.isBlank()) return false;
+		long now = System.currentTimeMillis();
+		long windowStart = now - 60_000L;
+		java.util.concurrent.ConcurrentLinkedQueue<Long> timestamps = requestTimestamps.computeIfAbsent(email, k -> new java.util.concurrent.ConcurrentLinkedQueue<>());
+		while (!timestamps.isEmpty() && timestamps.peek() < windowStart) {
+			timestamps.poll();
+		}
+		if (timestamps.size() >= MAX_REQUESTS_PER_MINUTE) {
+			return true;
+		}
+		timestamps.offer(now);
+		return false;
+	}
+
 	/**
 	 * Answers a single assistant message for the authenticated principal (email).
 	 * Never writes to the database; never exposes data outside the caller's scope.
@@ -62,6 +80,18 @@ public class AssistantService {
 	public AssistantResponse answer(String email, AssistantRequest request) {
 		ActorContext actor = null;
 		try {
+			if (isRateLimited(email)) {
+				return AssistantResponse.builder()
+						.success(false)
+						.errorMessage("Rate limit exceeded")
+						.markdown("You are sending messages too quickly. Please wait a moment before sending another message.")
+						.intent("RATE_LIMITED")
+						.accessDenied(false)
+						.sessionId(request != null ? request.getSessionId() : null)
+						.suggestions(suggestionsFor(AssistantIntent.NAVIGATION_HELP, Role.USER, false))
+						.build();
+			}
+
 			actor = actorResolver.resolve(email);
 
 			// Security hardening: unauthorized requests for passwords, credentials, tokens, or secrets
@@ -121,10 +151,10 @@ public class AssistantService {
 
 			String dataJson;
 			try {
-				log.info("[CHATBOT TRACE] User Message: '{}', Classified Intent: {}, Actor Email: '{}', Actor Role: {}, Actor SchoolId: {}, Params: {}",
-						request.getMessage(), intent, actor.getEmail(), actor.getRole(), actor.getSchoolId(), params);
+				log.debug("[CHATBOT TRACE] Classified Intent: {}, Actor Role: {}, Actor SchoolId: {}",
+						intent, actor.getRole(), actor.getSchoolId());
 				dataJson = provider.get().provide(actor, params);
-				log.info("[CHATBOT TRACE] Data Provider Output JSON: {}", dataJson);
+				log.debug("[CHATBOT TRACE] Data provider invocation completed for intent: {}", intent);
 			} catch (Exception e) {
 				log.error("Data provider for intent {} threw an exception: {}", intent, e.getMessage(), e);
 				dataJson = "{}";
@@ -142,6 +172,7 @@ public class AssistantService {
 			}
 
 			return AssistantResponse.builder()
+					.success(true)
 					.markdown(synthesized.getMarkdown())
 					.intent(intent.name())
 					.accessDenied(false)
@@ -151,9 +182,11 @@ public class AssistantService {
 					.suggestions(suggestionsFor(intent, actor.getRole(), synthesized.getSuggestDeepLink(), request != null ? request.getMessage() : null))
 					.build();
 		} catch (Throwable t) {
-			log.error("Unhandled error in AssistantService for {}: {}", email, t.getMessage(), t);
+			log.error("Unhandled error in AssistantService: {}", t.getMessage(), t);
 			Role fallbackRole = (actor != null && actor.getRole() != null) ? actor.getRole() : Role.USER;
 			return AssistantResponse.builder()
+					.success(false)
+					.errorMessage("Assistant pipeline failure: " + (t.getMessage() != null ? t.getMessage() : "Internal error"))
 					.markdown("I encountered a temporary issue while retrieving this information. Please try asking again or rephrasing your question.")
 					.intent(AssistantIntent.NAVIGATION_HELP.name())
 					.accessDenied(false)

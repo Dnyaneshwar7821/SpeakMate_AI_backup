@@ -327,8 +327,8 @@ public class SchoolRosterDataProvider implements AssistantDataProvider {
 			log.info("[ROSTER TRACE] School ID: {}, Name: {}, Teachers Count: {}, Students Count from DB: {}",
 					schoolId, schoolLabel, teachers.size(), students.size());
 			for (Student st : students) {
-				log.info("[ROSTER TRACE STUDENT] Student ID: {}, Name: {} {}, schoolId: {}, schoolName: {}",
-						st.getId(), st.getFirstName(), st.getLastName(), st.getSchoolId(), st.getSchoolName());
+				log.debug("[ROSTER TRACE STUDENT] Student ID: {}, schoolId: {}",
+						st.getId(), st.getSchoolId());
 			}
 			if (students.isEmpty()) {
 				List<User> studentUsers = userRepository.findBySchoolIdAndRole(schoolId, Role.STUDENT);

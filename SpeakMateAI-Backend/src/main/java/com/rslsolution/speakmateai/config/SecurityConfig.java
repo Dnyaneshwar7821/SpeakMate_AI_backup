@@ -1,7 +1,9 @@
 package com.rslsolution.speakmateai.config;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,6 +28,9 @@ import com.rslsolution.speakmateai.security.RequestLoggingFilter;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+	@Value("${cors.allowed-origins:${CORS_ALLOWED_ORIGINS:}}")
+	private String customAllowedOrigins;
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final RequestLoggingFilter requestLoggingFilter;
@@ -135,9 +140,39 @@ public class SecurityConfig {
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
-		configuration.setAllowedOriginPatterns(List.of("*"));
-		configuration.setAllowedMethods(List.of("*"));
-		configuration.setAllowedHeaders(List.of("*"));
+
+		List<String> origins = new ArrayList<>(List.of(
+				"http://localhost:5173",
+				"http://localhost:3000",
+				"http://localhost:8081",
+				"http://localhost:8080",
+				"http://localhost:4173",
+				"http://127.0.0.1:5173",
+				"https://*.vercel.app",
+				"https://*.onrender.com",
+				"https://speakmate-ai-28z5.onrender.com"
+		));
+
+		if (customAllowedOrigins != null && !customAllowedOrigins.isBlank()) {
+			for (String o : customAllowedOrigins.split(",")) {
+				String trimmed = o.trim();
+				if (!trimmed.isEmpty() && !origins.contains(trimmed)) {
+					origins.add(trimmed);
+				}
+			}
+		}
+
+		configuration.setAllowedOriginPatterns(origins);
+		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
+		configuration.setAllowedHeaders(List.of(
+				"Authorization",
+				"Content-Type",
+				"Accept",
+				"Origin",
+				"X-Requested-With",
+				"Access-Control-Request-Method",
+				"Access-Control-Request-Headers"
+		));
 		configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
 		configuration.setAllowCredentials(false);
 
