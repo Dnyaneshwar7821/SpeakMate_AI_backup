@@ -106,6 +106,9 @@ public class Admin {
 
 	private LocalDateTime resetOtpExpiry;
 
+	@Builder.Default
+	private Integer resetOtpAttempts = 0;
+
 	@PrePersist
 	public void onCreate() {
 		createdAt = LocalDateTime.now();

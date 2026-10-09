@@ -10,4 +10,5 @@ import com.rslsolution.speakmateai.entity.Admin;
 @Repository
 public interface AdminRepository extends JpaRepository<Admin, Long> {
 	Optional<Admin> findByEmail(String email);
+	Optional<Admin> findByResetPasswordToken(String resetPasswordToken);
 }

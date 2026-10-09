@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.rslsolution.speakmateai.dto.request.AdminChangePasswordRequest;
 import com.rslsolution.speakmateai.dto.request.AdminLoginRequest;
 import com.rslsolution.speakmateai.dto.request.AdminRefreshTokenRequest;
@@ -33,6 +34,7 @@ public class AdminAuthController {
 	}
 
 	@PostMapping("/register")
+	@PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
 	public ResponseEntity<ApiResponse<String>> register(@Valid @RequestBody com.rslsolution.speakmateai.dto.request.AdminRegisterRequest request) {
 		adminAuthService.register(request);
 		return ResponseEntity.ok(ApiResponse.success("Admin registered successfully"));

@@ -1,5 +1,6 @@
 package com.rslsolution.speakmateai.service.impl;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 
 import org.springframework.security.core.Authentication;
@@ -36,14 +37,14 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 	private final AdminRepository adminRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtUtil jwtUtil;
+	private final EmailService emailService;
 
-	@Autowired
-	private EmailService emailService;
-
-	public AdminAuthServiceImpl(AdminRepository adminRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+	public AdminAuthServiceImpl(AdminRepository adminRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
+			EmailService emailService) {
 		this.adminRepository = adminRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.jwtUtil = jwtUtil;
+		this.emailService = emailService;
 	}
 
 	@Override
@@ -52,14 +53,20 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 			throw new IllegalArgumentException("Admin with this email already exists");
 		}
 
+		Role targetRole = request.getRole() != null ? request.getRole() : Role.ADMIN;
+		if (targetRole != Role.ADMIN && targetRole != Role.SUPER_ADMIN) {
+			targetRole = Role.ADMIN;
+		}
+
 		Admin admin = Admin.builder()
 				.fullName(request.getFullName())
 				.email(request.getEmail())
 				.password(passwordEncoder.encode(request.getPassword()))
 				.phone(com.rslsolution.speakmateai.util.PhoneNumberUtil.validateAndNormalize(request.getPhone(),
 						"Phone number"))
-				.role(request.getRole() != null ? request.getRole() : Role.ADMIN)
+				.role(targetRole)
 				.status(AdminStatus.ACTIVE)
+				.resetOtpAttempts(0)
 				.build();
 
 		adminRepository.save(admin);
@@ -137,12 +144,12 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 				.orElseThrow(() -> new IllegalArgumentException(
 						"No registered admin account found with email: " + cleanEmail));
 
-		String otp = String.format("%06d", new java.util.Random().nextInt(1000000));
+		SecureRandom secureRandom = new SecureRandom();
+		String otp = String.format("%06d", secureRandom.nextInt(1000000));
 		admin.setResetOtp(otp);
 		admin.setResetOtpExpiry(LocalDateTime.now().plusMinutes(10));
+		admin.setResetOtpAttempts(0);
 		adminRepository.save(admin);
-
-		System.out.println("[Admin Forgot Password OTP Generated] OTP for " + admin.getEmail() + " is: " + otp);
 
 		String htmlContent = String.format(
 				"<!DOCTYPE html>\n" +
@@ -202,15 +209,31 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 		Admin admin = adminRepository.findByEmail(request.getEmail())
 				.orElseThrow(() -> new IllegalArgumentException("Invalid email or admin not found."));
 
-		String inputOtp = request.getOtp() != null ? request.getOtp().trim() : "";
-		boolean isMasterOtp = "123456".equals(inputOtp);
-		if (!isMasterOtp && (admin.getResetOtp() == null || !admin.getResetOtp().equals(inputOtp))) {
-			throw new IllegalArgumentException("Invalid OTP code. Please check your email and try again.");
+		int attempts = admin.getResetOtpAttempts() != null ? admin.getResetOtpAttempts() : 0;
+		if (attempts >= 5) {
+			admin.setResetOtp(null);
+			admin.setResetOtpExpiry(null);
+			adminRepository.save(admin);
+			throw new IllegalArgumentException("Too many failed attempts. This OTP has been invalidated, please request a new one.");
 		}
 
-		if (!isMasterOtp
-				&& (admin.getResetOtpExpiry() == null || admin.getResetOtpExpiry().isBefore(LocalDateTime.now()))) {
+		if (admin.getResetOtpExpiry() == null || admin.getResetOtpExpiry().isBefore(LocalDateTime.now())) {
 			throw new IllegalArgumentException("OTP code has expired. Please request a new OTP.");
+		}
+
+		String inputOtp = request.getOtp() != null ? request.getOtp().trim() : "";
+		if (admin.getResetOtp() == null || !admin.getResetOtp().equals(inputOtp)) {
+			int updatedAttempts = attempts + 1;
+			admin.setResetOtpAttempts(updatedAttempts);
+			if (updatedAttempts >= 5) {
+				admin.setResetOtp(null);
+				admin.setResetOtpExpiry(null);
+				adminRepository.save(admin);
+				throw new IllegalArgumentException("Too many failed attempts. This OTP has been invalidated, please request a new one.");
+			}
+			adminRepository.save(admin);
+			int remaining = 5 - updatedAttempts;
+			throw new IllegalArgumentException("Invalid OTP code. " + remaining + " attempts remaining.");
 		}
 
 		String token = UUID.randomUUID().toString();
@@ -218,6 +241,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 		admin.setResetPasswordTokenExpiry(LocalDateTime.now().plusMinutes(15));
 		admin.setResetOtp(null);
 		admin.setResetOtpExpiry(null);
+		admin.setResetOtpAttempts(0);
 		adminRepository.save(admin);
 
 		return VerifyOtpResponse.builder()
@@ -228,9 +252,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
 	@Override
 	public void resetPassword(ResetPasswordRequest request) {
-		Admin admin = adminRepository.findAll().stream()
-				.filter(a -> request.getToken().equals(a.getResetPasswordToken()))
-				.findFirst()
+		Admin admin = adminRepository.findByResetPasswordToken(request.getToken())
 				.orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token."));
 
 		if (admin.getResetPasswordTokenExpiry() == null
@@ -243,6 +265,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 		admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
 		admin.setResetPasswordToken(null);
 		admin.setResetPasswordTokenExpiry(null);
+		admin.setResetOtpAttempts(0);
 		adminRepository.save(admin);
 	}
 

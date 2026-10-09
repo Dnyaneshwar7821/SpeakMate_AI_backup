@@ -18,11 +18,13 @@ import com.rslsolution.speakmateai.dto.integration.RazorpayTestOrderResponse;
 import com.rslsolution.speakmateai.dto.integration.TestConnectionResponse;
 import com.rslsolution.speakmateai.dto.integration.UpdateIntegrationRequest;
 import com.rslsolution.speakmateai.service.PlatformIntegrationService;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/integrations")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_ADMIN')")
 @RequiredArgsConstructor
 public class PlatformIntegrationController {
 

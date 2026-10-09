@@ -45,11 +45,12 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						// Admin Auth & Portal Endpoints
-						.requestMatchers("/api/auth/admin/register", "/api/auth/admin/login",
+						.requestMatchers("/api/auth/admin/register").hasAuthority("ROLE_SUPER_ADMIN")
+						.requestMatchers("/api/auth/admin/login",
 								"/api/auth/admin/forgot-password", "/api/auth/admin/verify-otp",
 								"/api/auth/admin/reset-password", "/api/auth/admin/refresh-token")
 						.permitAll()
-						.requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN", "ROLE_ADMIN")
+						.requestMatchers("/api/admin/**", "/api/v1/integrations/**").hasAnyAuthority("ROLE_SUPER_ADMIN", "ROLE_ADMIN")
 
 						// Announcements & Student Assignments (accessible by student and learner roles)
 						.requestMatchers("/api/v1/school/announcements", "/api/v1/announcements")
@@ -87,7 +88,6 @@ public class SecurityConfig {
 								"/api/users/reset-password", "/api/users/reset-password-with-temporary",
 								"/api/users/reset-redirect",
 								"/api/users/register-expo-url", "/error",
-								"/api/v1/integrations/**",
 								"/api/health", "/api/ping")
 						.permitAll()
 
