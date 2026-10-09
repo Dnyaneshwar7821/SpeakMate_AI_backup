@@ -25,12 +25,16 @@ import {
 } from '../../components/auth';
 import { authService } from '../../services/authService';
 
+const TOKEN_REGEX = /^[a-zA-Z0-9_-]{16,128}$/;
+
 export default function ResetPasswordScreen({ navigation, route }) {
-  const [token, setToken] = useState(route?.params?.token || '');
+  const initialRawToken = typeof route?.params?.token === 'string' ? route.params.token.trim() : '';
+  const [token, setToken] = useState(TOKEN_REGEX.test(initialRawToken) ? initialRawToken : '');
+  const [hasInvalidToken, setHasInvalidToken] = useState(Boolean(initialRawToken && !TOKEN_REGEX.test(initialRawToken)));
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialRawToken && !TOKEN_REGEX.test(initialRawToken) ? 'Invalid password reset link.' : '');
   const [touched, setTouched] = useState({ password: false, confirmPassword: false });
   const passwordRef = useRef(null);
   const confirmRef = useRef(null);
@@ -58,7 +62,16 @@ export default function ResetPasswordScreen({ navigation, route }) {
 
   useEffect(() => {
     if (route?.params?.token) {
-      setToken(route.params.token);
+      const raw = String(route.params.token).trim();
+      if (TOKEN_REGEX.test(raw)) {
+        setToken(raw);
+        setHasInvalidToken(false);
+        setError('');
+      } else {
+        setToken('');
+        setHasInvalidToken(true);
+        setError('Invalid or expired password reset link. Please request a new verification link.');
+      }
     }
   }, [route?.params?.token]);
 
@@ -79,7 +92,9 @@ export default function ResetPasswordScreen({ navigation, route }) {
   };
 
   const validate = () => {
-    if (!token) return 'Session token missing. Please verify your OTP code again.';
+    if (!token || !TOKEN_REGEX.test(token.trim())) {
+      return 'Valid reset token is missing or expired. Please verify your OTP code or link again.';
+    }
     const passErr = getPasswordError();
     if (passErr) return passErr;
     const confErr = getConfirmPasswordError();
@@ -99,7 +114,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
     setError('');
     try {
       await authService.resetPassword({
-        token,
+        token: token.trim(),
         newPassword: password,
         confirmPassword,
       });

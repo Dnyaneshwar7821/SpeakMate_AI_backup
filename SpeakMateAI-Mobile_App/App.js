@@ -258,18 +258,25 @@ function AppContent() {
 
 export default function App() {
   useEffect(() => {
-    const registerExpoUrl = async () => {
-      try {
-        if (typeof Linking.createURL === 'function') {
-          const url = Linking.createURL('/');
-          console.log('[Registering Expo URL with Backend]:', url);
-          await api.post('/api/users/register-expo-url', { url });
+    // Registering Expo developer URL is strictly for local development environments so that
+    // password reset email redirects reach the active local Expo development server.
+    // In production builds, custom schemes (speakmateai://) and universal links work natively.
+    if (__DEV__) {
+      const registerExpoUrl = async () => {
+        try {
+          if (typeof Linking.createURL === 'function') {
+            const url = Linking.createURL('/');
+            if (url && (url.startsWith('exp://') || url.startsWith('http://'))) {
+              console.log('[Dev Only] Registering local Expo URL with Backend:', url);
+              await api.post('/api/users/register-expo-url', { url });
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to register Expo dev URL with backend:', err?.message);
         }
-      } catch (err) {
-        console.warn('Failed to register Expo URL with backend:', err?.message);
-      }
-    };
-    registerExpoUrl();
+      };
+      registerExpoUrl();
+    }
   }, []);
 
   return (
