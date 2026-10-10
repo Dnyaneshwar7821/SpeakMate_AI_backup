@@ -1355,56 +1355,55 @@ export default function ConversationScreen({ navigation, route }) {
       }
     } else {
       // Fallback: stop audio recorder and transcribe via Whisper
+      const recorder = fallbackRecorderRef.current;
+      fallbackRecorderRef.current = null;
+      if (!recorder) {
+        setStatusText('Waiting for Response');
+        stoppingRef.current = false;
+        return;
+      }
+
+      let uri = null;
       try {
-        const recorder = fallbackRecorderRef.current;
-        fallbackRecorderRef.current = null;
-        if (!recorder) {
+        uri = await recorder.stop();
+        await VoiceRecorder.resetAudioMode();
+
+        if (!uri) {
           setStatusText('Waiting for Response');
           stoppingRef.current = false;
           return;
         }
 
-        let uri = null;
-        try {
-          uri = await recorder.stop();
-          await VoiceRecorder.resetAudioMode();
+        isSendingRef.current = true;
+        setLoading(true);
 
-          if (!uri) {
-            setStatusText('Waiting for Response');
-            stoppingRef.current = false;
-            return;
-          }
+        const stt = await speechService.speechToText({
+          uri,
+          name: 'recording.m4a',
+          type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+        });
 
-          isSendingRef.current = true;
-          setLoading(true);
-
-          const stt = await speechService.speechToText({
-            uri,
-            name: 'recording.m4a',
-            type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-          });
-
-          if (!stt || !stt.transcript || !stt.transcript.trim()) {
-            Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Tap mic and try speaking again.');
-            setStatusText('Waiting for Response');
-            return;
-          }
-
-          const userText = stt.transcript.trim();
-          await sendUserText(userText);
-        } catch (error) {
-          console.warn('Fallback audio sending failed:', error);
-          Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
+        if (!stt || !stt.transcript || !stt.transcript.trim()) {
+          Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Tap mic and try speaking again.');
           setStatusText('Waiting for Response');
-        } finally {
-          if (uri) {
-            deleteAudioFileAsync(uri).catch(() => {});
-          }
-          setLoading(false);
-          stoppingRef.current = false;
-          isSendingRef.current = false;
+          return;
         }
+
+        const userText = stt.transcript.trim();
+        await sendUserText(userText);
+      } catch (error) {
+        console.warn('Fallback audio sending failed:', error);
+        Alert.alert('Audio Processing Failed', 'Could not process audio. Please try again.');
+        setStatusText('Waiting for Response');
+      } finally {
+        if (uri) {
+          deleteAudioFileAsync(uri).catch(() => {});
+        }
+        setLoading(false);
+        stoppingRef.current = false;
+        isSendingRef.current = false;
       }
+    }
   };
 
   const handleToggleRecording = () => {

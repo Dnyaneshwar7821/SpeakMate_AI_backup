@@ -529,49 +529,48 @@ export function AssistantModal({
       }
     } else {
       // Fallback: stop audio recorder and transcribe via Whisper
+      const recorder = fallbackRecorderRef.current;
+      fallbackRecorderRef.current = null;
+      if (!recorder) {
+        stoppingRef.current = false;
+        return;
+      }
+
+      let uri = null;
       try {
-        const recorder = fallbackRecorderRef.current;
-        fallbackRecorderRef.current = null;
-        if (!recorder) {
+        uri = await recorder.stop();
+        await VoiceRecorder.resetAudioMode();
+
+        if (!uri) {
           stoppingRef.current = false;
           return;
         }
 
-        let uri = null;
-        try {
-          uri = await recorder.stop();
-          await VoiceRecorder.resetAudioMode();
+        isSendingRef.current = true;
+        const res = await speechService.speechToText({
+          uri,
+          name: 'assistant_voice.m4a',
+          type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
+        });
 
-          if (!uri) {
-            stoppingRef.current = false;
-            return;
-          }
-
-          isSendingRef.current = true;
-          const res = await speechService.speechToText({
-            uri,
-            name: 'assistant_voice.m4a',
-            type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-          });
-
-          if (res && res.transcript && res.transcript.trim()) {
-            const transcribed = res.transcript.trim();
-            setDraft(transcribed);
-            await handleSend(transcribed);
-          } else {
-            Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Please try speaking again.');
-          }
-        } catch (err) {
-          console.warn('[AssistantModal] Fallback audio processing error:', err);
-          Alert.alert('Voice Input Failed', 'Could not process audio.');
-        } finally {
-          if (uri) {
-            deleteAudioFileAsync(uri).catch(() => {});
-          }
-          stoppingRef.current = false;
-          isSendingRef.current = false;
+        if (res && res.transcript && res.transcript.trim()) {
+          const transcribed = res.transcript.trim();
+          setDraft(transcribed);
+          await handleSend(transcribed);
+        } else {
+          Alert.alert('Silence Detected 🤫', 'Could not hear any speech. Please try speaking again.');
         }
+      } catch (err) {
+        console.warn('[AssistantModal] Fallback audio processing error:', err);
+        Alert.alert('Voice Input Failed', 'Could not process audio.');
+      } finally {
+        if (uri) {
+          deleteAudioFileAsync(uri).catch(() => {});
+        }
+        stoppingRef.current = false;
+        isSendingRef.current = false;
       }
+    }
   };
 
   const startRecording = async () => {
